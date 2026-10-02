@@ -1,0 +1,136 @@
+import { useState } from 'react';
+import { StyleSheet, View } from 'react-native';
+import { useRouter } from 'expo-router';
+import { describeTieBreakerChain } from '@/domain/tournament/tiebreakers';
+import { plural } from '@/features/shared';
+import { SectionHeader, Separator, Text, space } from '@/ui';
+import { useTeamLibraryStore, useTournamentStore, useTournamentWizardStore, type TournamentWizardStep } from '@/stores';
+import { showError } from '../../hooks/toast';
+import { useLibraryLoaded } from '../../hooks/useLibrary';
+import { routes } from '../../routes';
+import { formatDateRange } from '../../selectors/dates';
+import { CHAMPION_MARK, stageNameMap, stageSummary } from '../../selectors/stages';
+import { WizardFrame } from './WizardFrame';
+
+function ReviewSection({ title, step, lines, testID }: { readonly title: string; readonly step: TournamentWizardStep; readonly lines: readonly string[]; readonly testID: string }) {
+  const router = useRouter();
+  return (
+    <View>
+      <SectionHeader
+        title={title}
+        action={{
+          label: 'Edit',
+          onPress: () => {
+            useTournamentWizardStore.getState().goTo(step);
+            router.push(routes.wizardStep(step));
+          },
+          testID: `${testID}-edit`,
+        }}
+      />
+      <View style={styles.lines} testID={testID}>
+        {lines.map((line, index) => (
+          <Text key={`${index}:${line}`} variant="callout">
+            {line}
+          </Text>
+        ))}
+      </View>
+      <Separator />
+    </View>
+  );
+}
+
+export function ReviewStepScreen() {
+  useLibraryLoaded();
+  const router = useRouter();
+  const library = useTeamLibraryStore((state) => state.teams);
+  const draft = useTournamentWizardStore((state) => state.draft);
+  const fixtureCount = useTournamentStore((state) =>
+    state.snapshot && state.snapshot.tournament.id === draft.tournamentId ? state.snapshot.fixtures.length : null,
+  );
+  const [busy, setBusy] = useState(false);
+  const names = new Map(library.map((team) => [team.id, team.name]));
+  const teamNames = draft.teams.map((team) => names.get(team.teamId) ?? 'Team');
+  const stages = [...draft.stages].sort((a, b) => a.orderIndex - b.orderIndex);
+  const stageNames = stageNameMap(stages);
+  const rules = draft.rules;
+  const meta = [formatDateRange(draft.info.startDate, draft.info.endDate), draft.info.organizer].filter((part): part is string => Boolean(part));
+  const assignmentLines =
+    draft.poolAssignment?.pools.map((pool) => `${pool.name}: ${pool.members.map((side) => (side.kind === 'team' ? names.get(side.teamId) ?? 'Team' : 'Slot')).join(', ')}`) ?? [];
+  const planCount = draft.fixturePlan?.fixtures.length ?? null;
+
+  const confirm = async () => {
+    setBusy(true);
+    useTournamentWizardStore.getState().goTo('review');
+    const tournamentId = await useTournamentWizardStore.getState().commit();
+    setBusy(false);
+    if (tournamentId === null) {
+      showError(useTournamentWizardStore.getState().error, "Couldn't confirm the tournament. Your setup is still saved.");
+      return;
+    }
+    useTournamentWizardStore.getState().reset();
+    router.replace(routes.dashboard(tournamentId));
+  };
+
+  return (
+    <WizardFrame step="review" nextLabel="Confirm tournament" nextTestID="twiz-btn-confirm-tournament" onNext={async () => {
+      await confirm();
+      return false;
+    }}>
+      <View style={styles.head}>
+        <Text variant="title2" testID="twiz-text-review-name">
+          {draft.info.season ? `${draft.info.name} ${draft.info.season}` : draft.info.name}
+        </Text>
+        {meta.length > 0 ? (
+          <Text variant="callout" tone="secondary">
+            {meta.join(' · ')}
+          </Text>
+        ) : null}
+      </View>
+      <Separator />
+      <ReviewSection
+        title={`Teams · ${draft.teams.length}`}
+        step="teams"
+        testID="twiz-review-teams"
+        lines={[teamNames.length > 4 ? `${teamNames.slice(0, 4).join(', ')}, +${teamNames.length - 4}` : teamNames.join(', ')]}
+      />
+      <ReviewSection
+        title="Format"
+        step="structure"
+        testID="twiz-review-format"
+        lines={stages.map((stage) => `${stage.name}: ${stageSummary(stage, draft.pools, stageNames)}${stage.config.decidesChampion ? ` · ${CHAMPION_MARK}` : ''}`)}
+      />
+      <ReviewSection
+        title="Rules"
+        step="rules"
+        testID="twiz-review-rules"
+        lines={
+          rules
+            ? [
+                `Win ${rules.pointsSystem.win} · Tie ${rules.pointsSystem.tie} · NR ${rules.pointsSystem.noResult} · Loss ${rules.pointsSystem.loss} · ${rules.nrr.mode === 'icc' ? 'ICC NRR' : 'NRR on actual overs'}`,
+                describeTieBreakerChain(rules.tieBreakers),
+                `${rules.defaultMatchRules.oversPerInnings} overs · ${rules.defaultMatchRules.playersPerSide} players per side`,
+              ]
+            : ['Default rules']
+        }
+      />
+      {assignmentLines.length > 0 ? <ReviewSection title="Pools" step="pools" testID="twiz-review-pools" lines={assignmentLines} /> : null}
+      <ReviewSection
+        title="Fixtures"
+        step="fixtures"
+        testID="twiz-review-fixtures"
+        lines={[
+          fixtureCount !== null && fixtureCount > 0
+            ? `${plural(fixtureCount, 'match', 'matches')} scheduled`
+            : planCount !== null
+              ? `${plural(planCount, 'match', 'matches')} in the first stage`
+              : 'No fixtures yet',
+        ]}
+      />
+    </WizardFrame>
+  );
+}
+
+const styles = StyleSheet.create({
+  head: { paddingHorizontal: space.md, paddingVertical: space.md, gap: space.xxs },
+  lines: { paddingHorizontal: space.md, paddingBottom: space.sm, gap: space.xxs },
+});

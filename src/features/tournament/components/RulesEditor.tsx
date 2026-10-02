@@ -1,0 +1,86 @@
+import { StyleSheet, View } from 'react-native';
+import type { NrrMode, PointsSystem, TieBreakerKind } from '@/domain/types';
+import { SectionHeader, SegmentedControl, Separator, Stepper, Text, space } from '@/ui';
+import { NRR_MODE_LABEL } from '../labels';
+import { TieBreakerChainEditor } from './TieBreakerChainEditor';
+
+export interface CompetitionRulesValue {
+  readonly pointsSystem: PointsSystem;
+  readonly nrrMode: NrrMode;
+  readonly tieBreakers: readonly TieBreakerKind[];
+}
+
+export interface RulesEditorProps {
+  readonly value: CompetitionRulesValue;
+  readonly onChange: (value: CompetitionRulesValue) => void;
+  readonly testIDPrefix?: string;
+}
+
+const POINT_FIELDS: readonly { readonly key: 'win' | 'tie' | 'noResult' | 'loss'; readonly label: string; readonly id: string }[] = [
+  { key: 'win', label: 'Win', id: 'win' },
+  { key: 'tie', label: 'Tie', id: 'tie' },
+  { key: 'noResult', label: 'No result', id: 'nr' },
+  { key: 'loss', label: 'Loss', id: 'loss' },
+];
+
+const NRR_HELP: { readonly [K in NrrMode]: string } = {
+  icc: 'A side bowled out is charged its full quota of overs.',
+  actual_overs: 'Only the overs actually faced count, even when bowled out.',
+};
+
+export function RulesEditor({ value, onChange, testIDPrefix = 'twiz' }: RulesEditorProps) {
+  const points = value.pointsSystem;
+  return (
+    <View>
+      <SectionHeader title="Points" />
+      <View style={styles.padded}>
+        {POINT_FIELDS.map((field) => (
+          <Stepper
+            key={field.key}
+            label={field.label}
+            value={points[field.key]}
+            min={0}
+            max={10}
+            onChange={(next) => onChange({ ...value, pointsSystem: { ...points, [field.key]: next } })}
+            testID={`${testIDPrefix}-input-points-${field.id}`}
+          />
+        ))}
+        <Text variant="label" tone="secondary">
+          A tie decided by a super over counts as
+        </Text>
+        <SegmentedControl
+          options={[
+            { value: 'win_loss', label: 'Win and loss', testID: `${testIDPrefix}-chip-superover-win` },
+            { value: 'tie', label: 'Tie', testID: `${testIDPrefix}-chip-superover-tie` },
+          ]}
+          value={points.superOverDecidedTie}
+          onChange={(superOverDecidedTie) => onChange({ ...value, pointsSystem: { ...points, superOverDecidedTie } })}
+          accessibilityLabel="A tie decided by a super over counts as"
+        />
+      </View>
+      <Separator />
+      <SectionHeader title="Net run rate" />
+      <View style={styles.padded}>
+        <SegmentedControl
+          options={[
+            { value: 'icc', label: 'ICC', accessibilityLabel: NRR_MODE_LABEL.icc, testID: `${testIDPrefix}-chip-nrr-icc` },
+            { value: 'actual_overs', label: 'Actual overs', accessibilityLabel: NRR_MODE_LABEL.actual_overs, testID: `${testIDPrefix}-chip-nrr-actual-overs` },
+          ]}
+          value={value.nrrMode}
+          onChange={(nrrMode) => onChange({ ...value, nrrMode })}
+          accessibilityLabel="Net run rate"
+        />
+        <Text variant="footnote" tone="secondary" testID={`${testIDPrefix}-text-nrr-help`}>
+          {NRR_HELP[value.nrrMode]}
+        </Text>
+      </View>
+      <Separator />
+      <SectionHeader title="Tie-breakers (in order)" />
+      <TieBreakerChainEditor chain={value.tieBreakers} onChange={(tieBreakers) => onChange({ ...value, tieBreakers })} testIDPrefix={testIDPrefix} />
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  padded: { paddingHorizontal: space.md, gap: space.sm },
+});

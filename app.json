@@ -22,7 +22,7 @@
       "package": "pk.harris.scorebook"
     },
     "web": {
-      "output": "static",
+      "output": "single",
       "favicon": "./assets/images/favicon.png"
     },
     "plugins": [
@@ -36,7 +36,8 @@
         }
       ],
       "expo-sqlite",
-      "expo-sharing"
+      "expo-sharing",
+      "expo-audio"
     ],
     "experiments": {
       "typedRoutes": true,
