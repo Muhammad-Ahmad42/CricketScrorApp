@@ -55,6 +55,7 @@ describe('StandingsScreen (§50, §51, §98)', () => {
       'accessibilityLabel',
       'Position 1, Lions, played 3, won 3, lost 0, no result 0, 6 points, net run rate plus 6.000. Qualified, mathematical. Knockouts as Pool A winners.',
     );
+    expect(screen.getByTestId('standings-row-a-4').props.accessibilityLabel).toContain('net run rate minus 6.000');
   });
 
   it('shows the rule, the tie-breaker chain and the tie-break explanation', async () => {

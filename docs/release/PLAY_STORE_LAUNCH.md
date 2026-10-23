@@ -25,7 +25,7 @@ Engineering:
 - [x] Upload key `C:\Users\User\.scorebook\scorebook-upload.jks` + `upload.properties` (outside the repo, wired by `plugins/withUploadSigning.js`). **Back both files up** — Play App Signing holds the real app-signing key; the upload key can only be reset through Google support.
 - [x] `versionCode 1` / `versionName 1.0.0`; signed `.aab` with all four ABIs: `android/app/build/outputs/bundle/release/app-release.aab` (copy in `.workflow/release/scorebook-1.0.0-1.aab`), upload certificate SHA-256 `19:A3:CD:4E:42:59:DC:64:A7:07:40:10:17:53:EE:61:00:C5:50:DD:DD:C6:55:A5:05:63:0C:AD:71:EF:BD:FA`.
 - [x] Android date/time picker dialogs themed to the app accent.
-- [x] `npx tsc --noEmit` clean, `npx jest` 4,573 tests green.
+- [x] `npx tsc --noEmit` clean, `npx jest` 4,590 tests green.
 - [ ] Release build on a real phone (Phase B, via the Play internal testing track).
 
 Also done: target API 36, R8 + resource shrinking, unused native modules removed (download ≈ 13.8 MB, was ≈ 26.5 MB), English-only resources, release build runtime-checked on an emulator.
@@ -35,7 +35,7 @@ Store / policy:
 - [x] Developer website: https://muhammadahmad42.github.io/
 - [x] Support email: meahmadkhanalone@gmail.com
 - [x] 512×512 Play icon and 1024×500 feature graphic: `docs/release/store-assets/` (rendered by `node scripts/brand/render-store.mjs`).
-- [ ] 8 captioned phone screenshots (1080×1920): raw captures in `docs/release/store-assets/raw/`, framed by `node scripts/brand/render-screenshots.mjs` into `docs/release/store-assets/screenshots/`. Demo data: `.workflow/release/store-demo-backup.json` (fictional player names).
+- [x] 8 captioned phone screenshots (1080×1920): raw captures in `docs/release/store-assets/raw/`, framed by `node scripts/brand/render-screenshots.mjs` into `docs/release/store-assets/screenshots/`. Demo data: `.workflow/release/store-demo-backup.json` (fictional player names).
 - [ ] Play Console forms: Data safety, content rating, target audience, ads declaration ("No ads"), app category, contact details (section 4 has the answers).
 
 ## 3. App Store Optimisation (ASO)

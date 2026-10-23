@@ -88,7 +88,7 @@ export function spokenNrr(text: string): string {
   if (text.startsWith('+')) {
     return `plus ${text.slice(1)}`;
   }
-  if (/^-\d/.test(text)) {
+  if (/^[-−]\d/.test(text)) {
     return `minus ${text.slice(1)}`;
   }
   if (text === '0.000') {
