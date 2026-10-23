@@ -358,8 +358,9 @@ describe('MatchRepository lists (history, resume prompt)', () => {
     const { repos } = await setup();
     await seedHistory(repos);
     await repos.matches.insert(buildMatch({ id: 'm1', teamAId: 'lio', teamBId: 'tig', status: 'live', createdAt: isoAt(600) }), squadsFor(lions, tigers));
-    await repos.events.append(goldenMatchEvents(golden));
-    const projection = goldenProjection(golden, { projectionVersion: 1, teamAId: 'lio', at: isoAt(1700), completed: true });
+    const playedGolden: GoldenMatchOptions = { ...golden, start: isoAt(600) };
+    await repos.events.append(goldenMatchEvents(playedGolden));
+    const projection = goldenProjection(playedGolden, { projectionVersion: 1, teamAId: 'lio', at: isoAt(1700), completed: true });
     await repos.matches.writeProjection(projection);
     const [latest] = await repos.matches.list({ sort: 'recent', limit: 1 });
     expect(latest).toEqual({
@@ -386,9 +387,32 @@ describe('MatchRepository lists (history, resume prompt)', () => {
       tournamentName: null,
       resumeDismissedAt: null,
       updatedAt: isoAt(1700),
+      startedAt: isoAt(601),
+      completedAt: isoAt(1700),
     });
     const cup = (await repos.matches.list({ tournamentId: 'cup' }))[0];
-    expect(cup).toMatchObject({ id: 'h3', tournamentId: 'cup', tournamentName: 'Spring Cup', innings: [] });
+    expect(cup).toMatchObject({ id: 'h3', tournamentId: 'cup', tournamentName: 'Spring Cup', innings: [], startedAt: null, completedAt: null });
+  });
+
+  it('orders recent and oldest by when a match was played, not when its row was created (wave-3 bug #5)', async () => {
+    const { repos } = await setup();
+    await repos.matches.insert(
+      buildMatch({ id: 'fixture', teamAId: 'lio', teamBId: 'tig', scheduledDate: '2026-05-09', createdAt: isoAt(100), updatedAt: isoAt(100) }),
+      squadsFor(lions, tigers),
+    );
+    await repos.matches.insert(buildMatch({ id: 'friendly', teamAId: 'lio', teamBId: 'tig', createdAt: isoAt(200), updatedAt: isoAt(200) }), squadsFor(lions, tigers));
+    await repos.matches.insert(buildMatch({ id: 'planned', teamAId: 'tig', teamBId: 'eag', createdAt: isoAt(300), updatedAt: isoAt(300), scheduledDate: '2026-05-20' }), []);
+    const fixtureGolden: GoldenMatchOptions = { ...golden, matchId: 'fixture', start: isoAt(5000) };
+    await repos.events.append(goldenMatchEvents(fixtureGolden));
+    await repos.matches.writeProjection(goldenProjection(fixtureGolden, { projectionVersion: 1, teamAId: 'lio', at: isoAt(6000), completed: true }));
+    const friendlyGolden: GoldenMatchOptions = { ...golden, matchId: 'friendly', idPrefix: 'fr-', start: isoAt(1000) };
+    await repos.events.append(goldenMatchEvents(friendlyGolden));
+    await repos.matches.writeProjection(goldenProjection(friendlyGolden, { projectionVersion: 1, teamAId: 'lio', at: isoAt(2000), completed: true }));
+    const ids = async (sort: 'recent' | 'oldest'): Promise<string[]> => (await repos.matches.list({ sort })).map((item) => item.id);
+    expect(await ids('recent')).toEqual(['fixture', 'friendly', 'planned']);
+    expect(await ids('oldest')).toEqual(['planned', 'friendly', 'fixture']);
+    const fixture = (await repos.matches.list({ sort: 'recent', limit: 1 }))[0];
+    expect(fixture).toMatchObject({ scheduledDate: '2026-05-09', startedAt: isoAt(5001), completedAt: isoAt(6000) });
   });
 
   it('filters by status, tournament, team and search, sorts and pages', async () => {

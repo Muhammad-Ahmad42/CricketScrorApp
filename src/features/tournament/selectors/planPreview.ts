@@ -98,6 +98,6 @@ export function parseTimes(text: string): readonly string[] | null {
   return times.length > 0 && times.every((time) => /^([01]\d|2[0-3]):[0-5]\d$/.test(time)) ? times : null;
 }
 
-export function schedulePlan(plan: FixturePlan, startDate: string, matchesPerDay: number, times: readonly string[]): FixturePlan {
-  return { ...plan, fixtures: scheduleSequential(plan.fixtures, { startDate, matchesPerDay, times }) };
+export function schedulePlan(plan: FixturePlan, startDate: string, matchesPerDay: number, times: readonly string[], venueIds: readonly string[] = []): FixturePlan {
+  return { ...plan, fixtures: scheduleSequential(plan.fixtures, { startDate, matchesPerDay, times, venueIds }) };
 }

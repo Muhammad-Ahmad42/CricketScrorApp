@@ -53,7 +53,7 @@ export async function applyProposedChange(
   const why = trimmedOrNull(options.reason);
   const reasonNeeded = options.reasonOptional !== true && (impact.requiresReason || options.previewed?.requiresReason === true);
   if (reasonNeeded && why === null) {
-    throw failure('CONFIRMATION_REQUIRED', 'Add a reason for this change. It is kept in the audit log.');
+    throw failure('CONFIRMATION_REQUIRED', 'Add a reason for this change.');
   }
   const planned = planChange(snapshot, change, impactContext);
   await persistPlan(ctx, repos, snapshot, options.adjustPlan === undefined ? planned : options.adjustPlan(planned), now);
@@ -105,7 +105,7 @@ export function createChangeOperations(ctx: ServiceContext): ChangeOperations {
         inTransaction(ctx, async (repos) => {
           const reason = trimmedOrNull(override.reason);
           if (reason === null) {
-            throw failure('CONFIRMATION_REQUIRED', 'Add a reason for this manual override. It is shown with the override.');
+            throw failure('CONFIRMATION_REQUIRED', 'Add a reason for this override.');
           }
           if (override.tournamentId !== tournamentId) {
             throw failure('VALIDATION', 'This override belongs to another tournament.');

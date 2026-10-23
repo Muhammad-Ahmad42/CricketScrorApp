@@ -1,7 +1,10 @@
 import { StyleSheet, View } from 'react-native';
 import type { TournamentId } from '@/domain/types';
-import { Banner, EmptyState, ListRow, Sheet, Text, space } from '@/ui';
+import { Banner, EmptyState, ListRow, Sheet, space } from '@/ui';
+import { BusyLine } from '../components/BusyLine';
+import { COPY } from '../copy';
 import type { TournamentTargetVM } from '../selectors/exportTargets';
+import { problemText } from '../selectors/problem';
 
 export type TournamentListState = 'loading' | 'ready' | 'failed';
 
@@ -16,46 +19,41 @@ export interface TournamentExportSheetProps {
 
 function Placeholder({ state, onRetry }: { readonly state: TournamentListState; readonly onRetry: () => void }) {
   if (state === 'loading') {
-    return (
-      <View style={styles.loading}>
-        <Text variant="body" tone="secondary" testID="backup-text-tournaments-loading">
-          Loading tournaments…
-        </Text>
-      </View>
-    );
+    return <BusyLine text={COPY.tournamentsLoading} testID="backup-text-tournaments-loading" />;
   }
   if (state === 'failed') {
+    const problem = problemText(COPY.tournamentsFailed);
     return (
       <Banner
         tone="danger"
-        message="Couldn't load your tournaments. Your data is safe."
-        action={{ label: 'Try again', onPress: onRetry, testID: 'backup-btn-tournaments-retry' }}
+        message={problem.headline}
+        supporting={problem.supporting}
+        action={{ label: COPY.tryAgain, onPress: onRetry, testID: 'backup-btn-tournaments-retry' }}
         testID="backup-banner-tournaments-error"
       />
     );
   }
-  return <EmptyState title="No tournaments yet" body="Tournaments you create appear here." testID="backup-text-no-tournaments" />;
+  return (
+    <View style={styles.empty}>
+      <EmptyState title={COPY.noTournaments} icon="trophy" testID="backup-text-no-tournaments" />
+    </View>
+  );
 }
 
 export function TournamentExportSheet({ visible, state, tournaments, onSelect, onRetry, onClose }: TournamentExportSheetProps) {
   return (
-    <Sheet
-      visible={visible}
-      title="Export a tournament"
-      subtitle="Saves the tournament with its teams, fixtures and matches."
-      onClose={onClose}
-      testID="sheet-backup-tournament"
-    >
+    <Sheet visible={visible} title="Export a tournament" onClose={onClose} testID="sheet-backup-tournament">
       {tournaments.length === 0 ? (
         <Placeholder state={state} onRetry={onRetry} />
       ) : (
-        tournaments.map((target) => (
+        tournaments.map((target, index) => (
           <ListRow
             key={target.id}
             title={target.title}
             subtitle={target.detail}
             trailing={{ kind: 'chevron' }}
             onPress={() => onSelect(target.id)}
+            separator={index < tournaments.length - 1}
             testID={target.testID}
           />
         ))
@@ -65,5 +63,5 @@ export function TournamentExportSheet({ visible, state, tournaments, onSelect, o
 }
 
 const styles = StyleSheet.create({
-  loading: { padding: space.md },
+  empty: { paddingBottom: space.xl },
 });

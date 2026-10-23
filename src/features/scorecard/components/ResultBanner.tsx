@@ -1,5 +1,5 @@
 import { StyleSheet, View } from 'react-native';
-import { Badge, BoundaryRule, Button, Text, space } from '@/ui';
+import { Badge, BoundaryRule, Button, Text, space, useGutter } from '@/ui';
 import type { ScorecardHeaderVM } from '../selectors/header';
 
 export interface ResultBannerProps {
@@ -8,8 +8,9 @@ export interface ResultBannerProps {
 }
 
 export function ResultBanner({ vm, onTournament }: ResultBannerProps) {
+  const gutter = useGutter();
   return (
-    <View style={styles.root} testID="scorecard-header">
+    <View style={[styles.root, { paddingHorizontal: gutter }]} testID="scorecard-header">
       {vm.isLive ? <Badge label={vm.statusLabel} tone={vm.statusLabel === 'Paused' ? 'paused' : 'live'} /> : null}
       <Text variant="title2" accessibilityRole="header" testID="scorecard-result">
         {vm.resultLine}
@@ -33,7 +34,7 @@ export function ResultBanner({ vm, onTournament }: ResultBannerProps) {
 }
 
 const styles = StyleSheet.create({
-  root: { paddingHorizontal: space.md, paddingTop: space.md, gap: space.xxs },
-  link: { alignItems: 'flex-start' },
+  root: { paddingTop: space.md, gap: space.xxs },
+  link: { alignItems: 'flex-start', marginLeft: -space.sm },
   rule: { marginTop: space.sm },
 });

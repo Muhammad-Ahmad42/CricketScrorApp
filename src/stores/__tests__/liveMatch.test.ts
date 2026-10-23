@@ -128,6 +128,55 @@ describe('useLiveMatchStore', () => {
     expect(audit?.map((entry) => entry.action)).toEqual(['match_history_edited']);
   });
 
+  it('publishes an edit conflict with its resolutions and applies exactly the previewed ops (wave-3 bug #2)', async () => {
+    await store().dispatch(scoreRuns(1));
+    await store().dispatch(scoreRuns(0));
+    await store().dispatch(wicket({ dismissal: 'bowled', nextBatterId: world.lions.p(3) }));
+    const first = store().live?.events.find((entry) => entry.kind === 'delivery');
+    if (first === undefined || first.kind !== 'delivery' || first.call === 'wide') {
+      throw new Error('delivery expected');
+    }
+    const ops = [{ op: 'replace' as const, seq: first.seq, with: [{ kind: 'delivery' as const, strikerId: first.strikerId, nonStrikerId: first.nonStrikerId, bowlerId: first.bowlerId, runsRun: 0, shortRuns: 0, boundary: 0 as const, wicket: null, call: 'fair' as const, runsTo: 'bat' as const }] }];
+    expect(await store().previewHistoryEdit(ops)).toBeNull();
+    const conflict = store().editConflict;
+    expect(conflict?.code).toBe('DISMISSED_PLAYER_NOT_AT_CREASE');
+    expect(conflict?.ballLabel).toBe('0.3');
+    expect(store().error).toMatchObject({ code: 'VALIDATION', message: conflict?.message, domainCode: 'DISMISSED_PLAYER_NOT_AT_CREASE' });
+    const keep = conflict?.resolutions.find((resolution) => resolution.kind === 'keep_strike');
+    if (keep === undefined) {
+      throw new Error('keep_strike expected');
+    }
+    store().clearError();
+    expect(store().editConflict).toEqual(conflict);
+    const preview = await store().previewHistoryEdit(keep.ops);
+    expect(store().editConflict).toBeNull();
+    if (preview === null) {
+      throw new Error('preview expected');
+    }
+    expect(preview.ops).toEqual(keep.ops);
+    expect(await store().applyHistoryEdit(ops, null, preview)).toBe(true);
+    const batting = store().live?.state.innings[0].batting ?? [];
+    expect(batting.find((row) => row.playerId === world.lions.p(2))?.status).toBe('out');
+    expect(batting.find((row) => row.playerId === world.lions.p(1))?.runs).toBe(0);
+    expect(store().live?.state.innings[0].runs).toBe(0);
+  });
+
+  it('clearEditConflict dismisses the conflict and its error together', async () => {
+    await store().dispatch(scoreRuns(1));
+    await store().dispatch(scoreRuns(0));
+    await store().dispatch(wicket({ dismissal: 'bowled', nextBatterId: world.lions.p(3) }));
+    const first = store().live?.events.find((entry) => entry.kind === 'delivery');
+    if (first === undefined || first.kind !== 'delivery' || first.call === 'wide') {
+      throw new Error('delivery expected');
+    }
+    const ops = [{ op: 'replace' as const, seq: first.seq, with: [{ kind: 'delivery' as const, strikerId: first.strikerId, nonStrikerId: first.nonStrikerId, bowlerId: first.bowlerId, runsRun: 0, shortRuns: 0, boundary: 0 as const, wicket: null, call: 'fair' as const, runsTo: 'bat' as const }] }];
+    expect(await store().previewHistoryEdit(ops)).toBeNull();
+    expect(store().editConflict).not.toBeNull();
+    store().clearEditConflict?.();
+    expect(store().editConflict).toBeNull();
+    expect(store().error).toBeNull();
+  });
+
   it('manages squad, details, toss and rules through the queue', async () => {
     expect(await store().addSquadPlayer(world.lions.team.id, { newPlayer: { name: 'Fresh Face' } }, { isSubstitute: true })).toBe(true);
     expect(store().live?.setup.players.some((player) => player.name === 'Fresh Face' && player.isSubstitute)).toBe(true);

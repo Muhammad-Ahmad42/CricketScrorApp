@@ -1,16 +1,54 @@
 export {
   TabBar,
   TAB_BAR_HEIGHT,
+  TAB_BAR_TOP,
   TAB_BAR_PADDING,
-  TAB_BAR_MAX_WIDTH,
   TAB_BAR_GAP,
+  TAB_BAR_FADE,
+  TAB_BAR_MAX_WIDTH,
+  TAB_BAR_TEST_ID,
+  TAB_EDGE_TEST_ID,
+  TAB_ICON_SIZE,
+  TAB_ICON_TOP,
+  TAB_LABEL_GAP,
+  LIQUID_TEST_ID,
+  POCKET_TEST_ID,
+  LIQUID_HEAD_TIMING,
+  LIQUID_TAIL_TIMING,
   floatingTabBarMetrics,
+  narrowestSlot,
+  tabBarMetrics,
+  tabBarTucked,
+  slotCenter,
+  tabPressedStyle,
+  TAB_LABEL_MAX_SCALE,
   type FloatingTabBarMetrics,
+  type TabBarMetrics,
   type TabBarItem,
   type TabBarProps,
 } from './TabBar';
+export {
+  LIQUID_BOTTOM,
+  LIQUID_CENTER_Y,
+  LIQUID_DEPTH,
+  LIQUID_FILLET,
+  LIQUID_HALF_WIDTH,
+  LIQUID_ICON_SIZE,
+  LIQUID_MIN_HALF_WIDTH,
+  LIQUID_PARKED_PATH,
+  dropletOutline,
+  ellipsePath,
+  inkCoverage,
+  liquidGeometry,
+  liquidHalfWidth,
+  liquidPaths,
+  liquidStretch,
+  type DropletShape,
+  type LiquidGeometry,
+  type LiquidPaths,
+} from './liquid';
 export { TabChrome, tabChromeBottom, type TabChromeProps } from './TabChrome';
-export { RouterTabBar, tabBarItems } from './RouterTabBar';
+export { RouterTabBar, tabBarItems, type RouterTabBarProps } from './RouterTabBar';
 export { TAB_ITEMS, tabConfigFor, type TabConfig, type TabRoute } from './tabs';
 export { navigationTheme } from './navigationTheme';
 export {

@@ -19,6 +19,7 @@ import type { ChangePreview, FixturePlan } from '@/services/contracts';
 import type { Toast, TournamentWizardDraft } from '@/stores/contracts';
 import { renderWithTheme } from '@/ui/testing';
 import { sourceTree } from '../../../__tests__/sourceTree';
+import { cellTextWidth, contentWidth } from '../components/StandingsTable';
 import { DashboardScreen } from '../screens/DashboardScreen';
 import { FixtureDetailScreen } from '../screens/FixtureDetailScreen';
 import { ManageTournamentScreen } from '../screens/ManageTournamentScreen';
@@ -36,6 +37,7 @@ import { TeamsStepScreen } from '../screens/wizard/TeamsStepScreen';
 import { tournamentIndex } from '../selectors/names';
 import { editPolicy } from '../selectors/policy';
 import { libraryTeams, liveWizard, loadTournament, previewOf, resetAll } from './support/harness';
+import { pickDate } from './support/pickers';
 import {
   useBackupStore,
   useExportStore,
@@ -257,7 +259,7 @@ describe('Wizard: step validation and progressive save (§25, §65)', () => {
     expect(screen.getByTestId('twiz-btn-tiebreaker-up-2')).toBeDisabled();
     await fireEvent.press(screen.getByTestId('twiz-btn-tiebreaker-remove-2'));
     expect(useTournamentWizardStore.getState().draft.rules?.tieBreakers[0]).toBe('points');
-    expect(screen.getByTestId('twiz-text-tiebreak-chain')).toHaveTextContent(/^Points → /);
+    expect(screen.getByTestId('twiz-text-tiebreaker-1')).toHaveTextContent('Points');
   });
 
   it('virtualises the wizard team list for 128 teams (§27)', async () => {
@@ -280,8 +282,9 @@ describe('Wizard pools: seeds, the replace warning and undo (§30–§32)', () =
   }
 
   async function drawWithSeed(seed: string, confirm: boolean) {
+    await fireEvent.press(screen.getByTestId('twiz-btn-repeat-draw'));
     await fireEvent.changeText(screen.getByTestId('twiz-input-pool-seed'), seed);
-    await fireEvent.press(screen.getByTestId('twiz-btn-pools-random'));
+    await fireEvent.press(screen.getByTestId('twiz-btn-repeat-draw-confirm'));
     if (confirm) {
       expect(screen.getByTestId('twiz-text-replace-warning')).toHaveTextContent('Current pool arrangement will be replaced.');
       await fireEvent.press(screen.getByTestId('dialog-btn-confirm'));
@@ -314,12 +317,12 @@ describe('Wizard pools: seeds, the replace warning and undo (§30–§32)', () =
   it('after Restore, the seed shown is the seed of the arrangement on screen, not of the discarded draw', async () => {
     await renderPools();
     await drawWithSeed('111', false);
-    expect(screen.getByTestId('twiz-text-pool-seed')).toHaveTextContent('Random draw · seed 111');
+    expect(screen.getByTestId('twiz-text-pool-seed')).toHaveTextContent('Random draw · no. 111');
     await drawWithSeed('222', true);
-    expect(screen.getByTestId('twiz-text-pool-seed')).toHaveTextContent('Random draw · seed 222');
+    expect(screen.getByTestId('twiz-text-pool-seed')).toHaveTextContent('Random draw · no. 222');
     await fireEvent.press(screen.getByTestId('twiz-btn-restore-pools'));
     expect(useTournamentWizardStore.getState().draft.poolAssignment?.seed).toBe(111);
-    expect(screen.queryByText(/seed 222/)).toBeNull();
+    expect(screen.queryByText(/no\. 222/)).toBeNull();
   });
 
   it('drops the "Restore previous arrangement" link once the organizer makes the next change (USER_FLOWS 4.2 step 5)', async () => {
@@ -338,7 +341,7 @@ describe('Wizard pools: seeds, the replace warning and undo (§30–§32)', () =
     await drawWithSeed('847291', false);
     await fireEvent.press(screen.getByTestId('twiz-row-pool-a-1'));
     await fireEvent.press(screen.getByTestId('pools-btn-target-b'));
-    expect(screen.queryByText('Random draw · seed 847291')).toBeNull();
+    expect(screen.queryByText('Random draw · no. 847291')).toBeNull();
     expect(useTournamentWizardStore.getState().draft.poolAssignment?.seed).toBeNull();
   });
 
@@ -358,7 +361,7 @@ describe('Wizard pools: seeds, the replace warning and undo (§30–§32)', () =
     await renderPools(TEN);
     await fireEvent(screen.getByTestId('twiz-input-pool-count'), 'accessibilityAction', { nativeEvent: { actionName: 'increment' } });
     expect(screen.getByTestId('twiz-text-pool-sizes')).toHaveTextContent('4 · 3 · 3');
-    expect(screen.getByTestId('twiz-text-uneven-warning')).toHaveTextContent('Teams in different pools may play different numbers of matches.');
+    expect(screen.getByTestId('twiz-text-uneven-warning-text-headline')).toHaveTextContent('Uneven pools');
   });
 
   it('does not show the uneven warning for two even pools filled by hand (E2E-06)', async () => {
@@ -456,6 +459,7 @@ describe('Pools editor after fixtures: impact before apply (§33, §34, §99)', 
     useTournamentStore.setState({ previewChange, applyChange });
     await renderWithTheme(<PoolsScreen tournamentId="t1" />);
     await fireEvent.press(screen.getByTestId('pools-btn-redraw'));
+    await fireEvent.press(screen.getByTestId('pools-btn-repeat-draw'));
     await fireEvent.changeText(screen.getByTestId('pools-input-seed'), '847291');
     await fireEvent.press(screen.getByTestId('pools-btn-draw'));
     expect(screen.getByTestId('pools-text-replace-warning')).toHaveTextContent('Current pool arrangement will be replaced.');
@@ -509,7 +513,7 @@ describe('Pools editor after fixtures: impact before apply (§33, §34, §99)', 
     expect(screen.getByTestId('impact-btn-continue')).toBeDisabled();
   });
 
-  it('lists every removed and created fixture as an impact-row-<n> line with + / − glyphs (E2E plan §3.1, E2E-08)', async () => {
+  it('lists every removed and created fixture as an impact-row-<n> line with an icon and a worded change (E2E plan §3.1, E2E-08)', async () => {
     loadTournament(cupSnapshot());
     useTournamentStore.setState({ previewChange: realPreview() });
     await renderWithTheme(<PoolsScreen tournamentId="t1" />);
@@ -517,9 +521,12 @@ describe('Pools editor after fixtures: impact before apply (§33, §34, §99)', 
     await fireEvent.press(screen.getByTestId('pools-btn-move'));
     await fireEvent.press(screen.getByTestId('pools-target-row-1'));
     await waitFor(() => expect(screen.getByTestId('sheet-impact')).toBeOnTheScreen());
+    expect(screen.queryByTestId('impact-row-1')).toBeNull();
+    await fireEvent.press(screen.getByTestId('impact-btn-details'));
     const sheet = screen.getByTestId('sheet-impact');
-    expect(within(sheet).getAllByText('−')).toHaveLength(3);
-    expect(within(sheet).getAllByText('+')).toHaveLength(4);
+    expect(within(sheet).getAllByText('Removed')).toHaveLength(3);
+    expect(within(sheet).getAllByText('New fixture')).toHaveLength(4);
+    expect(within(sheet).queryByText('~')).not.toBeOnTheScreen();
     expect(screen.getByTestId('impact-row-1')).toBeOnTheScreen();
     expect(screen.getByTestId('impact-row-7')).toBeOnTheScreen();
   });
@@ -568,7 +575,7 @@ describe('Fixtures: preview before confirm, and edits once results exist (§36, 
     await fireEvent.changeText(screen.getByTestId('schedule-input-date'), '2026-09-13');
     await fireEvent.press(screen.getByTestId('schedule-btn-save'));
     expect(screen.getByText('Not saved yet')).toBeOnTheScreen();
-    expect(screen.getByTestId('twiz-btn-next')).toBeDisabled();
+    expect(screen.queryByTestId('twiz-btn-next')).not.toBeOnTheScreen();
     expect(screen.getByTestId('twiz-btn-confirm-fixtures')).toBeEnabled();
     await fireEvent.press(screen.getByTestId('twiz-btn-confirm-fixtures'));
     await waitFor(() => expect(useTournamentWizardStore.getState().saveStep).toHaveBeenCalledTimes(2));
@@ -598,7 +605,7 @@ describe('Fixtures: preview before confirm, and edits once results exist (§36, 
     for (const id of ['fixture-btn-edit', 'fixture-btn-swap-sides', 'fixture-btn-postpone', 'fixture-btn-cancel', 'fixture-btn-start-match']) {
       expect(screen.queryByTestId(id)).toBeNull();
     }
-    expect(screen.getByText(/Played fixtures keep their date and teams/)).toBeOnTheScreen();
+    expect(screen.getByTestId('fixture-text-locked')).toHaveTextContent('Fix results from the scorecard.');
   });
 
   it('shows WHAT WILL CHANGE (or requires a reason) before rescheduling a replay of an abandoned match with recorded data (§99, §55)', async () => {
@@ -633,12 +640,12 @@ describe('Fixtures: preview before confirm, and edits once results exist (§36, 
     useTournamentStore.setState({ previewChange });
     await renderWithTheme(<FixtureDetailScreen tournamentId="t1" fixtureId={target.id} />);
     await fireEvent.press(screen.getByTestId('fixture-btn-reschedule'));
-    await fireEvent.changeText(screen.getByTestId('schedule-input-date'), '2026-09-30');
+    await pickDate('schedule-input-date', '2026-09-30');
     await fireEvent.press(screen.getByTestId('schedule-btn-save'));
     const updateFixture = useTournamentStore.getState().updateFixture;
     const reasonless = jest.mocked(updateFixture).mock.calls.filter(([, , reason]) => reason === null);
     expect(reasonless).toHaveLength(0);
-    expect(screen.getByTestId('schedule-text-replay')).toHaveTextContent(/abandoned with recorded scores/);
+    expect(screen.getByTestId('schedule-text-replay')).toHaveTextContent(/The abandoned match stays in history/);
     expect(screen.getByTestId('schedule-btn-save')).toBeDisabled();
     await fireEvent.changeText(screen.getByTestId('schedule-input-reason'), 'Replay agreed by both captains');
     await fireEvent.press(screen.getByTestId('schedule-btn-save'));
@@ -673,7 +680,7 @@ describe('Standings render the evaluation, not their own maths (§42, §50, §51
     useTournamentStore.setState({
       evaluation: doctorRows(data.evaluation, (row) => {
         if ((row.teamId === 'LIO' || (POOL_B_IDS as readonly string[]).includes(row.teamId ?? '')) && row.qualification) {
-          return { ...row, qualification: { ...row.qualification, explanation } };
+          return { ...row, qualification: { ...row.qualification, explanation, note: explanation, headline: explanation } };
         }
         if (row.teamId === 'TIG') {
           return { ...row, tieBreak: { separatedBy: 'nrr', aboveTeamId: 'EAG', detail: note } };
@@ -683,10 +690,11 @@ describe('Standings render the evaluation, not their own maths (§42, §50, §51
     });
     const view = await renderWithTheme(<StandingsScreen tournamentId="t1" />);
     expect(screen.getByTestId('standings-text-qual-a-1')).toHaveTextContent(explanation, { exact: true });
+    await fireEvent.press(screen.getByTestId('standings-btn-tiebreaks'));
     expect(screen.getByTestId('standings-text-tiebreak-a-2')).toHaveTextContent(note, { exact: true });
     await view.unmount();
     await renderWithTheme(<DashboardScreen tournamentId="t1" />);
-    expect(screen.getByTestId('dash-text-qualification')).toHaveTextContent(explanation, { exact: true });
+    expect(screen.getByTestId('dash-text-qualification')).toHaveTextContent(`: ${explanation}`, { exact: false });
   });
 
   it('inserts the T column after L only when a row has a tie, and shows shared positions as "=2"', async () => {
@@ -802,11 +810,15 @@ describe('Standings render the evaluation, not their own maths (§42, §50, §51
     expect(calls).toEqual([]);
   });
 
-  it('sizes the standings columns from the design-system table widths (DESIGN_SYSTEM §6.5: counts 32, NRR 64)', async () => {
+  it('sizes the standings numeric columns from their content (Android QA wave 4)', async () => {
     loadTournament(playGroups(cupSnapshot(), 6));
     await renderWithTheme(<StandingsScreen tournamentId="t1" />);
-    expect(ancestorWidth(screen.getByTestId('standings-cell-a-1-p'))).toBe(32);
-    expect(ancestorWidth(screen.getByTestId('standings-cell-a-1-nrr'))).toBe(64);
+    const { fontScale } = Dimensions.get('window');
+    const nrrValues = [1, 2, 3, 4].map((n) => String(screen.getByTestId(`standings-cell-a-${n}-nrr`).props.children));
+    const nrrWidth = ancestorWidth(screen.getByTestId('standings-cell-a-1-nrr')) ?? 0;
+    expect(nrrWidth).toBe(contentWidth('NRR', nrrValues, fontScale));
+    expect(nrrWidth).toBeGreaterThanOrEqual(Math.max(...nrrValues.map((value) => cellTextWidth(value, 'tableNumeric', fontScale))));
+    expect(ancestorWidth(screen.getByTestId('standings-cell-a-1-p'))).toBeGreaterThanOrEqual(cellTextWidth('P', 'label', fontScale));
   });
 
   it('scrolls the standings table horizontally at large font scales (W-D2 "Large text", RESPONSIVE §5)', async () => {
@@ -875,8 +887,8 @@ describe('Bracket with a non-power-of-two field (§46)', () => {
   it('gives byes to the top three seeds of a five-team knockout and labels each bye box', async () => {
     loadTournament(knockoutSnapshot(5));
     await renderWithTheme(<BracketScreen tournamentId="t1" />);
-    expect(screen.getAllByText('Bye: straight through to the next round')).toHaveLength(3);
-    expect(screen.getByTestId('bracket-text-byes')).toHaveTextContent('Byes: Seed 1, Seed 2 and Seed 3 go straight through to the next round.');
+    expect(screen.getAllByText('Bye: straight through')).toHaveLength(3);
+    expect(screen.queryByTestId('bracket-text-byes')).toBeNull();
     const byeBoxes = [0, 1, 2, 3]
       .map((position) => screen.getByTestId(`bracket-row-1-${position}`))
       .filter((box) => /has a bye/.test(String(box.props.accessibilityLabel)));
@@ -884,7 +896,10 @@ describe('Bracket with a non-power-of-two field (§46)', () => {
     for (const box of byeBoxes) {
       expect(box.props.accessibilityRole).toBe('text');
     }
-    expect(screen.getAllByText(/Seed 4 v Seed 5|Seed 5 v Seed 4/)).toHaveLength(1);
+    const seededPair = [0, 1, 2, 3]
+      .map((position) => String(screen.getByTestId(`bracket-row-1-${position}`).props.accessibilityLabel))
+      .filter((label) => /Seed 4/.test(label) && /Seed 5/.test(label));
+    expect(seededPair).toHaveLength(1);
   });
 
   it('draws a twelve-team knockout as a 16-slot first round with four byes and a quarterfinal column', async () => {
@@ -892,10 +907,9 @@ describe('Bracket with a non-power-of-two field (§46)', () => {
     await renderWithTheme(<BracketScreen tournamentId="t1" />);
     const firstRound = Array.from({ length: 8 }, (_, position) => screen.getByTestId(`bracket-row-1-${position}`));
     expect(firstRound.filter((box) => /has a bye/.test(String(box.props.accessibilityLabel)))).toHaveLength(4);
-    const byeNote = textOf(screen.getByTestId('bracket-text-byes'));
-    expect(byeNote).toMatch(/^Byes: .* go straight through to the next round\.$/);
-    expect(['Seed 1', 'Seed 2', 'Seed 3', 'Seed 4'].every((name) => byeNote.includes(name))).toBe(true);
-    expect(byeNote).not.toMatch(/Seed (5|6|7|8|9|10|11|12)/);
+    const byeLabels = firstRound.map((box) => String(box.props.accessibilityLabel)).filter((label) => /has a bye/.test(label));
+    expect(['Seed 1', 'Seed 2', 'Seed 3', 'Seed 4'].every((name) => byeLabels.some((label) => label.startsWith(`${name} has a bye`)))).toBe(true);
+    expect(byeLabels.some((label) => /^Seed (5|6|7|8|9|10|11|12) has a bye/.test(label))).toBe(false);
     expect(screen.getByTestId('bracket-row-2-3')).toBeOnTheScreen();
     expect(screen.queryByTestId('bracket-row-1-8')).toBeNull();
   });
@@ -947,7 +961,10 @@ describe('Bracket with a non-power-of-two field (§46)', () => {
     expect(byeTexts).toHaveLength(2);
     expect(byeTexts.join(' ')).toMatch(/A1/);
     expect(byeTexts.join(' ')).toMatch(/B1/);
-    expect(screen.getAllByText(/^(A2|B2|A3|B3) v (A2|B2|A3|B3)$/)).toHaveLength(2);
+    const slotMatches = [0, 1, 2, 3]
+      .map((position) => String(screen.getByTestId(`bracket-row-1-${position}`).props.accessibilityLabel))
+      .filter((label) => !/has a bye/.test(label) && /(A2|B2|A3|B3)\b.*\b(A2|B2|A3|B3)\b/.test(label));
+    expect(slotMatches).toHaveLength(2);
   });
 });
 
@@ -1029,7 +1046,7 @@ describe('What if: simulation only (§48)', () => {
     const result = screen.getByTestId('whatif-result');
     expect(within(result).getByText('77')).toBeOnTheScreen();
     expect(within(result).getByText('+7.777')).toBeOnTheScreen();
-    expect(screen.getByTestId('whatif-text-banner')).toHaveTextContent('Simulation only. Nothing in the tournament changes.');
+    expect(screen.getByTestId('whatif-text-banner')).toHaveTextContent('Simulation only · nothing is saved');
   });
 
   it('reports a failed simulation in plain words and shows no outcome', async () => {
@@ -1050,7 +1067,7 @@ describe('What if: simulation only (§48)', () => {
 });
 
 describe('Dashboard (§49, §80)', () => {
-  it('shows "24/48", the current stage and the earliest fixture whose sides are known as the next match', async () => {
+  it('shows the current stage count, the overall count and the earliest fixture whose sides are known as the next match', async () => {
     const base = cupSnapshot();
     const knockout = orderedStages(base)[1];
     const snapshot: TournamentSnapshot = {
@@ -1068,7 +1085,8 @@ describe('Dashboard (§49, §80)', () => {
     const data = loadTournament(snapshot);
     useTournamentStore.setState({ evaluation: { ...data.evaluation, progress: { done: 24, total: 48 } } });
     await renderWithTheme(<DashboardScreen tournamentId="t1" />);
-    expect(screen.getByTestId('dash-text-progress')).toHaveTextContent('24/48');
+    expect(screen.getByTestId('dash-text-progress')).toHaveTextContent('0 of 12 played');
+    expect(screen.getByTestId('dash-text-progress-detail')).toHaveTextContent(/^24 of 48 overall/);
     expect(screen.getByTestId('dash-text-stage')).toHaveTextContent('Group Stage');
     const next = screen.getByTestId('dash-row-next-match');
     expect(within(next).getByTestId('dash-next-row-3')).toBeOnTheScreen();

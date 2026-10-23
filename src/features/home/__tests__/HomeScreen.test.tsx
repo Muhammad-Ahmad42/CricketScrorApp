@@ -6,10 +6,11 @@ import type { MatchListItem } from '@/domain/types';
 import { fakeApp, fakeHistory, fakeHome, fakeSetup, fakeWizard } from '@/features/scoring/__tests__/support/fakes';
 import { completedItem, listItem, tournamentItem } from '@/features/scoring/__tests__/support/listItems';
 import { renderScreen, resetCommonStores } from '@/features/scoring/__tests__/support/render';
-import { HomeScreen, greetingFor } from '../screens/HomeScreen';
+import { HomeScreen, greetingFor, shouldCollapseNewMatch } from '../screens/HomeScreen';
 import { resetResumeSession } from '../resumeSession';
 import { setHourSource } from '../clock';
 import { mockStores } from '@/features/scoring/__tests__/support/storeModule';
+import { withWindow } from '@/ui/testing';
 
 const { useAppStore, useHomeStore, useMatchHistoryStore, useMatchSetupStore, useToastStore, useTournamentWizardStore } = mockStores();
 
@@ -27,6 +28,19 @@ describe('HomeScreen', () => {
     useTournamentWizardStore.setState(fakeWizard(), true);
     useMatchHistoryStore.setState(fakeHistory(), true);
     jest.clearAllMocks();
+  });
+
+  it('collapses the New match button to an icon only on short screens once the list scrolls', () => {
+    expect(shouldCollapseNewMatch(640, true)).toBe(true);
+    expect(shouldCollapseNewMatch(640, false)).toBe(false);
+    expect(shouldCollapseNewMatch(844, true)).toBe(false);
+  });
+
+  it('states what a chasing side needs on the Continue card', async () => {
+    useHomeStore.setState(fakeHome({ resumable: [listItem({ chase: { runsRequired: 27, ballsRemaining: 20 } })] }), true);
+    await renderScreen(<HomeScreen />);
+    expect(screen.getByTestId('home-continue-m-live-detail')).toHaveTextContent(/^Need 27 off 20 · /);
+    expect(screen.getByTestId('home-continue-m-live').props.accessibilityLabel).toMatch(/Need 27 from 20 balls/);
   });
 
   it('greets by time of day', () => {
@@ -53,6 +67,26 @@ describe('HomeScreen', () => {
     expect(router.push).toHaveBeenCalledWith('/tournament/new');
   });
 
+  it('keeps the first-run state to a title, one short line and the tournament action', async () => {
+    await renderScreen(<HomeScreen />);
+    const firstRun = screen.getByTestId('home-first-run');
+    expect(within(firstRun).getByText('Score your first match')).toBeOnTheScreen();
+    expect(within(firstRun).getByText('Tap New match to get started.')).toBeOnTheScreen();
+    expect(within(firstRun).queryByText(/internet|account/i)).not.toBeOnTheScreen();
+  });
+
+  it('splits matches and tournaments into two panes on wide screens only', async () => {
+    useHomeStore.setState(fakeHome({ resumable: [listItem()], recent: [completedItem()], tournaments: [tournamentItem()] }), true);
+    const phone = await renderScreen(<HomeScreen />);
+    expect(screen.queryByTestId('home-panes')).not.toBeOnTheScreen();
+    await phone.unmount();
+    await withWindow({ width: 1024, height: 768 }, async () => {
+      await renderScreen(<HomeScreen />);
+      expect(within(screen.getByTestId('home-panes-primary')).getByTestId('home-continue')).toBeOnTheScreen();
+      expect(within(screen.getByTestId('home-panes-secondary')).getByTestId('home-tournaments')).toBeOnTheScreen();
+    });
+  });
+
   it('starts a new match from a reset draft with the default format', async () => {
     await renderScreen(<HomeScreen />);
     await fireEvent.press(screen.getByTestId('home-btn-new-match'));
@@ -74,13 +108,25 @@ describe('HomeScreen', () => {
     expect(screen.getByTestId('home-continue-m-live')).toHaveProp('accessibilityLabel', 'Pakistan XI v Lions · 20 ov, Live, Pakistan XI 142/4 after 16.4 overs, Lions yet to bat');
     expect(screen.getByText('Lions won by 5 wickets (12 balls left)')).toBeOnTheScreen();
     expect(screen.getByText('TIG 168/7 (20) · LIO 169/5 (18)')).toBeOnTheScreen();
-    expect(screen.getByText('Active · 24/48')).toBeOnTheScreen();
+    expect(screen.getByText('Active · 24 of 48 played')).toBeOnTheScreen();
     await fireEvent.press(screen.getByTestId('home-continue-m-live-resume'));
     expect(router.push).toHaveBeenCalledWith({ pathname: '/match/[matchId]/score', params: { matchId: 'm-live' } });
     await fireEvent.press(screen.getByTestId('home-recent-m-done'));
     expect(router.push).toHaveBeenCalledWith({ pathname: '/match/[matchId]/scorecard', params: { matchId: 'm-done' } });
     await fireEvent.press(screen.getByTestId('home-tournament-t-1'));
     expect(router.push).toHaveBeenCalledWith({ pathname: '/tournament/[tournamentId]', params: { tournamentId: 't-1' } });
+  });
+
+  it('keeps each Continue card a single touch target without a nested Resume button', async () => {
+    useHomeStore.setState(fakeHome({ resumable: [listItem(), listItem({ id: 'm-two' })] }), true);
+    await renderScreen(<HomeScreen />);
+    for (const id of ['m-live', 'm-two']) {
+      const card = screen.getByTestId(`home-continue-${id}`);
+      expect(within(card).queryAllByRole('button').filter((node) => node !== card)).toHaveLength(0);
+      expect(within(card).getByText('Resume')).toBeOnTheScreen();
+    }
+    await fireEvent.press(screen.getByTestId('home-continue-m-two'));
+    expect(router.push).toHaveBeenCalledWith({ pathname: '/match/[matchId]/score', params: { matchId: 'm-two' } });
   });
 
   it('opens History filtered to live matches when there are more than three', async () => {
@@ -101,6 +147,12 @@ describe('HomeScreen', () => {
       expect(screen.getByText('Pakistan XI')).toBeOnTheScreen();
       expect(screen.getByText('142/4', { exact: true })).toBeOnTheScreen();
       expect(screen.getByTestId('resume-btn-discard')).toBeOnTheScreen();
+      const saved = new Date('2026-09-12T14:32:00.000Z');
+      const local = `${`${saved.getHours()}`.padStart(2, '0')}:${`${saved.getMinutes()}`.padStart(2, '0')}`;
+      expect(screen.getByText(`Last ball saved at ${local}`)).toBeOnTheScreen();
+      expect(screen.getByText('v Lions · 16.4 of 20 overs')).toBeOnTheScreen();
+      expect(screen.queryByText(/Pakistan XI v Lions/)).not.toBeOnTheScreen();
+      expect(screen.getByText('Resume')).toBeOnTheScreen();
       await fireEvent.press(screen.getByTestId('resume-btn-resume'));
       expect(router.push).toHaveBeenCalledWith({ pathname: '/match/[matchId]/score', params: { matchId: 'm-live' } });
       await waitFor(() => expect(screen.queryByTestId('resume-btn-resume')).not.toBeOnTheScreen());

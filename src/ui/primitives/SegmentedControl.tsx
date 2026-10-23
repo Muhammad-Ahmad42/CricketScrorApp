@@ -24,17 +24,18 @@ export interface SegmentedControlProps<T extends string> {
 
 export const SEGMENT_TRACK_PADDING = 2;
 
+export const SEGMENT_SELECTED_BORDER = 1.5;
+
 interface SegmentButtonProps {
   readonly label: string;
   readonly accessibilityLabel: string;
   readonly selected: boolean;
-  readonly showCheck: boolean;
   readonly disabled: boolean;
   readonly testID?: string;
   readonly onPress: () => void;
 }
 
-function SegmentButton({ label, accessibilityLabel, selected, showCheck, disabled, testID, onPress }: SegmentButtonProps) {
+function SegmentButton({ label, accessibilityLabel, selected, disabled, testID, onPress }: SegmentButtonProps) {
   const theme = useTheme();
   const focus = useFocusRing();
   return (
@@ -43,26 +44,28 @@ function SegmentButton({ label, accessibilityLabel, selected, showCheck, disable
       accessibilityRole="radio"
       accessibilityLabel={accessibilityLabel}
       accessibilityState={{ selected, checked: selected, disabled }}
+      aria-checked={selected}
       disabled={disabled}
       onPress={onPress}
       onFocus={focus.onFocus}
       onBlur={focus.onBlur}
       hitSlop={{ top: 2, bottom: 2 }}
-      style={[
+      style={({ pressed }) => [
         styles.segment,
         { borderRadius: theme.glass.radius.control - SEGMENT_TRACK_PADDING },
         selected
           ? {
-              backgroundColor: theme.color.surface,
-              borderWidth: theme.borderWidth.control,
-              borderColor: theme.color.borderStrong,
+              backgroundColor: theme.glass.selection,
+              borderWidth: SEGMENT_SELECTED_BORDER,
+              borderColor: theme.color.accent,
             }
-          : null,
+          : { borderWidth: SEGMENT_SELECTED_BORDER, borderColor: 'transparent' },
+        pressed && !selected && !disabled ? { backgroundColor: theme.glass.pressed } : null,
         focusRingStyle(theme, focus.focused, 'inside'),
       ]}
     >
-      {selected && showCheck ? <Icon name="check" size={16} color="textPrimary" /> : null}
-      <Text variant="subhead" weight={selected ? 'semibold' : 'medium'} tone={selected ? 'primary' : 'secondary'} numberOfLines={1}>
+      {selected ? <Icon name="check" size={16} color="accent" /> : null}
+      <Text variant="subhead" weight={selected ? 'semibold' : 'medium'} tone={disabled ? 'muted' : selected ? 'primary' : 'secondary'} numberOfLines={1} style={styles.label}>
         {label}
       </Text>
     </Pressable>
@@ -79,7 +82,6 @@ export function SegmentedControl<T extends string>({
   testID,
 }: SegmentedControlProps<T>) {
   const theme = useTheme();
-  const showCheck = options.length === 2;
   return (
     <GlassSurface
       testID={testID}
@@ -99,7 +101,6 @@ export function SegmentedControl<T extends string>({
             label={option.label}
             accessibilityLabel={option.accessibilityLabel ?? option.label}
             selected={selected}
-            showCheck={showCheck}
             disabled={disabled}
             testID={option.testID}
             onPress={() => {
@@ -117,7 +118,9 @@ export function SegmentedControl<T extends string>({
 const styles = StyleSheet.create({
   track: { flexDirection: 'row', padding: SEGMENT_TRACK_PADDING, alignSelf: 'stretch' },
   segment: {
-    flex: 1,
+    flexGrow: 1,
+    flexShrink: 1,
+    flexBasis: 'auto',
     minWidth: 44,
     height: 40,
     minHeight: 40,
@@ -127,4 +130,5 @@ const styles = StyleSheet.create({
     gap: space.xxs,
     paddingHorizontal: space.xs,
   },
+  label: { flexShrink: 1, letterSpacing: 0 },
 });

@@ -270,7 +270,10 @@ describe('attack: wicket flows (§18, USER_FLOWS 2.2)', () => {
     await renderScreen(<ScoringScreen />);
     await fireEvent.press(screen.getByTestId('score-btn-wicket'));
     await fireEvent.press(screen.getByTestId('wicket-btn-run_out'));
+    expect(screen.getByTestId('wicket-who-non-striker')).toHaveProp('accessibilityRole', 'radio');
     await fireEvent.press(screen.getByTestId('wicket-who-non-striker'));
+    expect(screen.getByTestId('wicket-who-non-striker')).toHaveProp('accessibilityState', expect.objectContaining({ checked: true }));
+    expect(screen.getByTestId('wicket-who-striker')).toHaveProp('accessibilityState', expect.objectContaining({ checked: false }));
     expect(screen.getByTestId('wicket-end-non-striker')).toBeSelected();
     await fireEvent.press(screen.getByTestId('wicket-runs-2'));
     await fireEvent.press(screen.getByTestId('wicket-fielder-slot-0'));
@@ -614,7 +617,7 @@ describe('attack: undo, redo and swap strike (§11, §15, USER_FLOWS 2.4, 2.6)',
     await fireEvent.press(screen.getByTestId('score-btn-2'));
     await waitFor(() => expect(useToastStore.getState().show).toHaveBeenCalled());
     const toast = jest.mocked(useToastStore.getState().show).mock.calls[0][0];
-    expect(toast.message).toBe('This match was updated elsewhere. Showing the latest score.');
+    expect(toast.message).toBe('Updated elsewhere. Showing the latest score.');
     expect(toast.message).not.toMatch(/stale|CONFLICT/);
   });
 
@@ -657,16 +660,30 @@ describe('attack: small phone and tablet layouts (§74, W-S1b, W-S12)', () => {
     jest.clearAllMocks();
   });
 
-  it('uses two panes at exactly 768 dp and the phone layout at 767 dp', async () => {
-    let restore = setWindow(768, 1024);
+  it('uses two panes on a landscape tablet from 768 dp, a stacked layout with the scorecard summary in portrait or below 768 dp, and the phone layout on phones', async () => {
+    let restore = setWindow(1024, 768);
     setLive(liveMatch([OPEN, '1']));
-    const tablet = await renderScreen(<ScoringScreen />);
+    const landscape = await renderScreen(<ScoringScreen />);
     expect(screen.getByTestId('score-two-pane')).toBeOnTheScreen();
-    await tablet.unmount();
+    await landscape.unmount();
     await restore();
-    restore = setWindow(767, 1024);
+    restore = setWindow(820, 1180);
+    const portrait = await renderScreen(<ScoringScreen />);
+    expect(screen.queryByTestId('score-two-pane')).not.toBeOnTheScreen();
+    expect(within(screen.getByTestId('score-middle')).getByTestId('score-crease')).toBeOnTheScreen();
+    expect(within(screen.getByTestId('score-middle')).getByTestId('score-summary-innings')).toBeOnTheScreen();
+    await portrait.unmount();
+    await restore();
+    restore = setWindow(767, 500);
+    const medium = await renderScreen(<ScoringScreen />);
+    expect(screen.queryByTestId('score-two-pane')).not.toBeOnTheScreen();
+    expect(screen.getByTestId('score-summary-innings')).toBeOnTheScreen();
+    await medium.unmount();
+    await restore();
+    restore = setWindow(390, 844);
     await renderScreen(<ScoringScreen />);
     expect(screen.queryByTestId('score-two-pane')).not.toBeOnTheScreen();
+    expect(screen.queryByTestId('score-summary-innings')).not.toBeOnTheScreen();
     await restore();
   });
 
@@ -678,18 +695,34 @@ describe('attack: small phone and tablet layouts (§74, W-S1b, W-S12)', () => {
     await restore();
   });
 
-  it('on a 320 pt phone keeps RRR, drops CRR from the header and keeps keys at 56 pt or more', async () => {
-    const restore = setWindow(320, 568);
+  it('on a 320 pt phone keeps RRR, CRR and the target in the header and keeps keys at 56 pt or more', async () => {
+    const restore = setWindow(320, 760);
     setLive(liveMatch([...FIRST_INNINGS, SECOND, '4', '1']));
     await renderScreen(<ScoringScreen />);
     expect(touchTargetSize(screen.getByTestId('score-btn-1')).height).toBeGreaterThanOrEqual(56);
     expect(screen.getByTestId('score-text-rrr')).toBeOnTheScreen();
+    expect(screen.getByTestId('score-text-crr')).toBeOnTheScreen();
+    expect(screen.getByTestId('score-text-target')).toBeOnTheScreen();
+    await restore();
+  });
+
+  it('on a 320 x 568 phone puts the chase on one line with RRR and the target, and moves CRR to the scorecard', async () => {
+    const restore = setWindow(320, 568);
+    setLive(liveMatch([...FIRST_INNINGS, SECOND, '4', '1']));
+    await renderScreen(<ScoringScreen />);
+    expect(touchTargetSize(screen.getByTestId('score-btn-1')).height).toBeGreaterThanOrEqual(56);
+    const requirement = screen.getByTestId('score-text-requirement');
+    expect(requirement).toHaveTextContent(/^Need \d+ off \d+$/);
+    expect(requirement.props.accessibilityLabel).toMatch(/^Need \d+ (runs? )?from \d+ balls?$/);
+    expect(screen.getByTestId('score-text-rrr')).toBeOnTheScreen();
+    expect(screen.getByTestId('score-text-target')).toBeOnTheScreen();
     expect(screen.queryByTestId('score-text-crr')).not.toBeOnTheScreen();
+    expect(screen.getByTestId('score-btn-scorecard').props.accessibilityLabel).toMatch(/run rate/i);
     await restore();
   });
 
   it('on a 320 pt phone moves Redo into the More sheet', async () => {
-    const restore = setWindow(320, 568);
+    const restore = setWindow(320, 760);
     const store = setLive(liveMatch([OPEN, '1']), { redoStack: [[]] });
     await renderScreen(<ScoringScreen />);
     expect(screen.queryByTestId('score-btn-redo')).not.toBeOnTheScreen();

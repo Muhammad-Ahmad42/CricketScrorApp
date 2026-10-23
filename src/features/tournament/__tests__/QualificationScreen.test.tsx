@@ -70,7 +70,10 @@ describe('QualificationScreen (§44–§47, §51, §98)', () => {
     expect(screen.getByTestId('qual-text-rule')).toHaveTextContent('Top 2 from each pool qualify for the Knockouts.');
     expect(screen.getAllByText('Qualified', { exact: true }).length).toBeGreaterThan(0);
     expect(screen.getAllByText('Eliminated', { exact: true }).length).toBeGreaterThan(0);
-    expect(screen.getByTestId('qual-text-explanation-1')).toHaveTextContent(/Lions have mathematically qualified/);
+    expect(screen.getByTestId('qual-text-explanation-1')).toHaveTextContent('Knockouts as Pool A winners');
+    expect(screen.queryByTestId('qual-text-explanation-1-detail')).not.toBeOnTheScreen();
+    await fireEvent.press(screen.getByTestId('qual-text-explanation-1-why'));
+    expect(screen.getByTestId('qual-text-explanation-1-detail')).toHaveTextContent(/No remaining result can change this/);
   });
 
   it('requires a reason before an override can be reviewed', async () => {

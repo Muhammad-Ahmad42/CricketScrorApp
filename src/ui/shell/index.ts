@@ -9,6 +9,7 @@ export {
   type BootstrapStatus,
   type GatePhase,
 } from './BootstrapGate';
+export { InputModalityRoot, type InputModalityRootProps } from './InputModalityRoot';
 export { LoadingView, PROGRESS_RULE_WIDTH, type LoadingViewProps } from './LoadingView';
 export { SystemChrome, statusBarStyleFor } from './SystemChrome';
 export { holdSplashScreen, releaseSplashScreen, useSplashRelease } from './splash';

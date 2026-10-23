@@ -3,7 +3,7 @@ import type { ServiceContext } from '../core/context';
 import { MESSAGES } from '../core/errors';
 import { failure } from '../core/result';
 import { attempt, inTransaction } from '../core/transaction';
-import { newMatchRow, startLog, validateNewMatch } from './creation';
+import { assertSquadSizes, newMatchRow, startLog, validateNewMatch } from './creation';
 import { MATCH_NOT_FOUND } from './matchLog';
 import { rebuildProjection } from './rebuild';
 
@@ -20,6 +20,7 @@ export function createLifecycleOperations(ctx: ServiceContext): LifecycleOperati
             throw failure('VALIDATION', 'Start tournament matches from their fixture.');
           }
           validateNewMatch(input);
+          await assertSquadSizes(repos, input);
           const now = ctx.clock.now();
           const match = await newMatchRow(repos, input, ctx.ids(), now);
           await repos.matches.insert(match, input.squads);

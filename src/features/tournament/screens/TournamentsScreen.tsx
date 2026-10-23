@@ -1,9 +1,9 @@
 import { useCallback, useState } from 'react';
-import { FlatList, StyleSheet, View } from 'react-native';
+import { FlatList, View } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useShallow } from 'zustand/react/shallow';
 import { WithScreenList } from '@/features/shared';
-import { Button, EmptyState, ErrorState, Screen, ScreenHeader, SegmentedControl, Skeleton, Text, space } from '@/ui';
+import { Button, EmptyState, ErrorState, Inset, Screen, ScreenHeader, SegmentedControl, Skeleton } from '@/ui';
 import { useTournamentListStore, useTournamentWizardStore } from '@/stores';
 import { TournamentRow } from '../components/TournamentRow';
 import { showError } from '../hooks/toast';
@@ -57,7 +57,7 @@ export function TournamentsScreen() {
         trailing={<Button label="New" icon="plus" variant="secondary" size="sm" onPress={create} testID="tournaments-btn-create" />}
       />
       {noneAtAll ? null : (
-        <View style={styles.filters}>
+        <Inset bottom="sm">
           <SegmentedControl
             options={FILTERS}
             value={filter}
@@ -65,7 +65,7 @@ export function TournamentsScreen() {
             accessibilityLabel="Show tournaments"
             testID="tournaments-filter"
           />
-        </View>
+        </Inset>
       )}
     </View>
   );
@@ -82,22 +82,18 @@ export function TournamentsScreen() {
         <EmptyState
           icon="trophy"
           title="No tournaments yet"
-          body="Create a tournament and manage teams, fixtures, standings and finals in one place."
+          body="Create a tournament to get started."
           action={{ label: 'Create tournament', onPress: create, testID: 'tournaments-btn-empty-create' }}
           caps
           testID="tournaments-text-empty"
         />
       );
     }
-    return (
-      <Text variant="callout" tone="secondary" style={styles.emptyLine} testID="tournaments-text-filter-empty">
-        {emptyListText(filter)}
-      </Text>
-    );
+    return <EmptyState title={emptyListText(filter)} testID="tournaments-text-filter-empty" />;
   };
 
   return (
-    <Screen testID="screen-tournaments" scroll={false} fullWidth ambient header={header}>
+    <Screen testID="screen-tournaments" scroll={false} wide header={header}>
       <WithScreenList>
         {(list) => (
           <FlatList
@@ -118,8 +114,3 @@ export function TournamentsScreen() {
     </Screen>
   );
 }
-
-const styles = StyleSheet.create({
-  filters: { paddingHorizontal: space.md, paddingBottom: space.sm },
-  emptyLine: { paddingHorizontal: space.md, paddingTop: space.md },
-});

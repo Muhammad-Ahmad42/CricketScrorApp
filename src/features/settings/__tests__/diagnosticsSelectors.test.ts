@@ -1,5 +1,16 @@
 /** @jest-environment node */
-import { checkResult, infoLines, pragmaText, repairEntries, selectDiagnostics, technicalDetails, type DiagnosticsInput } from '../selectors/diagnostics';
+import {
+  checkResult,
+  infoLines,
+  NOT_AVAILABLE,
+  pragmaText,
+  rebuiltText,
+  repairEntries,
+  selectDiagnostics,
+  technicalDetails,
+  technicalLines,
+  type DiagnosticsInput,
+} from '../selectors/diagnostics';
 import { exportedFileText, tournamentTargets } from '../selectors/exportTargets';
 import { bootstrapReport, integrityReport, serviceError, tournamentItem } from './support/fixtures';
 
@@ -12,19 +23,22 @@ const BASE: DiagnosticsInput = {
 };
 
 describe('diagnostics view model (§86, W-X3)', () => {
-  it('shows the app, database, engine and backup versions', () => {
-    expect(infoLines(BASE).map((line) => [line.label, line.value, line.testID])).toEqual([
-      ['App version', '1.0.0', 'diag-text-app-version'],
+  it('shows only the app version up front and keeps database, engine and backup internals as technical lines', () => {
+    expect(infoLines(BASE).map((line) => [line.label, line.value, line.testID])).toEqual([['App version', '1.0.0', 'diag-text-app-version']]);
+    expect(technicalLines(BASE).map((line) => [line.label, line.value, line.testID])).toEqual([
       ['Database version', '3', 'diag-text-schema-version'],
-      ['Scoring engine version', '2', 'diag-text-engine-version'],
+      ['Scoring engine', '2', 'diag-text-engine-version'],
       ['Backup format', '1', 'diag-text-backup-format'],
-      ['Results recalculated at start', '1,200', 'diag-text-rebuilt'],
-      ['Database safety settings', 'foreign_keys=1 journal_mode=wal synchronous=2', 'diag-text-pragmas'],
+      ['Scores recalculated at start', '1,200 matches', 'diag-text-rebuilt'],
+      ['Database settings', 'foreign_keys=1 journal_mode=wal synchronous=2', 'diag-text-pragmas'],
     ]);
-    const unknown = infoLines({ ...BASE, report: null });
-    expect(unknown[1].value).toBe('Not available');
-    expect(unknown[4].value).toBe('Not available');
-    expect(unknown[5].value).toBe('Not available');
+    const unknown = technicalLines({ ...BASE, report: null });
+    expect(unknown.map((line) => line.value)).toEqual(['Not available', '2', '1', 'Not available', 'Not available']);
+    const vm = selectDiagnostics(BASE);
+    expect(vm.info.map((line) => line.key)).toEqual(['app']);
+    expect(vm.technical.map((line) => line.key)).toEqual(['schema', 'engine', 'backup', 'rebuilt', 'pragmas']);
+    expect(rebuiltText(0)).toBe('None');
+    expect(rebuiltText(1)).toBe('1 match');
   });
 
   it('shows the database pragmas the failure tests read, and says when start-up did not report them (AC-E1-02, FR-02b)', () => {
@@ -32,8 +46,9 @@ describe('diagnostics view model (§86, W-X3)', () => {
     expect(pragmaText({ foreignKeys: 0, journalMode: 'delete', synchronous: 1 })).toBe('foreign_keys=0 journal_mode=delete synchronous=1');
     expect(pragmaText(null)).toBeNull();
     expect(pragmaText(undefined)).toBeNull();
-    const withoutPragmas = infoLines({ ...BASE, report: bootstrapReport({ pragmas: undefined }) });
-    expect(withoutPragmas.find((line) => line.key === 'pragmas')?.value).toBe('Not available');
+    const pragmas = selectDiagnostics({ ...BASE, report: bootstrapReport({ pragmas: undefined }) }).technical.find((line) => line.key === 'pragmas');
+    expect(pragmas?.value).toBe(NOT_AVAILABLE);
+    expect(NOT_AVAILABLE).toBe('Not available');
   });
 
   it('lists matches needing repair from start-up, one row per match', () => {
@@ -49,8 +64,8 @@ describe('diagnostics view model (§86, W-X3)', () => {
       ['m-1', 'Lions v Tigers: event 214 cannot be replayed.', 'diag-row-repair-1'],
       ['m-2', 'Bulls v Bears: event 9 cannot be replayed.', 'diag-row-repair-2'],
     ]);
-    expect(rows[0].detail).toBe('Event 215 refers to a missing batter. Open its ball log to correct the event that cannot be replayed.');
-    expect(rows[1].detail).toBe('Open its ball log to correct the event that cannot be replayed.');
+    expect(rows[0].detail).toBe('Event 215 refers to a missing batter. Fix it in the ball log.');
+    expect(rows[1].detail).toBe('Fix it in the ball log.');
   });
 
   it('prefers the latest check over the start-up list', () => {
@@ -64,25 +79,27 @@ describe('diagnostics view model (§86, W-X3)', () => {
     expect(repairEntries(null, null)).toEqual([]);
   });
 
-  it('explains the data-link check in plain language', () => {
+  it('reports the data-link check as a short headline with at most one supporting line', () => {
     const clean = checkResult(integrityReport());
-    expect(clean.healthy).toBe(true);
-    expect(clean.message).toBe('All links between matches, teams and tournaments are intact.');
+    expect(clean).toMatchObject({ healthy: true, headline: 'No problems found', supporting: null });
     expect(clean.checkedAt).toMatch(/^Last check: 30 Sep 2026, \d{2}:\d{2}$/);
     const oneRepair = checkResult(integrityReport({ matchesNeedingRepair: ['m-1'] }));
-    expect(oneRepair.healthy).toBe(false);
-    expect(oneRepair.message).toBe('All links between matches, teams and tournaments are intact. 1 match needs repair; open it below.');
+    expect(oneRepair).toMatchObject({ healthy: false, headline: '1 match needs repair', supporting: 'No broken links.' });
     const broken = checkResult(integrityReport({ foreignKeyViolations: 3, matchesNeedingRepair: ['m-1', 'm-2'] }));
-    expect(broken.healthy).toBe(false);
-    expect(broken.message).toBe(
-      'Found 3 broken links between matches, teams and tournaments. Nothing was changed. 2 matches need repair; open each one below. Share the technical details if you need help.',
-    );
-    expect(checkResult(integrityReport({ foreignKeyViolations: 1 })).message).toContain('Found 1 broken link between');
+    expect(broken).toMatchObject({ healthy: false, headline: '3 broken links found', supporting: '2 matches need repair. Share technical details for help.' });
+    expect(checkResult(integrityReport({ foreignKeyViolations: 1 }))).toMatchObject({ headline: '1 broken link found', supporting: 'Share technical details for help.' });
+    for (const result of [clean, oneRepair, broken]) {
+      expect(result.headline.length).toBeLessThanOrEqual(40);
+      expect((result.supporting ?? '').length).toBeLessThanOrEqual(80);
+    }
   });
 
   it('combines everything for the screen', () => {
     const vm = selectDiagnostics({ ...BASE, check: integrityReport() });
-    expect(vm.info).toHaveLength(6);
+    expect(vm.info).toHaveLength(1);
+    expect(vm.technical).toHaveLength(5);
+    expect(vm).not.toHaveProperty('safety');
+    expect(vm).not.toHaveProperty('pragmas');
     expect(vm.repairs).toEqual([]);
     expect(vm.check?.healthy).toBe(true);
     expect(selectDiagnostics(BASE).check).toBeNull();

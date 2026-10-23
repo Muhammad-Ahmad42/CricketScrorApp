@@ -1,5 +1,4 @@
 import { ListRow, SectionHeader } from '@/ui';
-import { COPY } from '../copy';
 import { MOTION_CHOICES, type ReducedMotionSetting } from '../selectors/settings';
 import { SegmentSetting } from './SegmentSetting';
 
@@ -21,30 +20,26 @@ export function FeedbackSection(props: FeedbackSectionProps) {
       <SectionHeader title="Feedback" />
       <ListRow
         title="Vibration"
-        subtitle="Light for runs, stronger for boundaries and wickets"
         trailing={{ kind: 'switch', value: props.hapticsEnabled, onValueChange: props.onHapticsChange, disabled }}
         disabled={disabled}
+        accessibilityHint="Light for runs, stronger for boundaries and wickets"
         testID="settings-toggle-haptics"
       />
-      <ListRow
-        title="Sound effects"
-        subtitle={props.soundAvailable ? 'Short local sounds for runs, wickets and results' : COPY.soundUnavailable}
-        trailing={{
-          kind: 'switch',
-          value: props.soundAvailable && props.soundEnabled,
-          onValueChange: props.onSoundChange,
-          disabled: disabled || !props.soundAvailable,
-        }}
-        disabled={disabled || !props.soundAvailable}
-        testID="settings-toggle-sound"
-      />
+      {props.soundAvailable ? (
+        <ListRow
+          title="Sound effects"
+          trailing={{ kind: 'switch', value: props.soundEnabled, onValueChange: props.onSoundChange, disabled }}
+          disabled={disabled}
+          testID="settings-toggle-sound"
+        />
+      ) : null}
       <SegmentSetting
         title="Reduce motion"
-        helper="System follows your phone's accessibility setting."
         choices={MOTION_CHOICES}
         value={props.reducedMotion}
         onChange={props.onReducedMotionChange}
         disabled={disabled}
+        separator={false}
         testID="settings-group-motion"
       />
     </>

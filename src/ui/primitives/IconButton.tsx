@@ -47,6 +47,8 @@ export function IconButton({
       accessibilityLabel={accessibilityLabel}
       accessibilityHint={accessibilityHint}
       accessibilityState={selected === undefined ? { disabled } : { disabled, selected }}
+      aria-disabled={disabled}
+      aria-selected={selected}
       disabled={disabled}
       onPress={onPress}
       onFocus={focus.onFocus}

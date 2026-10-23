@@ -1,4 +1,4 @@
-export { BallChip, BallPlaceholder, type BallChipProps, type BallPlaceholderProps } from './BallChip';
+export { BallChip, BallPlaceholder, FREE_HIT_MARK, type BallChipProps, type BallPlaceholderProps } from './BallChip';
 export {
   ballChipLook,
   chipAccessibilityLabel,
@@ -15,7 +15,7 @@ export { OverStrip, overStripAccessibilityLabel, type OverBall, type OverStripPr
 export { ScoreFigure, slotKeys, type ScoreFigureProps, type ScoreFigureVariant } from './ScoreFigure';
 export { SIX_TINT_HOLD_MS, ROLL_OFFSET } from './RollingChar';
 export { StatLine, type StatLineProps } from './StatLine';
-export { ScoreKey, SCORE_KEY_MIN_HEIGHT, type ScoreKeyKind, type ScoreKeyProps } from './ScoreKey';
+export { ScoreKey, SCORE_KEY_MIN_HEIGHT, keyLabelMinimumScale, type ScoreKeyKind, type ScoreKeyProps } from './ScoreKey';
 export {
   ScoringPad,
   runKeySpec,

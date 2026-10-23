@@ -1,7 +1,6 @@
 import { StyleSheet, View } from 'react-native';
-import { Badge, Button, Sheet, Text, space } from '@/ui';
+import { Badge, Button, Sheet, space } from '@/ui';
 import { InfoRow } from '../components/InfoRow';
-import { COPY } from '../copy';
 import type { PresetDetailVM } from '../selectors/presets';
 
 export interface PresetDetailSheetProps {
@@ -16,29 +15,26 @@ export function PresetDetailSheet({ visible, preset, busy, onMakeDefault, onClos
   const footer = preset ? (
     preset.isDefault ? (
       <View style={styles.footer}>
-        <Badge label="Default for new matches" tone="qualified" testID="presets-badge-default" />
+        <Badge label="Default" tone="qualified" testID="presets-badge-default" />
       </View>
     ) : (
-      <Button label="Use for new matches" onPress={onMakeDefault} loading={busy} fullWidth testID="presets-btn-make-default" />
+      <Button
+        label="Set as default"
+        onPress={onMakeDefault}
+        loading={busy}
+        fullWidth
+        accessibilityHint="New matches start with this format"
+        testID="presets-btn-make-default"
+      />
     )
   ) : null;
   return (
-    <Sheet
-      visible={visible && preset !== null}
-      title={preset ? preset.title : ''}
-      subtitle={preset ? `${preset.description}${preset.builtin ? ' · Built-in, read-only' : ''}` : undefined}
-      onClose={onClose}
-      footer={footer}
-      testID="sheet-preset"
-    >
+    <Sheet visible={visible && preset !== null} title={preset ? preset.title : ''} onClose={onClose} footer={footer} testID="sheet-preset">
       {preset ? (
         <View>
           {preset.rules.map((line, index) => (
             <InfoRow key={line.key} label={line.label} value={line.value} separator={index < preset.rules.length - 1} />
           ))}
-          <Text variant="footnote" tone="secondary" style={styles.note}>
-            {COPY.presetsNote}
-          </Text>
         </View>
       ) : null}
     </Sheet>
@@ -47,5 +43,4 @@ export function PresetDetailSheet({ visible, preset, busy, onMakeDefault, onClos
 
 const styles = StyleSheet.create({
   footer: { alignItems: 'flex-start', paddingVertical: space.xs },
-  note: { paddingHorizontal: space.md, paddingTop: space.sm },
 });

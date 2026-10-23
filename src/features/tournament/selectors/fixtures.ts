@@ -1,5 +1,8 @@
+import { formatOvers, formatScore } from '@/domain/scoring/format';
 import { formatResult } from '@/domain/scoring/result';
-import type { Fixture, FixtureStatus, MatchSummary, MatchTeam, PoolId, StageId, TournamentSnapshot } from '@/domain/types';
+import type { Fixture, FixtureStatus, MatchSummary, MatchTeam, PoolId, StageId, TeamId, TournamentSnapshot } from '@/domain/types';
+import { formatShortDate } from '@/features/scoring/selectors/dates';
+import { plural } from '@/features/shared/text';
 import { FIXTURE_STATUS_LABEL } from '../labels';
 import { compareDates, formatDate, formatDateTime } from './dates';
 import { sidesText, type SideVM, type TournamentIndex } from './names';
@@ -18,9 +21,12 @@ export interface FixtureRowVM {
   readonly status: FixtureStatus;
   readonly statusLabel: string;
   readonly result: string | null;
+  readonly scoreline: ScorelineVM | null;
   readonly when: string | null;
   readonly venue: string | null;
   readonly detail: string;
+  readonly meta: string;
+  readonly note: string | null;
   readonly stageId: StageId;
   readonly poolId: PoolId | null;
   readonly round: number | null;
@@ -30,13 +36,29 @@ export interface FixtureRowVM {
   readonly provisional: boolean;
 }
 
-export type FixtureStatusFilter = 'all' | 'upcoming' | 'live' | 'completed' | 'postponed' | 'cancelled';
+export interface ScoreSideVM {
+  readonly teamId: TeamId;
+  readonly short: string;
+  readonly name: string;
+  readonly score: string;
+  readonly overs: string;
+  readonly winner: boolean;
+}
+
+export interface ScorelineVM {
+  readonly sides: readonly ScoreSideVM[];
+  readonly text: string;
+  readonly spoken: string;
+}
+
+export type FixtureStatusFilter = 'all' | 'upcoming' | 'live' | 'completed' | 'off' | 'postponed' | 'cancelled';
 
 const FILTER_STATUSES: { readonly [K in FixtureStatusFilter]: readonly FixtureStatus[] | null } = {
   all: null,
   upcoming: ['scheduled', 'rescheduled'],
   live: ['live'],
   completed: ['completed', 'abandoned'],
+  off: ['postponed', 'cancelled'],
   postponed: ['postponed'],
   cancelled: ['cancelled'],
 };
@@ -68,14 +90,61 @@ export function fixtureResultText(index: TournamentIndex, fixture: Fixture): str
   return formatResult(summary.result, matchTeams(index, summary));
 }
 
+export function fixtureScoreline(index: TournamentIndex, fixture: Fixture): ScorelineVM | null {
+  const summary = fixtureSummary(index.snapshot, fixture);
+  if (summary === null || summary.innings.length === 0) {
+    return null;
+  }
+  const order: TeamId[] = [];
+  for (const innings of summary.innings) {
+    if (!order.includes(innings.battingTeamId)) {
+      order.push(innings.battingTeamId);
+    }
+  }
+  const sides = order.map((teamId): ScoreSideVM => {
+    const innings = summary.innings.filter((entry) => entry.battingTeamId === teamId);
+    const last = innings[innings.length - 1];
+    return {
+      teamId,
+      short: index.teamShort(teamId),
+      name: index.teamName(teamId),
+      score: formatScore(last.runs, last.wickets),
+      overs: formatOvers(last.legalBalls, last.ballsPerOver),
+      winner: summary.winnerTeamId === teamId,
+    };
+  });
+  return {
+    sides,
+    text: sides.map((side) => `${side.short} ${side.score} (${side.overs})`).join(' · '),
+    spoken: sides.map((side) => `${side.name} ${side.score.replace('/', ' for ')} in ${plural(side.overs, 'over')}`).join(', '),
+  };
+}
+
 function waitingText(a: SideVM, b: SideVM): string {
   const waiting = [a, b].filter((side) => !side.resolved).map((side) => side.meaning ?? side.slotLabel ?? side.text);
   return `Waiting for ${waiting.join(' and ')}`;
 }
 
-function detailLine(row: Omit<FixtureRowVM, 'detail'>, fixture: Fixture): string {
+type RowBase = Omit<FixtureRowVM, 'detail' | 'meta' | 'note'>;
+
+function metaLine(row: RowBase): string {
+  const parts = [row.when, row.venue].filter((part): part is string => part !== null);
+  return parts.length > 0 ? parts.join(' · ') : 'Date to be set';
+}
+
+function noteLine(row: RowBase, fixture: Fixture): string | null {
   if (row.result) {
-    return row.when ? `${row.result} · ${row.when}` : row.result;
+    return row.result;
+  }
+  if (fixture.status === 'scheduled' || fixture.status === 'rescheduled') {
+    return row.resolved ? null : waitingText(row.a, row.b);
+  }
+  return null;
+}
+
+function detailLine(row: RowBase, fixture: Fixture): string {
+  if (row.result) {
+    return row.result;
   }
   switch (fixture.status) {
     case 'live':
@@ -96,6 +165,16 @@ function detailLine(row: Omit<FixtureRowVM, 'detail'>, fixture: Fixture): string
   return parts.length > 0 ? parts.join(' · ') : 'Date to be set';
 }
 
+export function fixturePlayedOn(index: TournamentIndex, fixture: Fixture): string | null {
+  const playedAt = fixtureSummary(index.snapshot, fixture)?.completedAt ?? null;
+  return playedAt === null ? null : formatShortDate(playedAt);
+}
+
+export function fixtureWhen(index: TournamentIndex, fixture: Fixture): string | null {
+  const played = fixturePlayedOn(index, fixture);
+  return played !== null ? `Played ${played}` : formatDateTime(fixture.scheduledDate, fixture.scheduledTime);
+}
+
 export function fixtureRow(index: TournamentIndex, fixture: Fixture, venueName: VenueLookup = () => null): FixtureRowVM {
   const sides = index.fixtureSides(fixture);
   const result = fixtureResultText(index, fixture);
@@ -111,7 +190,8 @@ export function fixtureRow(index: TournamentIndex, fixture: Fixture, venueName: 
     status: fixture.status,
     statusLabel: FIXTURE_STATUS_LABEL[fixture.status],
     result,
-    when: formatDateTime(fixture.scheduledDate, fixture.scheduledTime),
+    scoreline: fixtureScoreline(index, fixture),
+    when: fixtureWhen(index, fixture),
     venue: fixture.venueId ? venueName(fixture.venueId) : null,
     stageId: fixture.stageId,
     poolId: fixture.poolId,
@@ -121,7 +201,7 @@ export function fixtureRow(index: TournamentIndex, fixture: Fixture, venueName: 
     resolved: sides.a.resolved && sides.b.resolved,
     provisional: sides.a.provisional || sides.b.provisional,
   };
-  return { ...base, detail: detailLine(base, fixture) };
+  return { ...base, detail: detailLine(base, fixture), meta: metaLine(base), note: noteLine(base, fixture) };
 }
 
 export function sortFixtures(fixtures: readonly Fixture[], index: TournamentIndex): readonly Fixture[] {

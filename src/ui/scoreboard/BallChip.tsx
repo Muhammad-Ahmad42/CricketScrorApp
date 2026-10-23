@@ -141,7 +141,14 @@ function BallChipComponent({
           </View>
         )}
       </View>
-      {isFreeHit ? <View testID={testID ? `${testID}-free-hit` : undefined} style={[styles.freeHit, { backgroundColor: theme.color.warning }]} /> : null}
+      {isFreeHit ? (
+        <View testID={testID ? `${testID}-free-hit` : undefined} style={styles.freeHit} accessible={false} importantForAccessibility="no-hide-descendants">
+          <View style={[styles.freeHitBar, { backgroundColor: theme.color.warning }]} />
+          <Text variant="label" style={[styles.freeHitText, { color: theme.color.warning }]} maxFontSizeMultiplier={1.2}>
+            {FREE_HIT_MARK}
+          </Text>
+        </View>
+      ) : null}
     </View>
   );
 
@@ -170,6 +177,8 @@ function BallChipComponent({
 
 export const BallChip = memo(BallChipComponent);
 
+export const FREE_HIT_MARK = 'FH';
+
 export interface BallPlaceholderProps {
   readonly size?: BallChipSize;
   readonly testID?: string;
@@ -190,7 +199,7 @@ export function BallPlaceholder({ size = 'lg', testID }: BallPlaceholderProps) {
         borderRadius: dims.size / 2,
         borderWidth: 1,
         borderStyle: 'dotted',
-        borderColor: theme.color.border,
+        borderColor: theme.color.borderStrong,
       }}
     />
   );
@@ -200,6 +209,8 @@ const styles = StyleSheet.create({
   column: { alignItems: 'stretch' },
   anchor: { alignSelf: 'flex-start' },
   chip: { alignItems: 'center', justifyContent: 'center' },
-  freeHit: { height: 2, marginTop: 2 },
+  freeHit: { alignItems: 'center', marginTop: 2 },
+  freeHitBar: { height: 2, alignSelf: 'stretch' },
+  freeHitText: { fontSize: 12, lineHeight: 14, letterSpacing: 0.4 },
   pressable: { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
 });

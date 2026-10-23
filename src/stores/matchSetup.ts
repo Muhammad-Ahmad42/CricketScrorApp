@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { BASE_MATCH_RULES, getBuiltinPreset, openingBattingTeam } from '@/domain/scoring';
+import { BASE_MATCH_RULES, blockingSquadIssue, checkDraftSquadSizes, getBuiltinPreset, openingBattingTeam, type SquadSizeIssue } from '@/domain/scoring';
 import type { FormatId, MatchEventInput, MatchRules, MatchSquadEntry, NewMatchInput, PlayerId, TeamId } from '@/domain/types';
 import { fixtureMatchDefaults } from '@/services';
 import type { MatchSetupDraft, MatchSetupStore } from './contracts';
@@ -38,9 +38,10 @@ export function initialMatchSetupDraft(): MatchSetupDraft {
 interface SquadRoles {
   readonly captainId: PlayerId | null;
   readonly keeperIds: ReadonlySet<PlayerId>;
+  readonly teamName: string | null;
 }
 
-const NO_ROLES: SquadRoles = { captainId: null, keeperIds: new Set() };
+const NO_ROLES: SquadRoles = { captainId: null, keeperIds: new Set(), teamName: null };
 
 async function rolesOf(teamId: TeamId): Promise<SquadRoles> {
   const result = await call((services) => services.teams.get(teamId));
@@ -48,7 +49,7 @@ async function rolesOf(teamId: TeamId): Promise<SquadRoles> {
     return NO_ROLES;
   }
   const keepers = result.value.players.filter((player) => player.role === 'wicket_keeper').map((player) => player.id);
-  return { captainId: result.value.team.captainId, keeperIds: new Set(keepers) };
+  return { captainId: result.value.team.captainId, keeperIds: new Set(keepers), teamName: result.value.team.name };
 }
 
 function squad(players: readonly PlayerId[], substitutes: readonly PlayerId[], roles: SquadRoles = NO_ROLES): MatchSquadEntry[] {
@@ -66,6 +67,20 @@ function squad(players: readonly PlayerId[], substitutes: readonly PlayerId[], r
 }
 
 export const BATTING_FIRST_REQUIRED = 'Choose which team bats first, or record the toss.';
+
+export type SquadTeamName = (teamId: TeamId) => string | null | undefined;
+
+function fallbackName(draft: MatchSetupDraft, teamId: TeamId): string {
+  return teamId === draft.teamAId ? 'Team A' : teamId === draft.teamBId ? 'Team B' : 'This team';
+}
+
+export function selectSquadIssues(draft: MatchSetupDraft, teamName?: SquadTeamName): readonly SquadSizeIssue[] {
+  return checkDraftSquadSizes(draft, (teamId) => teamName?.(teamId) ?? fallbackName(draft, teamId));
+}
+
+export function selectBlockingSquadIssue(draft: MatchSetupDraft, teamName?: SquadTeamName): SquadSizeIssue | null {
+  return blockingSquadIssue(selectSquadIssues(draft, teamName));
+}
 
 function openingEvents(draft: MatchSetupDraft, teamAId: TeamId, teamBId: TeamId): readonly MatchEventInput[] | null {
   const { strikerId, nonStrikerId, bowlerId } = draft.openers;
@@ -141,9 +156,19 @@ export const useMatchSetupStore = create<MatchSetupStore>()((set, get) => ({
         set({ error: storeError('VALIDATION', BATTING_FIRST_REQUIRED) });
         return null;
       }
-      set({ status: 'saving', error: null });
       const rolesA = await rolesOf(teamAId);
       const rolesB = await rolesOf(teamBId);
+      const names = new Map<TeamId, string | null>([
+        [teamAId, rolesA.teamName],
+        [teamBId, rolesB.teamName],
+      ]);
+      const blocking = selectBlockingSquadIssue(draft, (teamId) => names.get(teamId));
+      if (blocking !== null) {
+        const text = blocking.headline === undefined ? undefined : { headline: blocking.headline, detail: blocking.detail };
+        set({ error: storeError('VALIDATION', blocking.message, blocking.code, text) });
+        return null;
+      }
+      set({ status: 'saving', error: null });
       const squads = [
         { teamId: teamAId, players: squad(draft.squadA, draft.substitutesA, rolesA) },
         { teamId: teamBId, players: squad(draft.squadB, draft.substitutesB, rolesB) },

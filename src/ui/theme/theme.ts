@@ -10,7 +10,7 @@ import {
   space,
   type ColorTokens,
 } from './tokens';
-import { glassPaletteFor, glassTokensFor, type GlassTokens } from './glass';
+import { glassInkColors, glassPaletteFor, glassTokensFor, type GlassTokens } from './glass';
 
 export type ColorScheme = 'light' | 'dark';
 export type ThemeMode = 'light' | 'dark' | 'system';
@@ -45,6 +45,7 @@ export interface Theme {
   readonly highContrast: boolean;
   readonly boldText: boolean;
   readonly glass: GlassTokens;
+  readonly glassInk?: boolean;
 }
 
 export const DEFAULT_THEME_OPTIONS: ThemeOptions = {
@@ -108,6 +109,21 @@ export function createTheme(scheme: ColorScheme, options: ThemeOptions = DEFAULT
   const theme = buildTheme(scheme, options);
   cache.set(key, theme);
   return theme;
+}
+
+const inkCache = new WeakMap<Theme, Theme>();
+
+export function glassInkTheme(theme: Theme): Theme {
+  if (theme.glassInk === true) {
+    return theme;
+  }
+  const cached = inkCache.get(theme);
+  if (cached) {
+    return cached;
+  }
+  const inked: Theme = { ...theme, color: glassInkColors(theme.glass, theme.color, theme.highContrast), glassInk: true };
+  inkCache.set(theme, inked);
+  return inked;
 }
 
 export function resolveScheme(mode: ThemeMode, system: string | null | undefined): ColorScheme {

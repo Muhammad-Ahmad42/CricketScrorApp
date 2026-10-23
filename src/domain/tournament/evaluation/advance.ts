@@ -5,6 +5,11 @@ import type { AdvancementBasis } from '../knockout';
 import { countedSummaryOf } from './sides';
 import type { SnapshotIndex } from './snapshotIndex';
 import { teamName } from './snapshotIndex';
+import { explain } from '../../text';
+
+function capitalise(text: string): string {
+  return text.length === 0 ? text : `${text[0].toUpperCase()}${text.slice(1)}`;
+}
 
 export interface Advancement {
   readonly winnerTeamId: TeamId | null;
@@ -48,27 +53,32 @@ function roundWord(fixture: Fixture): string {
   return (fixture.bracket?.roundName ?? fixture.label ?? 'match').toLowerCase();
 }
 
-function marginText(summary: MatchSummary | null, advancement: Advancement): string {
-  if (!summary || summary.hypothetical) return '';
+function marginPhrase(summary: MatchSummary | null, advancement: Advancement): string | null {
+  if (!summary || summary.hypothetical) return null;
   const result = summary.result;
   switch (advancement.basis) {
     case 'result':
-      if (result.type !== 'win') return '';
+      if (result.type !== 'win') return null;
       return result.margin.kind === 'runs'
-        ? ` (won by ${result.margin.runs} ${result.margin.runs === 1 ? 'run' : 'runs'})`
-        : ` (won by ${result.margin.wickets} ${result.margin.wickets === 1 ? 'wicket' : 'wickets'})`;
+        ? `won by ${result.margin.runs} ${result.margin.runs === 1 ? 'run' : 'runs'}`
+        : `won by ${result.margin.wickets} ${result.margin.wickets === 1 ? 'wicket' : 'wickets'}`;
     case 'tie_decider':
-      if (result.type !== 'tie' || !result.decider) return ' (won the tie-break)';
-      if (result.decider.method === 'super_over') return ' (won the super over)';
-      if (result.decider.method === 'boundary_count') return ' (won on boundary count)';
-      return ' (won the tie-break)';
+      if (result.type !== 'tie' || !result.decider) return 'won the tie-break';
+      if (result.decider.method === 'super_over') return 'won the super over';
+      if (result.decider.method === 'boundary_count') return 'won on boundary count';
+      return 'won the tie-break';
     case 'walkover':
-      return ' (walkover)';
+      return 'walkover';
     case 'awarded':
-      return ' (awarded)';
+      return 'awarded';
     default:
-      return '';
+      return null;
   }
+}
+
+function marginText(summary: MatchSummary | null, advancement: Advancement): string {
+  const phrase = marginPhrase(summary, advancement);
+  return phrase === null ? '' : ` (${phrase})`;
 }
 
 function undecidedReason(summary: MatchSummary | null, fixture: Fixture): string {
@@ -95,20 +105,34 @@ export function resolutionFromAdvancement(
   const teamId = take === 'winner' ? advancement.winnerTeamId : advancement.loserTeamId;
   if (isDecided(advancement) && teamId !== null) {
     const name = teamName(index, teamId);
-    const explanation =
-      advancement.basis === 'higher_seed'
-        ? `${label}: ${name}${take === 'winner' ? ' advance as the higher seed' : ''} (${undecidedReason(summary, fixture)})`
-        : `${label}: ${name}${take === 'winner' ? marginText(summary, advancement) : ''}`;
-    return { slotId, teamId, status: 'final', viaOverride: false, explanation };
+    const headline = `${label}: ${name}`;
+    if (advancement.basis === 'higher_seed') {
+      const reason = undecidedReason(summary, fixture);
+      const seeded = take === 'winner' ? ' advance as the higher seed' : '';
+      const detail = take === 'winner' ? `Higher seed. ${capitalise(reason)}` : capitalise(reason);
+      return { slotId, teamId, status: 'final', viaOverride: false, explanation: `${label}: ${name}${seeded} (${reason})`, ...explain(headline, detail) };
+    }
+    const margin = take === 'winner' ? marginPhrase(summary, advancement) : null;
+    return {
+      slotId,
+      teamId,
+      status: 'final',
+      viaOverride: false,
+      explanation: `${label}: ${name}${take === 'winner' ? marginText(summary, advancement) : ''}`,
+      ...explain(headline, margin === null ? null : capitalise(margin)),
+    };
   }
   if (advancement.basis === 'organizer_required' || advancement.basis === 'shared') {
+    const reason = undecidedReason(summary, fixture);
     return {
       slotId,
       teamId: null,
       status: 'pending',
       viaOverride: false,
-      explanation: `${label}: to be decided by the organizer (${undecidedReason(summary, fixture)})`,
+      explanation: `${label}: to be decided by the organizer (${reason})`,
+      ...explain(`${label}: organizer decides`, capitalise(reason)),
     };
   }
-  return { slotId, teamId: null, status: 'pending', viaOverride: false, explanation: `${label}: to be decided` };
+  const pendingText = `${label}: to be decided`;
+  return { slotId, teamId: null, status: 'pending', viaOverride: false, explanation: pendingText, ...explain(pendingText) };
 }

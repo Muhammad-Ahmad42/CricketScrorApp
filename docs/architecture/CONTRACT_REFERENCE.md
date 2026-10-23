@@ -4125,6 +4125,227 @@ Not contract files. These are recorded so the service layer knows what the barre
 - `RawBackup.checksumMalformed: boolean` (`parse.ts`, re-exported by `src/export/backup/index.ts`): true when the envelope's `checksum` is present but is not 64 hexadecimal characters. In that case `RawBackup.checksum` is null and validation reports `CHECKSUM_MISMATCH` (an error), never `CHECKSUM_MISSING` (see `BackupEnvelope`).
 - `optionalLink(cursor, field, entity, id)` (`ids/cursor.ts`, internal, not in the barrel): visits a nullable LINK id (see `remap.ts`), which is remapped but never has to resolve.
 
+## Wave-3 core fixes: additive contract (2026-10-05)
+
+All additions are optional fields, new exports or new methods. Nothing was renamed or removed.
+
+### `src/domain/scoring/editPlanning.ts` (bugs #1, #2)
+
+- `planHistoryEdit(setup, events, ops, ctx): PlannedHistoryEdit` wraps `applyHistoryEdits`. It applies AUTOMATIC
+  resolutions on its own: `reopen_match` (the recorded `match_ended` no longer stands, so it is deleted and the
+  match goes back to live) and `confirm_new_result` (a super-over/decided tie is no longer a tie, so the
+  `match_ended` outcome becomes `natural`). Any other failure returns `{ ok: false, failure, conflict }`.
+- `EditConflict`: `{ code, message, reason, atSeq, eventId, inningsIndex, ballLabel, resolutions }`. `message` is the
+  sentence for the scorer ("After this change Shan is on strike for ball 1.3 of the 2nd innings, but that ball
+  records Rizwan out caught. Only the striker can be out caught."). `reason` is the raw engine message. `ballLabel` is
+  the label of the later ball that no longer fits.
+- `EditResolution`: `{ kind, automatic, label, description, ops }`. `kind` is `'reopen_match' | 'confirm_new_result' |
+  'keep_strike' | 'dismiss_striker' | 'remove_later_play'`. `ops` is the complete op list for that choice: preview it
+  with `previewHistoryEdit(resolution.ops)`, then apply `preview.ops`.
+  - `keep_strike`: inserts a `strike_swapped` before the later ball, so every later ball keeps its recorded batters.
+  - `dismiss_striker`: the later wicket is recorded against the batter on strike instead.
+  - `remove_later_play`: the edit ends the innings or match earlier, so the balls recorded after that point are deleted.
+- `EditConsequences`: `{ reopensMatch, resultBefore, resultAfter, targetChanges, removedDeliveries, lines }`.
+  `targetChanges` is `{ inningsIndex, teamId, before, after }[]`. `lines` are ready-made sentences, for example "The target
+  for Tigers changes from 28 to 32.", "“Tigers won by 9 wickets” no longer stands, so the match is reopened.", "Tigers are
+  28/1 after 2.2 overs and need 4 runs from 4 balls.".
+- `describeEditConsequences(setup, before, after, removedDeliveries?)`.
+- `EditOutcome` failures carry an optional `eventId`.
+
+### `src/domain/scoring/matchDates.ts` (bug #5)
+
+`matchDisplayDate(source): { value, basis: 'played' | 'scheduled' | 'updated' }`. The order is
+`startedAt ?? completedAt`, then `scheduledDate`, then `updatedAt`. It accepts a `MatchListItem` or a `Match`. A played
+value is an ISO date-time, so format it in local time.
+
+### `src/domain/scoring/squadSize.ts` (bug #7)
+
+- `checkSquadSizes(rules, sides)` and `checkDraftSquadSizes(draft, teamName)` return `SquadSizeIssue[]`:
+  `{ severity, code, teamId, teamName, selected, sideSize, message }`. `code` is `'SQUAD_TOO_LARGE'` (error),
+  `'SQUAD_BELOW_MINIMUM'` (error, fewer than `MIN_SQUAD_PLAYERS` = 2) or `'SQUAD_TOO_SMALL'` (warning). The side size is
+  the team's `teamXPlayers`, otherwise `rules.playersPerSide`. Substitutes are not counted.
+- `blockingSquadIssue(issues)` returns the first error, or `null`.
+
+### `src/domain/scoring/nextInnings.ts`
+
+`nextInningsPreview(setup, state): NextInningsPreview | null`. It returns a value only while
+`pendingAction.type === 'start_next_innings'`. The value is `{ inningsIndex, kind, battingTeamId, target,
+targetRevised, maxBalls, startingRuns, runsRequired, text }`. It honours targets and overs revised during the break and
+penalty runs carried into the innings. Example `text`: "Tigers need 28 runs to win from 3 overs (target 28).".
+
+### `src/domain/types/readModels.ts` and `src/db` (bug #5)
+
+- `MatchListItem.startedAt?` and `completedAt?` are filled by every list and resume query.
+- The `recent` and `oldest` sorts order by `COALESCE(started_at, completed_at, created_at)`, so a fixture created early and
+  played later sorts by when it was played.
+
+### `src/domain/types/impact.ts` and `src/domain/tournament/change` (bugs #15, #16)
+
+- `FixtureImpact.changeText?` is a plain label ("Result changes", "Result no longer counts", "Teams change"…).
+  `FixtureImpact.note?` explains the effect on a played match, replacing "(has scores)".
+- `StandingChange.teamName?`, `stageName?`, `poolName?`, `where?` ("Group Stage · Pool A") and `text?` (for example
+  "Eagles move from 3rd to 2nd in Group stage · Pool A; points 2 → 4, net run rate -0.500 → +0.312.").
+- `QualificationChange.teamName?`, `stageName?` and `text?`.
+- `SlotShortfall`: `{ slotId, label, stageId, stageName, sourceStageId, poolId, poolName, needed, available,
+  fixtureLabels, message }`. `ImpactSummary.slotShortfalls?` lists the knockout slots that a change makes impossible to
+  fill. Such a slot is reported only when the change creates the shortfall. Any shortfall sets
+  `requiresConfirmation` and raises the severity to at least `warning`. Each message also appears in `lines`, right after any blocked reason.
+- `ImpactSummary.keyLines?` holds only the sentences that the structured sections do not already say (blocked reason,
+  slot shortfalls, the result line, replay and result-transfer lines, champion). Render it instead of `lines` when the
+  fixture, standings, qualification and slot sections are shown, to avoid saying the same thing six times.
+- The result line of a `match_result_change` names the fixture: "The result of Match 6 · Tigers v Eagles changes." or
+  "… no longer counts until the match is finished again.".
+
+### `src/domain/tournament/whatif.ts` (review: what-if NRR)
+
+- `HypotheticalResult.margin?: HypotheticalMargin` is `{ kind: 'runs', runs }` or `{ kind: 'wickets', wickets,
+  ballsRemaining }`. With no `score`, a valid margin builds an estimated innings pair from a par score. The par is the
+  run rate of the counted first innings (`parRunsPerBall(snapshot)`, 1 run a ball when there is none) times the allotted
+  balls. A runs win means the winner batted first, with both innings using the full overs. A wickets win means the
+  winner chased `par + 1` with `ballsRemaining` to spare. The result keeps the given margin. An explicit `score` takes
+  precedence over a margin.
+- `WhatIfResult.nrr?: WhatIfNrrStatus` is `{ simulated, unscoredFixtureIds, estimatedFixtureIds, parRunsPerOver,
+  nrrUncertainTeamIds, notes }`. `simulated` is false when a win or tie has neither a score nor a margin.
+  `nrrUncertainTeamIds` are the teams whose simulated place is separated by NRR from a team in such a fixture. `notes`
+  are ready sentences for the outcome view.
+- Narrative: qualification lines come first. An eliminated team that still sits in a qualifying place reads "Lions
+  would sit 2nd in Pool A for now, but can no longer finish in the top 2". A manual elimination reads "… but are out of
+  the Knockouts by the organizer's decision".
+
+### `src/domain/tournament/stats.ts` (bug #8, review: records)
+
+- `TournamentRecordLine.playerIds?` (both batters of a partnership), `valueText?` ("1 wicket", "2 fours", "52/3",
+  "17*") and `tiedWith?` (every other holder of the same record, in the order they reached it: earlier match number
+  first, then batting order). The lead holder is unchanged.
+- `recordHolderText(line, names)` gives "Rizwan & Shan (TIG)". `recordHoldersText(line, names)` gives "Babar (LIO) +3
+  others". `recordValueText(line)` is also available. `RecordNames` is `{ player(id), team(id) }`.
+- A team-score detail prints whole overs as "(20 ov)", not "(20.0 ov)".
+
+### `src/domain/tournament/progress.ts` (review: dashboard progress)
+
+`tournamentProgress(snapshot, evaluation | null): TournamentProgressSummary` returns `{ overall, current, stages, label,
+countText, ratio, detail }`. With several stages, `label`, `countText` and `ratio` describe the current stage ("Group
+stage", "10 of 12"), and `detail` is "10 of 15 overall · Knockouts: 3 matches". A single-stage or finished tournament
+reports the whole tournament ("Tournament", "15 of 15", "15 of 15 matches played").
+
+### `src/domain/tournament/tiebreakers.ts`
+
+When NRR separates a team from one that has no NRR yet, the detail reads "Ahead of SBS on net run rate (-1.554; SBS
+have no net run rate yet)" instead of "(-1.554 vs –)".
+
+### `src/services/contracts.ts`
+
+- `HistoryEditPreview.ops?` holds the ops that will be applied, including automatic resolutions. Pass them to
+  `applyHistoryEdit`. `resolutions?` lists the automatic resolutions applied. `consequences?: EditConsequences`.
+- `MatchService.planHistoryEdit(matchId, ops)` returns `HistoryEditPlan`: `{ status: 'ready', preview }` or
+  `{ status: 'conflict', conflict, baseFingerprint }`. `previewHistoryEdit` behaves like a ready plan. On a conflict it
+  fails with `VALIDATION`, `message = conflict.message` and `domainCode = conflict.code`.
+- `applyHistoryEdit` re-plans the given ops. It audits as `match_reopened` when the edit reopens a completed match.
+- `createMatch` and `startFixtureMatch` refuse more non-substitute players than the side size with `VALIDATION`
+  (`domainCode` `SQUAD_TOO_LARGE`). `addSquadPlayer` refuses a regular (non-substitute) player for a full side the same
+  way.
+
+### `src/stores`
+
+- `LiveMatchStore.editConflict?: EditConflict | null` is set by `previewHistoryEdit` when the edit conflicts with a later
+  ball. It is kept by `clearError` and cleared by the next successful preview, by `applyHistoryEdit` and by
+  `clearEditConflict?()`. `applyHistoryEdit(ops, reason, preview)` applies `preview.ops ?? ops`.
+- `selectSquadIssues(draft, teamName?)`, `selectBlockingSquadIssue(draft, teamName?)` and `SquadTeamName` are exported
+  from `@/stores`. `MatchSetupStore.submit` refuses a blocking squad issue before anything is saved, with
+  `error.domainCode` set to the issue code.
+
+### `src/export/pdf`
+
+The scorecard date is the played date (`matchDisplayDate`). The scheduled date is used only when the match has not
+been played.
+
+## Wave-4 core copy: additive contract (2026-10-05)
+
+Applies `docs/ux/CLEANUP_BRIEF.md` and the CLAUDE.md "Microcopy" rules below the UI. Every addition is an optional
+field or a new export. The long sentence fields (`message`, `explanation`, `lines`, `keyLines`, `narrative`, `notes`,
+`text`, `TieBreakNote.detail`) still exist with the same meaning. They are kept for accessibility labels, audit
+entries and older callers, and many of them are shorter now. A screen shows the `headline`. The reason (`detail`) goes
+behind a "Why?" / "Details" disclosure and is never shown inline in lists or tables.
+
+### `src/domain/types/copy.ts` and `src/domain/text`
+
+- `Explained` is `{ headline: string; detail?: string }`. The `headline` has no trailing period. The `detail` is one or
+  more full sentences.
+- `@/domain/text` (also `text` in `@/domain`) exports the following:
+  - `explain(headline, detail?)` builds an `Explained`. It strips the headline's period and drops an empty detail.
+  - `splitExplained(sentence)` makes the first sentence the headline and the rest the detail.
+  - `explainedText(value)` joins the parts back into sentences, for screen readers.
+  - Also `stripPeriod`, `asSentence` and `isScannableHeadline(text, limit?)`.
+  - `HEADLINE_LIMIT` is 40 and `SUPPORTING_LIMIT` is 80.
+
+### `ServiceError` (services and stores)
+
+- `ServiceError.headline?` and `supporting?: string | null` are set on every error from `serviceError` / `failure`
+  (services) and `storeError` / `unexpected` (stores).
+  - By default they are `splitExplained(message)`, for example "Couldn't save this delivery" plus "Your previous match
+    data is still safe.".
+  - Edit conflicts pass their own `EditConflict.headline` / `detail`.
+- `message` is unchanged: the full sentence or sentences.
+- `detail` is still technical diagnostics. It is never shown on screen (see `ErrorState › details`).
+
+### Tournament outcomes (§98, kept as a headline plus a disclosed detail)
+
+- `TeamQualification.headline?`, `note?: string | null` and `detail?`:
+  - `headline` examples: "Knockouts as Pool A winners", "Through to the Knockouts", "Can still reach the Knockouts",
+    "Beat Eagles and Hawks to qualify", "Level with Tigers: organizer decides", "Can't reach the Knockouts" and "Into
+    the Knockouts by organizer decision".
+  - `note` is the chip-free secondary line for a table row, or `null` when the state chip already says it ("As Pool A
+    winners", "Beat Eagles to qualify").
+  - `detail` gives the reason and the rule, for example "No remaining result can change this. Top 2 from each pool.
+    Ranking: Points → NRR → …", or "Manual override: “reason”.".
+- `TieBreakNote.headline?`: "2 pts ahead of Tigers", "Ahead of Cobras on NRR", "Level with Eagles: organizer decides"
+  or "Above Eagles by draw of lots". The existing `detail` holds the figures.
+- `SlotResolution.headline?` and `detail?` (new in this wave):
+  - `headline` is "Pool A winner: Lions", "Winner SF1: Lions", "Wildcard: Eagles", "SF1: to be decided" or "Winner
+    SF2: organizer decides".
+  - `detail` is "6 pts, NRR +3.255.", "Won by 10 runs.", "Manual override: “Host team”.", "Higher seed. Final not
+    played yet.", "The best runner-up: 4 pts, NRR +0.167, ahead of VIP. Results against the lowest-placed teams of
+    larger pools don't count." or "Lions already qualified as Pool A winner.".
+  - `detail` is absent when the headline says everything.
+- Impact previews:
+  - `ImpactSummary.headline` is now a short noun phrase with no period: "2 fixtures affected, 1 completed",
+    "Standings change for 3 teams", "Qualification changes", "No effect on results or fixtures" or "Nothing changes".
+  - `ImpactSummary.keyItems?: Explained[]` pairs one-to-one with `keyLines`. Examples: "Match 6 result changes" plus
+    "Tigers v Eagles."; "Match 6 result no longer counts" plus "It counts again once Tigers v Eagles is finished.";
+    "Match 6 will be replayed" plus "The abandoned match stays on record but no longer counts."; "New champion: Eagles"
+    plus "Was Lions.".
+  - `StandingChange.headline?` and `detail?`: "Tigers: 2nd → 3rd" plus "Group stage · Pool A. Points 4 → 2, NRR
+    +1.333 → -0.129.".
+  - `QualificationChange.headline?` and `detail?`: "Eagles qualify" or "Tigers no longer certain", plus "For the
+    Knockouts.".
+  - `SlotShortfall.headline?` and `detail?`: "B2 in Knockouts can't be filled" plus "Pool B would have 1 team; “Top 2
+    from each pool” needs 2. SF1 could not be played.". `message` is the two parts joined.
+- What-if:
+  - `WhatIfResult.narrativeItems?: Explained[]`, for example "Eagles qualify" plus "For the Knockouts as Pool A
+    runners-up.", "Tigers: 2nd → 3rd" plus "In Pool A.", or "No change to standings or qualification".
+  - `WhatIfNrrStatus.noteItems?`: "NRR not simulated" plus "Match 6 has no score or margin, so NRR stays as it is.
+    Places decided on NRR may change.", and "NRR estimated from margins" plus "Match 6: par score of 7.50 runs an
+    over.".
+- Built-in template descriptions are one line of 40 characters or fewer with no period ("2 pools of 4, top 2 to the
+  semifinals").
+
+### Scoring
+
+- `EditConflict.headline?` and `detail?`: "Wrong batter out on ball 1.3", "Match now decided on ball 1.6" or "Ball 2.1 no
+  longer fits", plus the reason.
+- `EditConsequences.items?: Explained[]`: "Match reopens" plus "“Tigers won by 9 wickets” no longer stands.", "Tigers
+  28/1 after 2.2 overs" plus "Need 4 runs from 4 balls", "Target for Tigers: 28 → 32", "New result: …" plus "Was
+  “…”.", or "2 later balls removed".
+- `EditResolution.description` is shorter: "Batters swap ends before ball 1.2. Later balls stay as recorded." and "Out
+  caught on ball 1.3 instead of Rizwan.".
+- `SquadSizeIssue.headline?` and `detail?`: "RSL: 3 players too many" plus "This match is 8 a side. Remove 3 or make
+  them substitutes.", or "RSL: 6 of 8 players" plus "The innings ends when only one batter is left.".
+- `NextInningsPreview.headline?` and `detail?: string | null`: "Target 28" or "Target 32 (revised)", plus "Tigers need
+  28 runs from 3 overs.".
+- `formatRequirementCompact(runs, balls)` in `@/domain/scoring/format` gives "Need 12 off 9".
+- Validation, guard and service messages are at most two short sentences: the fact or consequence first, then what to
+  do. Explanations of mechanisms were removed. See `.workflow/wave4/core-copy.md`.
+
 ## Contract additions register (wave-1 integration)
 
 Every addition made to a frozen contract file or to the documented contract during wave 1, and where it is specified. All of them are additive: nothing was renamed or removed, and no existing meaning changed except where noted.
@@ -4157,3 +4378,19 @@ Every addition made to a frozen contract file or to the documented contract duri
 | `services` (behaviour) | `updateFixture` replays through `computeImpact` + `planChange` (reason required, impact audited, `matchId` = superseded match); superseded matches are read-only | wave 3, gap G-17 | `TournamentService.updateFixture`, `MatchRepository.isSuperseded` |
 | `domain/scoring` | `battingOrder.ts`: `MatchSides`, `tossBattingTeam`, `openingBattingTeam` | wave 3, gap G-18 (toss not recorded) | `battingOrder.ts` |
 | `stores/contracts.ts` | optional `MatchSetupDraft.battingFirstTeamId`; `submit` derives the opening side from the toss or that choice, never from team A, and refuses when neither is known | wave 3, gap G-18 | `MatchSetupDraft`, `MatchSetupStore` |
+| `domain/scoring` | `editPlanning.ts` (`planHistoryEdit`, `EditConflict`, `EditResolution`, `EditConsequences`, `describeEditConsequences`); `EditOutcome` failure `eventId?` | wave 3, bugs #1/#2 | Wave-3 core fixes section |
+| `domain/scoring` | `matchDates.ts` (`matchDisplayDate`), `squadSize.ts` (`checkSquadSizes`, `checkDraftSquadSizes`, `blockingSquadIssue`), `nextInnings.ts` (`nextInningsPreview`) | wave 3, bugs #5/#7, QA | Wave-3 core fixes section |
+| `domain/types/readModels.ts`, `db` | `MatchListItem.startedAt?`, `completedAt?`; `recent`/`oldest` sort by played time | wave 3, bug #5 | `MatchListItem` |
+| `domain/types/impact.ts` | `FixtureImpact.changeText?`/`note?`; `StandingChange` and `QualificationChange` names and `text?`; `SlotShortfall`; `ImpactSummary.slotShortfalls?`, `keyLines?`; `HypotheticalMargin`; `HypotheticalResult.margin?`; `WhatIfNrrStatus`; `WhatIfResult.nrr?` | wave 3, bugs #15/#16, review | Wave-3 core fixes section |
+| `domain/types/standings.ts`, `domain/tournament` | `TournamentRecordLine.playerIds?`, `valueText?`, `tiedWith?`; `recordHolderText`, `recordHoldersText`, `recordValueText`; `tournamentProgress`; `parRunsPerBall` | wave 3, bug #8, review | Wave-3 core fixes section |
+| `services/contracts.ts` | `HistoryEditPreview.ops?`, `resolutions?`, `consequences?`; `HistoryEditPlan`; `MatchService.planHistoryEdit`; `SQUAD_TOO_LARGE` refusals | wave 3, bugs #1/#2/#7 | Wave-3 core fixes section |
+| `stores` | `LiveMatchStore.editConflict?`, `clearEditConflict?()`; `selectSquadIssues`, `selectBlockingSquadIssue`, `SquadTeamName` | wave 3, bugs #2/#7 | Wave-3 core fixes section |
+| `db/repositories/contracts.ts`, `services/contracts.ts`, `stores/contracts.ts` | `PlayerRepository.countActiveByTeam()`; optional `TeamService.playerCounts?()`; optional `TeamLibraryStore.playerCounts?` (active players per team, loaded with the team list) | wave 3 verify, review (team rows show "8 players") | `TeamService`, `TeamLibraryStore` |
+| `domain/types/readModels.ts`, `domain/scoring`, `db` | `ListChase`; optional `MatchListItem.chase` (runs and balls a live or paused chase still needs, from the innings projection's target and ball limit); `listChase()` in `domain/scoring/listChase.ts` | wave 3 verify, review (Continue card "Need 42 from 26") | `MatchListItem` |
+| `ui` | `Screen.onScrolledChange?`, `scrollbarGutter`; `TextField.ref?`/`hideLabel?`; `Sheet.leading?`; `STICKY_GLASS_SCROLLER`/`stickyGlassScrollerStyle`; `SwitchColors.trackDisabledOn`/`thumbDisabledOn`; `wicketMarkText`; icon `calendar` | wave 3 verify (needs-other-area items) | `src/ui` |
+| `domain/tournament` | optional `venueIds` on `scheduleSequential`/`SequentialScheduleOptions`: "Fill dates" shares the tournament's venues across each day (never two matches on one ground in one time slot) and keeps a venue already set; audit summary for regenerated fixtures reads "<stage> fixtures regenerated: n removed, m created." (`fixturesReplaceSummary`) | wave 3 verify, review (wizard step 6, audit log) | `scheduleSequential`, `ChangeAudit` |
+| `domain/types/copy.ts`, `domain/text` | `Explained`; `explain`, `splitExplained`, `explainedText`, `stripPeriod`, `asSentence`, `isScannableHeadline`, `HEADLINE_LIMIT`, `SUPPORTING_LIMIT`; `text` namespace in `@/domain` | wave 4, core copy (CLEANUP_BRIEF) | Wave-4 core copy section |
+| `services/contracts.ts`, `stores` | optional `ServiceError.headline` and `supporting`, filled for every service and store error | wave 4, core copy | Wave-4 core copy section |
+| `domain/types/standings.ts` | optional `TieBreakNote.headline`; `TeamQualification.headline`, `note`, `detail`; `SlotResolution.headline`, `detail` | wave 4, core copy (§98) | Wave-4 core copy section |
+| `domain/types/impact.ts` | optional `StandingChange.headline`/`detail`, `QualificationChange.headline`/`detail`, `SlotShortfall.headline`/`detail`, `ImpactSummary.keyItems`, `WhatIfNrrStatus.noteItems`, `WhatIfResult.narrativeItems`; `ImpactSummary.headline` is now a short phrase without a period (wording change) | wave 4, core copy (§98) | Wave-4 core copy section |
+| `domain/scoring` | optional `EditConflict.headline`/`detail`, `EditConsequences.items`, `SquadSizeIssue.headline`/`detail`, `NextInningsPreview.headline`/`detail`; `formatRequirementCompact`; shorter `EditResolution.description` (wording change) | wave 4, core copy | Wave-4 core copy section |

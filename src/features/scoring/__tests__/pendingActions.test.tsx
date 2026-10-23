@@ -3,6 +3,7 @@ import { fireEvent, screen, waitFor } from '@testing-library/react-native';
 import { router } from 'expo-router';
 import { batterIn, selectBowler } from '@/domain/scoring/commands';
 import { ScoringScreen } from '../screens/ScoringScreen';
+import { m3Setup } from '@/domain/scoring/testing';
 import { liveMatch, OPEN } from './support/liveMatch';
 import { renderScreen, resetCommonStores, setLive } from './support/render';
 
@@ -23,6 +24,11 @@ describe('pending actions on the live screen', () => {
     await renderScreen(<ScoringScreen />);
     expect(screen.getByTestId('prompt-start-innings')).toBeOnTheScreen();
     expect(screen.getByText('Lions 18/0 (3 ov) · overs completed')).toBeOnTheScreen();
+    expect(screen.getByTestId('prompt-start-chase')).toHaveTextContent(/^Target 19/);
+    expect(screen.getByTestId('prompt-start-chase')).toHaveTextContent('Target 19Need 19 off 18');
+    expect(screen.getByTestId('prompt-start-chase')).not.toHaveTextContent(/Tigers need/);
+    expect(screen.getByTestId('prompt-start-striker')).toHaveTextContent(/Choose striker…/);
+    expect(screen.getByTestId('prompt-start-striker')).toHaveProp('accessibilityLabel', 'Striker, Choose striker…, required');
     expect(screen.queryByTestId('score-btn-1')).not.toBeOnTheScreen();
     expect(screen.getByTestId('prompt-start-submit')).toBeDisabled();
     await fireEvent.press(screen.getByTestId('prompt-start-striker'));
@@ -31,8 +37,24 @@ describe('pending actions on the live screen', () => {
     await fireEvent.press(screen.getByTestId('prompt-start-nonStriker-T3'));
     await fireEvent.press(screen.getByTestId('prompt-start-bowler'));
     await fireEvent.press(screen.getByTestId('prompt-start-bowler-L10'));
+    expect(screen.getByTestId('prompt-start-striker')).toHaveProp('accessibilityLabel', expect.not.stringContaining('required'));
     await fireEvent.press(screen.getByTestId('prompt-start-submit'));
     expect(store.dispatch).toHaveBeenCalledWith({ type: 'start_innings', strikerId: 'T2', nonStrikerId: 'T3', bowlerId: 'L10', battingTeamId: 'TIG' });
+  });
+
+  it('states the target before the second innings starts when the scorer confirms the innings end', async () => {
+    resetCommonStores({ confirmInningsEnd: true });
+    setLive(liveMatch(FIRST_INNINGS));
+    await renderScreen(<ScoringScreen />);
+    expect(screen.getByTestId('prompt-innings-chase')).toHaveTextContent(/^Target 19/);
+  });
+
+  it('select_next_bowler: says "over" for a one-over limit and leaves out figures for bowlers who have not bowled', async () => {
+    setLive(liveMatch([OPEN, ...ones(6)], m3Setup({ rules: { maxOversPerBowler: 1 } })));
+    await renderScreen(<ScoringScreen />);
+    expect(screen.getByTestId('prompt-bowler-T10')).toHaveTextContent(/0 of 1 over$/);
+    expect(screen.getByTestId('prompt-bowler-T10')).not.toHaveTextContent(/–/);
+    expect(screen.queryByText(/of 1 overs/)).not.toBeOnTheScreen();
   });
 
   it('start_next_innings with "confirm before ending an innings" asks first', async () => {
@@ -96,6 +118,8 @@ describe('pending actions on the live screen', () => {
     const store = setLive(live);
     await renderScreen(<ScoringScreen />);
     expect(screen.getByTestId('prompt-result-text')).toHaveTextContent('Tigers won by 10 wickets (14 balls left)');
+    expect(screen.getByTestId('prompt-result-scores')).toHaveTextContent('LIO 18/0 (3 ov) · TIG 19/0 (0.4 ov)');
+    expect(screen.getByTestId('score-innings-summary')).toBeOnTheScreen();
     await fireEvent.press(screen.getByTestId('prompt-confirm-btn'));
     expect(store.dispatch).toHaveBeenCalledWith({ type: 'end_match', outcome: { type: 'natural' } });
     await waitFor(() => expect(router.replace).toHaveBeenCalledWith({ pathname: '/match/[matchId]/scorecard', params: { matchId: 'M1' } }), {
@@ -138,7 +162,7 @@ describe('pending actions on the live screen', () => {
     };
     const store = setLive(repaired);
     await renderScreen(<ScoringScreen />);
-    expect(screen.getByTestId('prompt-repair-text')).toHaveTextContent("One recorded event can't be applied: 0.2 · Haris to Babar");
+    expect(screen.getByTestId('prompt-repair-text')).toHaveTextContent("Can't apply: 0.2 · Haris to Babar");
     expect(screen.getByTestId('prompt-repair-bar')).toBeTruthy();
     expect(screen.getByText('This match needs repair')).toBeOnTheScreen();
     expect(screen.queryByTestId('score-btn-1')).not.toBeOnTheScreen();

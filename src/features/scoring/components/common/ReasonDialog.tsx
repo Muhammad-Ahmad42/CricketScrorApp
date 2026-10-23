@@ -5,7 +5,7 @@ import { isReasonValid, ReasonField } from './ReasonField';
 export interface ReasonDialogProps {
   readonly visible: boolean;
   readonly title: string;
-  readonly message: string;
+  readonly message?: string;
   readonly confirmLabel: string;
   readonly destructive?: boolean;
   readonly busy?: boolean;
@@ -16,6 +16,15 @@ export interface ReasonDialogProps {
 
 export function ReasonDialog({ visible, title, message, confirmLabel, destructive = false, busy = false, onConfirm, onCancel, testID = 'dialog-reason' }: ReasonDialogProps) {
   const [reason, setReason] = useState('');
+  const valid = isReasonValid(reason);
+  const confirm = () => {
+    if (!valid || busy) {
+      return;
+    }
+    const text = reason.trim();
+    setReason('');
+    onConfirm(text);
+  };
   return (
     <Dialog
       visible={visible}
@@ -24,20 +33,23 @@ export function ReasonDialog({ visible, title, message, confirmLabel, destructiv
       destructive={destructive}
       confirm={{
         label: confirmLabel,
-        disabled: !isReasonValid(reason),
+        disabled: !valid,
         loading: busy,
-        onPress: () => {
-          const text = reason.trim();
-          setReason('');
-          onConfirm(text);
-        },
+        onPress: confirm,
         testID: `${testID}-confirm`,
       }}
       cancel={{ label: 'Cancel', onPress: onCancel, testID: `${testID}-cancel` }}
       onRequestClose={onCancel}
       testID={testID}
     >
-      <ReasonField value={reason} onChange={setReason} required testID={`${testID}-field`} />
+      <ReasonField
+        value={reason}
+        onChange={setReason}
+        required
+        returnKeyType="done"
+        submitBehavior="blurAndSubmit"
+        testID={`${testID}-field`}
+      />
     </Dialog>
   );
 }

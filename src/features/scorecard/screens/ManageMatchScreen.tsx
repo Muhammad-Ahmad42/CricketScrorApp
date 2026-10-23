@@ -1,28 +1,28 @@
 import { useRef, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
 import { router } from 'expo-router';
 import type { MatchPlayer, TeamId } from '@/domain/types';
 import { matchEditPolicy, type EditPermission } from '@/domain/tournament/stateMachine';
-import { Button, Dialog, ListRow, Screen, SectionHeader, space } from '@/ui';
+import { Button, Dialog, Inset, ListRow, Screen, SectionHeader } from '@/ui';
 import { useHomeStore, useLiveMatchStore, useMatchHistoryStore, useTeamLibraryStore, useToastStore } from '@/stores';
 import { TopBar } from '@/features/scoring/components/common/TopBar';
 import { ReasonDialog } from '@/features/scoring/components/common/ReasonDialog';
 import { sendIntent } from '@/features/scoring/hooks/actions';
 import { leaveMatch, MatchGate } from '@/features/scoring/screens/MatchGate';
 import { teamName } from '@/features/scoring/selectors/names';
-import { formatLabel } from '@/features/scoring/selectors/scoreboard';
+import { formatSummary } from '@/features/scoring/selectors/scoreboard';
 import { AddPlayerSheet } from '@/features/scoring/sheets/AddPlayerSheet';
 import { EndMatchSheet } from '@/features/scoring/sheets/EndMatchSheet';
 import { ReviseOversSheet } from '@/features/scoring/sheets/ReviseOversSheet';
 import { reviseTargetOf } from '@/features/scoring/selectors/options';
 import { SuspendSheet } from '@/features/scoring/sheets/SuspendSheet';
-import { formatDateLabel } from '@/features/scoring/selectors/dates';
+import { formatDateLabel, formatTimeOfDay, matchLongDate } from '@/features/scoring/selectors/dates';
 import { RulesEditor } from '@/features/match-setup/components/RulesEditor';
 import { rulesIssues } from '@/features/match-setup/selectors/rules';
 import { DetailsSheet } from '../sheets/DetailsSheet';
 import { SideSizesSheet } from '../sheets/SideSizesSheet';
 import { SquadSheet } from '../sheets/SquadSheet';
 import { TossSheet } from '../sheets/TossSheet';
+import { errorHeadline } from '@/features/scoring/selectors/scannable';
 
 type Overlay =
   | { readonly kind: 'details' }
@@ -42,7 +42,7 @@ interface PendingReason {
   readonly run: (reason: string) => Promise<boolean>;
 }
 
-const FORBIDDEN_TEXT = "This can't be changed at this stage of the match.";
+const FORBIDDEN_TEXT = "Can't be changed at this stage";
 
 function ManageBody() {
   const live = useLiveMatchStore((s) => s.live);
@@ -76,7 +76,7 @@ function ManageBody() {
     }
     const failure = useLiveMatchStore.getState().error;
     useLiveMatchStore.getState().clearError();
-    toasts.show({ kind: 'error', message: failure?.message ?? "Couldn't save the change. Nothing was changed.", action: null });
+    toasts.show({ kind: 'error', message: errorHeadline(failure, "Couldn't save the change. Nothing was changed."), action: null });
     return false;
   };
   const guarded = (permission: EditPermission, title: string, action: (reason: string | null) => Promise<boolean>, success: string) => {
@@ -107,7 +107,14 @@ function ManageBody() {
   const reviseTarget = reviseTargetOf(setup, state);
   const terminal = state.lifecycle === 'completed' || state.lifecycle === 'abandoned';
   const venueName = match.venueId === null ? 'No venue' : venues.find((venue) => venue.id === match.venueId)?.name ?? 'Venue';
-  const when = [formatDateLabel(match.scheduledDate), match.scheduledTime].filter((part): part is string => part !== null).join(' ') || 'Not set';
+  const played = match.startedAt ?? match.completedAt ?? null;
+  const when =
+    (played !== null
+      ? [matchLongDate(match), formatTimeOfDay(played)]
+      : [formatDateLabel(match.scheduledDate), match.scheduledTime]
+    )
+      .filter((part): part is string => part !== null)
+      .join(' ') || 'Not set';
   const tossText = setup.toss === null ? 'Not recorded' : `${teamName(setup, setup.toss.winnerTeamId)}, ${setup.toss.decision}`;
   const lockHint = (permission: EditPermission) => (permission === 'forbidden' ? FORBIDDEN_TEXT : permission === 'confirm' ? 'Needs a reason' : undefined);
 
@@ -156,7 +163,7 @@ function ManageBody() {
       />
       <ListRow
         title="Format"
-        trailing={{ kind: 'value', text: `${formatLabel(match.formatId, setup.rules.oversPerInnings)} · ${setup.rules.oversPerInnings} overs` }}
+        trailing={{ kind: 'value', text: formatSummary(match.formatId, setup.rules.oversPerInnings) }}
         testID="manage-row-format"
       />
       <ListRow
@@ -200,7 +207,6 @@ function ManageBody() {
           />
           <ListRow
             title="End match"
-            subtitle="Abandoned · No result · Awarded"
             leading={{ icon: 'circle-alert' }}
             trailing={{ kind: 'chevron' }}
             onPress={() => setOverlay({ kind: 'end' })}
@@ -208,14 +214,14 @@ function ManageBody() {
           />
         </>
       ) : null}
-      <View style={styles.danger}>
+      <Inset top="md" bottom="md" gap="sm">
         {isLive && !inTournament ? (
           <Button label="Discard match" variant="destructive" size="lg" fullWidth onPress={() => setOverlay({ kind: 'discard' })} testID="manage-btn-discard" />
         ) : null}
         {terminal && !inTournament ? (
           <Button label="Delete match" variant="destructive" size="lg" fullWidth onPress={() => setOverlay({ kind: 'delete' })} testID="manage-btn-delete" />
         ) : null}
-      </View>
+      </Inset>
       {overlay?.kind === 'details' ? (
         <DetailsSheet
           visible
@@ -303,7 +309,7 @@ function ManageBody() {
         visible={overlay?.kind === 'discard'}
         destructive
         title="Discard this match?"
-        message={`${live.events.length} recorded events will be deleted. This can't be undone.`}
+        message="Every recorded ball is deleted. This can't be undone."
         confirm={{ label: 'Discard match', onPress: () => void discard(), testID: 'manage-discard-confirm' }}
         cancel={{ label: 'Cancel', onPress: close }}
         onRequestClose={close}
@@ -312,7 +318,7 @@ function ManageBody() {
         visible={overlay?.kind === 'delete'}
         destructive
         title={`Delete ${match.title}?`}
-        message={`Its scorecard and ${live.events.length} recorded events will be deleted. This can't be undone.`}
+        message="This can't be undone."
         confirm={{ label: 'Delete match', onPress: () => void remove(), testID: 'manage-delete-confirm' }}
         cancel={{ label: 'Cancel', onPress: close }}
         onRequestClose={close}
@@ -320,7 +326,6 @@ function ManageBody() {
       <ReasonDialog
         visible={pendingReason !== null}
         title={pendingReason?.title ?? ''}
-        message={inTournament ? 'This match is part of a tournament. The change is recorded in the audit log with your reason.' : 'The change is recorded in the audit log with your reason.'}
         confirmLabel="Save change"
         busy={busy}
         onConfirm={(reason) => {
@@ -343,7 +348,3 @@ export function ManageMatchScreen() {
     </MatchGate>
   );
 }
-
-const styles = StyleSheet.create({
-  danger: { padding: space.md, gap: space.sm },
-});

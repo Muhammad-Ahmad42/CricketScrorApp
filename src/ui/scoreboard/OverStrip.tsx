@@ -147,7 +147,6 @@ export function OverStrip({
             {runs}
           </Text>
         ) : null}
-        <View style={[styles.edge, { width: theme.borderWidth.hairline, backgroundColor: theme.color.border }]} />
       </View>
     </View>
   );
@@ -162,5 +161,4 @@ const styles = StyleSheet.create({
   stripClip: { flex: 1, overflow: 'hidden' },
   chips: { flexDirection: 'row', alignItems: 'flex-start', gap: space.xs },
   inlineRuns: { marginLeft: space.sm },
-  edge: { alignSelf: 'stretch' },
 });

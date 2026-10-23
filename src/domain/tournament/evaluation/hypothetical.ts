@@ -1,5 +1,6 @@
 import type {
   Fixture,
+  HypotheticalMargin,
   HypotheticalResult,
   HypotheticalScore,
   InningsSummary,
@@ -47,6 +48,47 @@ export function scoreInnings(score: HypotheticalScore, sides: Sides, allotted: n
   ];
 }
 
+function winningSide(hypothetical: HypotheticalResult): 'side_a' | 'side_b' | null {
+  if (hypothetical.outcome === 'side_a_win') return 'side_a';
+  if (hypothetical.outcome === 'side_b_win') return 'side_b';
+  return null;
+}
+
+function validMargin(hypothetical: HypotheticalResult, allotted: number): HypotheticalMargin | null {
+  const given = hypothetical.margin ?? null;
+  if (given === null || winningSide(hypothetical) === null) return null;
+  if (given.kind === 'runs') return Number.isInteger(given.runs) && given.runs >= 1 ? given : null;
+  const wicketsOk = Number.isInteger(given.wickets) && given.wickets >= 1 && given.wickets <= 10;
+  const ballsOk = Number.isInteger(given.ballsRemaining) && given.ballsRemaining >= 0 && given.ballsRemaining < allotted;
+  return wicketsOk && ballsOk ? given : null;
+}
+
+export function scoreFromMargin(hypothetical: HypotheticalResult, allotted: number, parRuns: number): HypotheticalScore | null {
+  const winner = winningSide(hypothetical);
+  const given = validMargin(hypothetical, allotted);
+  if (winner === null || given === null) return null;
+  const par = Math.max(1, Math.round(parRuns));
+  if (given.kind === 'runs') {
+    const first = Math.max(par, given.runs);
+    return {
+      battingFirst: winner,
+      firstInnings: { runs: first, balls: allotted, allOut: false },
+      secondInnings: { runs: first - given.runs, balls: allotted, allOut: false },
+    };
+  }
+  return {
+    battingFirst: winner === 'side_a' ? 'side_b' : 'side_a',
+    firstInnings: { runs: par, balls: allotted, allOut: false },
+    secondInnings: { runs: par + 1, balls: allotted - given.ballsRemaining, allOut: false },
+  };
+}
+
+export function scoreOf(hypothetical: HypotheticalResult, allotted: number, parRuns: number): { readonly score: HypotheticalScore | null; readonly estimated: boolean } {
+  if (hypothetical.score !== null) return { score: hypothetical.score, estimated: false };
+  const derived = scoreFromMargin(hypothetical, allotted, parRuns);
+  return { score: derived, estimated: derived !== null };
+}
+
 function margin(winner: TeamId, score: HypotheticalScore | null, sides: Sides, allotted: number): WinMargin {
   if (!score) return { kind: 'runs', runs: 0 };
   const firstTeam = score.battingFirst === 'side_a' ? sides.a : sides.b;
@@ -54,13 +96,14 @@ function margin(winner: TeamId, score: HypotheticalScore | null, sides: Sides, a
   return { kind: 'wickets', wickets: score.secondInnings.allOut ? 0 : 1, ballsRemaining: Math.max(0, allotted - score.secondInnings.balls) };
 }
 
-function resultOf(hypothetical: HypotheticalResult, sides: Sides, allotted: number): MatchResult {
+function resultOf(hypothetical: HypotheticalResult, score: HypotheticalScore | null, sides: Sides, allotted: number): MatchResult {
   switch (hypothetical.outcome) {
     case 'side_a_win':
     case 'side_b_win': {
       const winner = hypothetical.outcome === 'side_a_win' ? sides.a : sides.b;
       const loser = winner === sides.a ? sides.b : sides.a;
-      return { type: 'win', winnerTeamId: winner, loserTeamId: loser, margin: margin(winner, hypothetical.score, sides, allotted), method: 'normal' };
+      const given = hypothetical.score === null ? validMargin(hypothetical, allotted) : null;
+      return { type: 'win', winnerTeamId: winner, loserTeamId: loser, margin: given ?? margin(winner, score, sides, allotted), method: 'normal' };
     }
     case 'tie': {
       const tieWinner = hypothetical.tieWinner ?? null;
@@ -107,9 +150,11 @@ export function buildHypotheticalSummary(
   hypothetical: HypotheticalResult,
   allottedBalls: number,
   ballsPerOver: number,
+  parRuns: number = allottedBalls,
 ): MatchSummary {
-  const result = resultOf(hypothetical, sides, allottedBalls);
-  const played = result.type !== 'walkover' && hypothetical.score !== null;
+  const { score } = scoreOf(hypothetical, allottedBalls, parRuns);
+  const result = resultOf(hypothetical, score, sides, allottedBalls);
+  const played = result.type !== 'walkover' && score !== null;
   return {
     summaryVersion: 2,
     matchId: `whatif:${fixture.id}`,
@@ -119,7 +164,7 @@ export function buildHypotheticalSummary(
     result,
     winnerTeamId: winnerOf(result),
     ballsPerOver,
-    innings: played && hypothetical.score ? scoreInnings(hypothetical.score, sides, allottedBalls, ballsPerOver) : [],
+    innings: played && score ? scoreInnings(score, sides, allottedBalls, ballsPerOver) : [],
     superOvers: [],
     squads: [],
     completedAt: null,

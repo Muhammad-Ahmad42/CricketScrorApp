@@ -199,6 +199,13 @@ export const useTournamentWizardStore = create<TournamentWizardState>()((set, ge
     await advanceStatus(tournamentId, 'draft', 'registration');
   };
 
+  const saveKind = async (tournamentId: TournamentId, saved: TournamentSnapshot): Promise<void> => {
+    const kind = get().draft.info.structureKind;
+    if (saved.tournament.structureKind !== kind) {
+      await must((services) => services.tournaments.updateInfo(tournamentId, { structureKind: kind }));
+    }
+  };
+
   const saveTemplateStructure = async (): Promise<void> => {
     const tournamentId = requireTournament();
     const { draft } = get();
@@ -223,8 +230,9 @@ export const useTournamentWizardStore = create<TournamentWizardState>()((set, ge
         }),
       );
       set({ draft: { ...get().draft, rules: snapshot.rules, stages: snapshot.stages, pools: snapshot.pools, slots: snapshot.slots, poolAssignment: null } });
+      await saveKind(tournamentId, snapshot);
     } else {
-      await saveStructure(tournamentId, draft);
+      await saveKind(tournamentId, await saveStructure(tournamentId, draft));
     }
     await advanceStatus(tournamentId, 'registration', 'structure_configured');
   };
@@ -315,7 +323,7 @@ export const useTournamentWizardStore = create<TournamentWizardState>()((set, ge
       }
       const step = SETUP_STEP[result.value.tournament.status];
       if (step === undefined) {
-        set({ status: 'error', error: storeError('FORBIDDEN_STATE', 'This tournament has already started, so its setup is finished.') });
+        set({ status: 'error', error: storeError('FORBIDDEN_STATE', 'This tournament has already started. Its setup is finished.') });
         return false;
       }
       set({ step, draft: draftFrom(result.value), status: 'ready' });

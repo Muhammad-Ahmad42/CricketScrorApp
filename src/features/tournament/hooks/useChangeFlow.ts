@@ -6,7 +6,7 @@ import { tournamentIndex, type TournamentIndex } from '../selectors/names';
 import { changeNeedsReason } from '../selectors/policy';
 import { showError, showToast } from './toast';
 
-export const CONFLICT_NOTICE = 'The tournament changed while you were reviewing. Review the changes again.';
+export const CONFLICT_NOTICE = 'Tournament changed. Review again.';
 
 export type ChangeBuilder = (index: TournamentIndex) => ProposedChange | null;
 
@@ -90,7 +90,7 @@ export function useChangeFlow(): ChangeFlow {
     const preview = await store.previewChange(resolved.change);
     setPreviewing(false);
     if (preview === null) {
-      showError(useTournamentStore.getState().error, "Couldn't work out what this change affects. Nothing was changed.");
+      showError(useTournamentStore.getState().error, "Couldn't preview this change. Nothing was changed.");
       return false;
     }
     setState({

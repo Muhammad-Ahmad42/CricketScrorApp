@@ -2,8 +2,8 @@ import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import type { Venue } from '@/domain/types';
 import type { MatchDetailsPatch } from '@/services/contracts';
-import { Button, Sheet, Text, TextField, space } from '@/ui';
-import { OptionButton } from '@/features/scoring/components/common/OptionButton';
+import { Button, DateField, RadioList, Sheet, Text, TextField, TimeField, space, useFormChain } from '@/ui';
+import { useDiscardGuard } from '@/features/scoring/hooks/useDiscardGuard';
 
 export interface DetailsValues {
   readonly title: string;
@@ -21,73 +21,62 @@ export interface DetailsSheetProps {
   readonly onClose: () => void;
 }
 
-const DATE = /^\d{4}-\d{2}-\d{2}$/;
-const TIME = /^([01]\d|2[0-3]):[0-5]\d$/;
-
-export function dateError(text: string): string | null {
-  return text.trim() === '' || DATE.test(text.trim()) ? null : 'Use the form 2026-09-12';
-}
-
-export function timeError(text: string): string | null {
-  return text.trim() === '' || TIME.test(text.trim()) ? null : 'Use the 24-hour form 14:30';
-}
+const NO_VENUE = '__none__';
 
 export function DetailsSheet({ visible, values, venues, busy, onSubmit, onClose }: DetailsSheetProps) {
   const [title, setTitle] = useState(values.title);
-  const [date, setDate] = useState(values.scheduledDate ?? '');
-  const [time, setTime] = useState(values.scheduledTime ?? '');
+  const [date, setDate] = useState<string | null>(values.scheduledDate);
+  const [time, setTime] = useState<string | null>(values.scheduledTime);
   const [venueId, setVenueId] = useState<string | null>(values.venueId);
-  const errors = { date: dateError(date), time: timeError(time) };
-  const valid = title.trim().length > 0 && errors.date === null && errors.time === null;
+  const valid = title.trim().length > 0;
+  const save = () => {
+    if (valid) {
+      onSubmit({ title: title.trim(), venueId, scheduledDate: date, scheduledTime: time });
+    }
+  };
+  const chain = useFormChain(['title'] as const, { onSubmit: save });
+  const dirty = title.trim() !== values.title.trim() || date !== values.scheduledDate || time !== values.scheduledTime || venueId !== values.venueId;
+  const guard = useDiscardGuard(dirty, onClose);
   return (
-    <Sheet
-      visible={visible}
-      title="Match details"
-      onClose={onClose}
-      testID="sheet-details"
-      footer={
-        <Button
-          label="Save details"
-          size="lg"
-          fullWidth
-          disabled={!valid}
-          loading={busy}
-          onPress={() =>
-            onSubmit({
-              title: title.trim(),
-              venueId,
-              scheduledDate: date.trim() === '' ? null : date.trim(),
-              scheduledTime: time.trim() === '' ? null : time.trim(),
-            })
-          }
-          testID="details-save"
-        />
-      }
-    >
-      <View style={styles.body}>
-        <TextField label="Title" value={title} onChangeText={setTitle} testID="details-title" />
-        <TextField label="Date (optional)" value={date} onChangeText={setDate} placeholder="2026-09-12" error={errors.date} testID="details-date" />
-        <TextField label="Time (optional)" value={time} onChangeText={setTime} placeholder="14:30" error={errors.time} testID="details-time" />
-        <Text variant="subhead" tone="secondary">
-          Venue
-        </Text>
-        <OptionButton label="No venue" compact selected={venueId === null} onPress={() => setVenueId(null)} testID="details-venue-none" />
-        {venues.map((venue) => (
-          <OptionButton
-            key={venue.id}
-            label={venue.name}
-            detail={venue.location}
-            compact
-            selected={venueId === venue.id}
-            onPress={() => setVenueId(venue.id)}
-            testID={`details-venue-${venue.id}`}
+    <>
+      <Sheet
+        visible={visible && !guard.asking}
+        title="Match details"
+        onClose={guard.requestClose}
+        testID="sheet-details"
+        footer={<Button label="Save details" size="lg" fullWidth disabled={!valid} loading={busy} onPress={save} testID="details-save" />}
+      >
+        <View style={styles.body}>
+          <TextField {...chain.field('title')} label="Title" value={title} onChangeText={setTitle} autoCapitalize="sentences" testID="details-title" />
+          <View style={styles.when}>
+            <View style={styles.whenField}>
+              <DateField label="Date" value={date} optional onChange={setDate} testID="details-date" />
+            </View>
+            <View style={styles.whenField}>
+              <TimeField label="Start time" value={time} optional onChange={setTime} testID="details-time" />
+            </View>
+          </View>
+          <Text variant="subhead" tone="secondary">
+            Venue
+          </Text>
+          <RadioList
+            accessibilityLabel="Venue"
+            value={venueId ?? NO_VENUE}
+            onChange={(value) => setVenueId(value === NO_VENUE ? null : value)}
+            choices={[
+              { value: NO_VENUE, label: 'No venue', testID: 'details-venue-none' },
+              ...venues.map((venue) => ({ value: venue.id, label: venue.name, description: venue.location ?? undefined, testID: `details-venue-${venue.id}` })),
+            ]}
           />
-        ))}
-      </View>
-    </Sheet>
+        </View>
+      </Sheet>
+      {guard.dialog}
+    </>
   );
 }
 
 const styles = StyleSheet.create({
   body: { gap: space.sm },
+  when: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm },
+  whenField: { flexGrow: 1, flexBasis: 160, minWidth: 0 },
 });

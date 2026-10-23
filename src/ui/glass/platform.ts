@@ -23,6 +23,12 @@ export function resolveGlassRenderer({ os, liquidAvailable, reduced, blurAvailab
   return blurAvailable ? 'blur' : 'unblurred';
 }
 
+export function stickyGlassScrollerStyle(os: string): ViewStyle | null {
+  return os === 'web' ? { transform: 'none' } : null;
+}
+
+export const STICKY_GLASS_SCROLLER: ViewStyle | null = stickyGlassScrollerStyle(Platform.OS);
+
 export const ANDROID_BLUR_MIN_API = 31;
 
 export interface BackdropBlurInput {
@@ -77,14 +83,14 @@ export function blurViewLook(os: string, blurTint: GlassBlurTint, blur: number):
   return { tint, intensity: blur };
 }
 
-export const GLASS_SATURATION = 1.8;
+export const GLASS_SATURATION = 1.6;
 
-export function webFrostFilter(blur: number): string {
-  return `saturate(${Math.round(GLASS_SATURATION * 100)}%) blur(${glassBlurSigma(blur)}px)`;
+export function webFrostFilter(blur: number, saturation: number = GLASS_SATURATION): string {
+  return `saturate(${Math.round(saturation * 100)}%) blur(${glassBlurSigma(blur)}px)`;
 }
 
-export function webFrostStyle(blur: number): ViewStyle {
-  const filter = webFrostFilter(blur);
+export function webFrostStyle(blur: number, saturation: number = GLASS_SATURATION): ViewStyle {
+  const filter = webFrostFilter(blur, saturation);
   return { backdropFilter: filter, WebkitBackdropFilter: filter } as ViewStyle;
 }
 

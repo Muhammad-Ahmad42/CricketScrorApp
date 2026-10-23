@@ -8,7 +8,7 @@ The main scenario, required by §92, is **E2E-06**: 8 teams → 2 pools → sing
 
 | Item | Rule |
 |---|---|
-| App id | `pk.harris.scorebook` (from `app.json`) |
+| App id | `com.ahmadkhan.scorebook` (from `app.json`) |
 | Build | A release build on a local emulator (`npx expo run:android --variant release`). No cloud build is needed. Flows never depend on a dev menu or Metro. |
 | Location | `e2e/maestro/flows/*.yaml`, `e2e/maestro/subflows/*.yaml`, `e2e/maestro/fixtures/*.json` (a backup file for the import flows) |
 | Run | `maestro test e2e/maestro/flows` (all) or `maestro test e2e/maestro/flows/e2e-06-tournament.yaml` |
@@ -147,16 +147,16 @@ The main scenario, required by §92, is **E2E-06**: 8 teams → 2 pools → sing
 
 | testID | Element |
 |---|---|
-| `screen-settings`, `settings-chip-theme-<light\|dark\|system>`, `settings-toggle-haptics`, `settings-toggle-sound`, `settings-chip-motion-<system\|on\|off>`, `settings-chip-dot-<zero\|dot>`, `settings-btn-backup`, `settings-btn-presets`, `settings-btn-diagnostics` | Settings (§70, §76–§78) |
+| `screen-settings`, `settings-chip-theme-<light\|dark\|system>`, `settings-toggle-haptics`, `settings-chip-motion-<system\|on\|off>`, `settings-chip-dot-<zero\|dot>`, `settings-btn-backup`, `settings-btn-presets`, `settings-btn-diagnostics` | Settings (§70, §76–§78) |
 | `screen-backup`, `backup-btn-export-full`, `backup-btn-import`, `import-text-summary`, `import-row-issue-<n>`, `import-row-conflict-<n>`, `import-text-previously-imported`, `import-chip-policy-<skip\|copy\|replace>`, `import-btn-apply`, `import-text-report` | Backup and import (§84) |
-| `screen-diagnostics`, `diag-btn-fk-check`, `diag-text-fk-result`, `diag-row-repair-<n>`, `diag-text-schema-version`, `diag-text-pragmas` | Diagnostics (§86, §93); `diag-text-pragmas` shows e.g. `foreign_keys=1 journal_mode=wal synchronous=2` (FAILURE_RECOVERY FR-02b) |
+| `screen-diagnostics`, `diag-text-app-version`, `diag-btn-technical`, `diag-btn-fk-check`, `diag-text-fk-result`, `diag-row-repair-<n>`, `diag-text-schema-version`, `diag-text-pragmas` | Diagnostics (§86, §93). Only the app version is visible up front; tap `diag-btn-technical` before reading `diag-text-schema-version`, `diag-text-engine-version`, `diag-text-backup-format`, `diag-text-rebuilt` or `diag-text-pragmas`. `diag-text-pragmas` shows e.g. `foreign_keys=1 journal_mode=wal synchronous=2` (FAILURE_RECOVERY FR-02b). The Sound effects row (`settings-toggle-sound`) is hidden until the feature ships |
 
 ## 4. Shared subflows
 
 `subflows/launch_fresh.yaml`
 
 ```yaml
-appId: pk.harris.scorebook
+appId: com.ahmadkhan.scorebook
 ---
 - launchApp:
     clearState: true
@@ -169,7 +169,7 @@ appId: pk.harris.scorebook
 `subflows/create_team.yaml` (env: `TEAM`, `SHORT`; creates three players named `${SHORT} 1..3`)
 
 ```yaml
-appId: pk.harris.scorebook
+appId: com.ahmadkhan.scorebook
 ---
 - tapOn:
     id: "tab-home"
@@ -209,7 +209,7 @@ This plays one 1-over, 3-a-side tournament match in which `WIN` bats first and s
 - env: `PAIR` (a regex matching the fixture label in either order), `WIN`, `WS` (the short name of `WIN`), `LOSE`, `LS`.
 
 ```yaml
-appId: pk.harris.scorebook
+appId: com.ahmadkhan.scorebook
 ---
 - tapOn:
     id: "dash-btn-fixtures"
@@ -283,7 +283,7 @@ appId: pk.harris.scorebook
 `subflows/assert_standing.yaml` (env: `L`, `POS`, `TEAM`, `PTS`, `NRR`)
 
 ```yaml
-appId: pk.harris.scorebook
+appId: com.ahmadkhan.scorebook
 ---
 - assertVisible:
     id: "standings-cell-${L}-${POS}-team"
@@ -312,7 +312,7 @@ Scenario:
 `flows/e2e-06-tournament.yaml`
 
 ```yaml
-appId: pk.harris.scorebook
+appId: com.ahmadkhan.scorebook
 name: E2E-06 Complete 8-team tournament (§92)
 ---
 - runFlow: ../subflows/launch_fresh.yaml
@@ -444,7 +444,7 @@ Each flow is listed with its purpose and key steps. The first four have YAML ske
 `flows/e2e-02-crash-resume.yaml`
 
 ```yaml
-appId: pk.harris.scorebook
+appId: com.ahmadkhan.scorebook
 name: E2E-02 Crash and resume
 ---
 - runFlow: ../subflows/launch_fresh.yaml
@@ -486,7 +486,7 @@ name: E2E-02 Crash and resume
 `flows/e2e-03-undo-redo.yaml` (excerpt)
 
 ```yaml
-appId: pk.harris.scorebook
+appId: com.ahmadkhan.scorebook
 name: E2E-03 Undo and redo
 ---
 - runFlow: ../subflows/launch_fresh.yaml
@@ -511,7 +511,7 @@ name: E2E-03 Undo and redo
 `flows/e2e-04-extras-wickets.yaml` (excerpt)
 
 ```yaml
-appId: pk.harris.scorebook
+appId: com.ahmadkhan.scorebook
 name: E2E-04 Extras and wicket combinations
 ---
 - runFlow: ../subflows/launch_fresh.yaml

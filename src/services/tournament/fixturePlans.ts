@@ -69,7 +69,7 @@ function roundRobinPlan(ctx: ServiceContext, snapshot: TournamentSnapshot, stage
     fixtures.push(...drafts);
   }
   if (fixtures.length === 0) {
-    throw failure('VALIDATION', 'Put at least two teams in a pool before generating fixtures.');
+    throw failure('VALIDATION', 'Put at least two teams in a pool first.');
   }
   return { fixtures, slots: [], entrySlotSeeds: [], seed: null };
 }
@@ -110,7 +110,7 @@ function knockoutPlan(ctx: ServiceContext, snapshot: TournamentSnapshot, stage: 
     throw failure('VALIDATION', 'A knockout needs at least two teams.');
   }
   if (config.seeding === 'ranking' && entrants.some((entrant) => entrant.rank === null)) {
-    throw failure('VALIDATION', 'Seeding by ranking needs a seed or a final position for every team.');
+    throw failure('VALIDATION', 'Some teams have no seed. Seeding by ranking needs one for every team.');
   }
   const seed = config.seeding === 'random' ? (requestedSeed ?? ctx.seeds()) : null;
   const order = attemptDomain('The knockout draw could not be made.', () => seedEntrants(entrants, config.seeding, seed));
@@ -232,14 +232,14 @@ export function createFixtureOperations(ctx: ServiceContext): FixtureOperations 
           const { snapshot, stage } = await snapshotOfStage(ctx, repos, stageId);
           const { policy } = evaluateSnapshot(snapshot);
           if (policy.generateFixtures === 'forbidden') {
-            throw failure('FORBIDDEN_STATE', "Fixtures can't be generated for this tournament in its current state.");
+            throw failure('FORBIDDEN_STATE', "Fixtures can't be generated at this stage.");
           }
           const played = snapshot.fixtures.some((fixture) => fixture.stageId === stageId && fixture.matchId !== null);
           if (played && stage.config.fixtureGeneration.method === 'knockout') {
-            throw failure('FORBIDDEN_STATE', 'Knockout matches in this stage have been played. Edit its fixtures one at a time instead.');
+            throw failure('FORBIDDEN_STATE', 'Knockout matches have been played. Edit fixtures one at a time instead.');
           }
           if (played && policy.generateFixtures !== 'allowed') {
-            throw failure('CONFIRMATION_REQUIRED', "Matches in this stage have been played. Review the impact of replacing its fixtures first.");
+            throw failure('CONFIRMATION_REQUIRED', "Matches in this stage have been played. Review the impact first.");
           }
           assertDrafts(snapshot, stage, plan.fixtures, plan.slots);
           return applyProposedChange(
@@ -265,7 +265,7 @@ export function createFixtureOperations(ctx: ServiceContext): FixtureOperations 
           const snapshot = await readSnapshot(ctx, repos, draft.tournamentId);
           const { policy } = evaluateSnapshot(snapshot);
           if (policy.generateFixtures === 'forbidden') {
-            throw failure('FORBIDDEN_STATE', "Matches can't be added to this tournament in its current state.");
+            throw failure('FORBIDDEN_STATE', "Matches can't be added at this stage.");
           }
           const stage = snapshot.stages.find((entry) => entry.id === draft.stageId);
           if (stage === undefined) {

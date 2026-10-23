@@ -20,17 +20,29 @@ describe('DashboardScreen (§49, §80)', () => {
     await renderWithTheme(<DashboardScreen tournamentId="t1" />);
     expect(screen.getByTestId('screen-tournament')).toBeOnTheScreen();
     expect(screen.getByTestId('dash-text-name')).toHaveTextContent('City Cup');
-    expect(screen.getByText('8 teams · 2 pools · Groups + knockout · T20')).toBeOnTheScreen();
+    expect(screen.getByText('8 teams · 2 pools · Groups + KO · T20')).toBeOnTheScreen();
     expect(screen.getByTestId('dash-text-stage')).toHaveTextContent('Group Stage');
-    expect(screen.getByTestId('dash-text-progress')).toHaveTextContent('0/15');
+    expect(screen.getByTestId('dash-text-progress')).toHaveTextContent('0 of 12 played');
+    expect(screen.getByTestId('dash-text-progress-detail')).toHaveTextContent('0 of 15 overall · Knockouts: 3 matches');
   });
 
-  it('renders progress as "24/48" from the evaluation', async () => {
-    const data = loadTournament(cupSnapshot());
+  it('counts the current stage only, with the overall count and later stages in the secondary line', async () => {
+    const data = loadTournament(playGroups(cupSnapshot(), 5));
     useTournamentStore.setState({ evaluation: { ...data.evaluation, progress: { done: 24, total: 48 } } });
     await renderWithTheme(<DashboardScreen tournamentId="t1" />);
-    expect(screen.getByTestId('dash-text-progress')).toHaveTextContent('24/48');
-    expect(screen.getByText('24 of 48 matches played')).toBeOnTheScreen();
+    expect(screen.getByTestId('dash-text-stage')).toHaveTextContent('Group Stage');
+    expect(screen.getByTestId('dash-text-progress')).toHaveTextContent('5 of 12 played');
+    expect(screen.getByTestId('dash-text-progress-detail')).toHaveTextContent('24 of 48 overall · Knockouts: 3 matches');
+    expect(screen.getByTestId('dash-text-progress')).not.toHaveTextContent('/');
+  });
+
+  it('shows a compact scoreline under each recent result', async () => {
+    loadTournament(playPair(cupSnapshot(), 'LIO', 'TIG', 'LIO'));
+    await renderWithTheme(<DashboardScreen tournamentId="t1" />);
+    const row = screen.getByTestId('dash-row-result-1');
+    expect(row).toHaveTextContent(/LIO/);
+    expect(row).toHaveTextContent(/TIG/);
+    expect(row).toHaveTextContent(/\d+\/\d+/);
   });
 
   it('shows the next match with a Start action that goes to the match setup (§66)', async () => {
@@ -64,7 +76,8 @@ describe('DashboardScreen (§49, §80)', () => {
     loadTournament(playGroups(cupSnapshot()));
     await renderWithTheme(<DashboardScreen tournamentId="t1" />);
     expect(screen.getByTestId('dash-text-stage')).toHaveTextContent('Knockouts');
-    expect(screen.getByTestId('dash-text-progress')).toHaveTextContent('12/15');
+    expect(screen.getByTestId('dash-text-progress')).toHaveTextContent('0 of 3 played');
+    expect(screen.getByTestId('dash-text-progress-detail')).toHaveTextContent('12 of 15 overall');
   });
 
   it('names the champion with the basis once the final is played (§92)', async () => {
@@ -72,7 +85,7 @@ describe('DashboardScreen (§49, §80)', () => {
     await renderWithTheme(<DashboardScreen tournamentId="t1" />);
     expect(screen.getByTestId('dash-text-champion')).toHaveTextContent('Lions');
     expect(screen.getByText('Won the final: Lions won by 6 runs')).toBeOnTheScreen();
-    expect(screen.getByTestId('dash-text-progress')).toHaveTextContent('15/15');
+    expect(screen.getByTestId('dash-text-progress')).toHaveTextContent('15 of 15 played');
   });
 
   it('uses typography and separators, not a card per statistic', async () => {
@@ -90,8 +103,9 @@ describe('DashboardScreen (§49, §80)', () => {
     Dimensions.set({ window: { width: 1024, height: 768, scale: 2, fontScale: 1 }, screen: { width: 1024, height: 768, scale: 2, fontScale: 1 } });
     loadTournament(playGroups(cupSnapshot(), 5));
     const view = await renderWithTheme(<DashboardScreen tournamentId="t1" />);
-    const panes = view.container.queryAll((node) => StyleSheet.flatten(node.props.style as ViewStyle | undefined)?.flex === 55);
-    expect(panes.length).toBeGreaterThan(0);
+    expect(screen.getByTestId('dash-panes-primary')).toBeOnTheScreen();
+    expect(screen.getByTestId('dash-panes-secondary')).toBeOnTheScreen();
+    expect(view.container.queryAll((node) => StyleSheet.flatten(node.props.style as ViewStyle | undefined)?.flexDirection === 'row' && node.props.testID === 'dash-panes')).toHaveLength(1);
     expect(screen.getByTestId('dash-standings-cell-a-1-team')).toHaveTextContent('Lions');
     expect(screen.getByTestId('dash-row-next-match')).toBeOnTheScreen();
     await act(async () => {

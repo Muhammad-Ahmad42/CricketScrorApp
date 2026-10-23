@@ -117,6 +117,16 @@ describe('PlayerRepository', () => {
     expect(await repos.players.listByTeam('lio', { includeArchived: true })).toEqual([...seed.players.slice(0, 3), archived]);
   });
 
+  it('counts active players per team for the team lists, leaving out archived players and empty teams', async () => {
+    const { db, repos } = await openTestRepositories();
+    const lions = buildTeamSeed('lio', 'Lions', 'LIO', 4);
+    const tigers = buildTeamSeed('tig', 'Tigers', 'TIG', 2);
+    const empty = buildTeamSeed('emp', 'Empty', 'EMP', 0);
+    await seedLibrary(db, [lions, tigers, empty]);
+    await repos.players.update({ ...lions.players[3], archivedAt: isoAt(3) });
+    expect(await repos.players.countActiveByTeam()).toEqual({ lio: 3, tig: 2 });
+  });
+
   it('getMany returns players in the requested order and skips unknown ids', async () => {
     const { db, repos } = await openTestRepositories();
     const seed = buildTeamSeed('lio', 'Lions', 'LIO', 3);

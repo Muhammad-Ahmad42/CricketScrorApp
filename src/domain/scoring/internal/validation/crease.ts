@@ -51,10 +51,10 @@ export function validateBatterIn(setup: MatchSetup, state: MatchState, event: Ba
     return fail('BATTER_NOT_ELIGIBLE', `${name} was marked absent.`);
   }
   if (status === 'retired_not_out' && !retiredNotOutMayReturn(setup, yetToBatRemain(setup, state, innings))) {
-    return fail('BATTER_NOT_ELIGIBLE', `${name} retired and can only return once every other batter has batted.`);
+    return fail('BATTER_NOT_ELIGIBLE', `${name} can't return yet. A retired batter returns after all others have batted.`);
   }
   if (batterBarredFromSuperOver(setup, state, innings, event.playerId)) {
-    return fail('PLAYER_INELIGIBLE_SUPER_OVER', `${name} was dismissed in an earlier super over and can't bat again.`);
+    return fail('PLAYER_INELIGIBLE_SUPER_OVER', `${name} can't bat again. They were out in an earlier super over.`);
   }
   const warnings: ValidationWarning[] = [];
   const remaining = incomingBatters(setup, state, innings).filter((playerId) => playerId !== event.playerId);
@@ -102,7 +102,7 @@ export function validateBatterDismissed(setup: MatchSetup, state: MatchState, ev
   const name = playerName(setup, event.playerId);
   if (event.type === 'timed_out') {
     if (!hasVacancy(setup, innings)) {
-      return fail('NO_VACANCY', 'A batter can only be timed out while the next batter is due.');
+      return fail('NO_VACANCY', 'No batter is due. Only an incoming batter can be timed out.');
     }
     const squad = squadFailure(setup, innings.battingTeamId, event.playerId, 'batter');
     if (squad !== null) {
@@ -146,7 +146,7 @@ export function validateInningsEnded(setup: MatchSetup, state: MatchState, event
   for (const absentee of event.absentees) {
     const player = findPlayer(setup, absentee.playerId);
     if (player === undefined || player.teamId !== innings.battingTeamId || player.isSubstitute || seen.has(absentee.playerId)) {
-      return fail('INVALID_ABSENTEE', 'Absent batters must be players of the batting side, each named once.');
+      return fail('INVALID_ABSENTEE', 'Check the absent batters. Each must be a batting-side player, named once.');
     }
     seen.add(absentee.playerId);
     const status = batterStatus(innings, absentee.playerId);

@@ -5,13 +5,13 @@ import { memoizeLast } from '../selectors/memo';
 import { ordinal } from '../selectors/names';
 import { selectWicketOptions } from '../selectors/options';
 import { controlModeOf, formatLabel, selectCrease, selectHeader, selectOverStrip } from '../selectors/scoreboard';
-import { formatDateLabel, monthHeading } from '../selectors/dates';
+import { formatDateLabel, formatShortDate, formatTimeOfDay, matchShortDate, monthHeading } from '../selectors/dates';
 import { liveMatch, OPEN } from './support/liveMatch';
 
 describe('scoreboard view models', () => {
   it('builds the header from domain state and format helpers only', () => {
     const vm = selectHeader(liveMatch([OPEN, '1', '4', 'nb']));
-    expect(vm).toMatchObject({ score: '6/0', overs: '0.2', oversOf: 'of 3', crr: '18.00', target: null, freeHit: true, powerplay: 'Powerplay · overs 1–1' });
+    expect(vm).toMatchObject({ score: '6/0', overs: '0.2', oversOf: 'of 3', crr: '18.00', target: null, freeHit: true, powerplay: 'Powerplay · over 1' });
   });
 
   it('returns a not-started header without a match', () => {
@@ -33,7 +33,10 @@ describe('scoreboard view models', () => {
 
   it('collapses a finished over into a summary line and shows a dot as • when asked', () => {
     const ones = Array.from({ length: 6 }, () => '1');
-    expect(selectOverStrip(liveMatch([OPEN, ...ones]), 'zero')).toMatchObject({ balls: [], summary: 'Over 1 · 6 runs · Haris' });
+    const between = selectOverStrip(liveMatch([OPEN, ...ones]), 'zero');
+    expect(between).toMatchObject({ summary: 'Over 1 · 6 runs · Haris', remaining: 0 });
+    expect(between.balls.map((ball) => ball.text)).toEqual(['1', '1', '1', '1', '1', '1']);
+    expect(selectOverStrip(liveMatch([OPEN, ...ones, '@T10']), 'zero')).toMatchObject({ balls: [], remaining: 6, summary: 'Over 1 · 6 runs · Haris' });
     expect(selectOverStrip(liveMatch([OPEN, '.']), 'dot').balls[0].text).toBe('•');
     expect(selectOverStrip(liveMatch([OPEN, '.']), 'zero').balls[0].text).toBe('0');
   });
@@ -84,9 +87,10 @@ describe('extras intents', () => {
     expect(customIntent('other', 'bat', { runsRun: 3, boundary: 0, shortRuns: 1 })).toEqual({ type: 'runs', runsRun: 3, boundary: 0, shortRuns: 1 });
   });
 
-  it('explains the match rule for wides and no-balls', () => {
+  it('states the match rule for wides and no-balls as a short line', () => {
     const rules = m3Setup().rules;
-    expect(extrasRuleNote('no_ball', rules)).toBe('No-ball penalty is 1 run (match rule). Next ball is a free hit.');
+    expect(extrasRuleNote('no_ball', rules)).toBe('No-ball: 1 run · free hit next');
+    expect(extrasRuleNote('wide', rules)).toBe('Wide: 1 run · bowled again');
     expect(extrasRuleNote('bye', rules)).toBeNull();
   });
 });
@@ -105,6 +109,19 @@ describe('small helpers', () => {
     expect(formatDateLabel('2026-09-12')).toBe('Sat 12 Sep 2026');
     expect(formatDateLabel('nope')).toBeNull();
     expect(monthHeading('2026-09-12')).toBe('September 2026');
+  });
+
+  it('formats saved times and played dates in local time, and calendar dates as written', () => {
+    const pad = (value: number) => `${value}`.padStart(2, '0');
+    const saved = new Date('2026-10-02T09:10:00.000Z');
+    expect(formatTimeOfDay('2026-10-02T09:10:00.000Z')).toBe(`${pad(saved.getHours())}:${pad(saved.getMinutes())}`);
+    const lateNight = new Date('2026-10-01T23:30:00.000Z');
+    const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    expect(formatShortDate('2026-10-01T23:30:00.000Z')).toBe(`${days[lateNight.getDay()]} ${lateNight.getDate()} Oct`);
+    expect(formatShortDate('2026-10-02')).toBe('Fri 2 Oct');
+    expect(formatTimeOfDay('14:00')).toBe('14:00');
+    expect(matchShortDate({ scheduledDate: '2026-10-04', updatedAt: '2026-10-01T13:00:00.000Z', startedAt: '2026-10-01T12:00:00.000Z', completedAt: null })).not.toBe('Sun 4 Oct');
+    expect(matchShortDate({ scheduledDate: '2026-10-04', updatedAt: '2026-10-01T13:00:00.000Z', startedAt: null, completedAt: null })).toBe('Sun 4 Oct');
   });
 
   it('plays a full script without the UI', () => {

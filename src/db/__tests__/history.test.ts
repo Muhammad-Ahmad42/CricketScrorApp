@@ -104,6 +104,14 @@ function projectionOf(seeded: Seeded): MatchProjection {
   };
 }
 
+function expectedChase(seeded: Seeded): { readonly chase?: { readonly runsRequired: number; readonly ballsRemaining: number } } {
+  const chasing = seeded.innings.find((line) => line.inningsIndex === 1 && line.status === 'in_progress');
+  if (chasing === undefined || (seeded.match.status !== 'live' && seeded.match.status !== 'paused')) {
+    return {};
+  }
+  return { chase: { runsRequired: Math.max(0, 41 + seeded.order - chasing.runs), ballsRemaining: 30 - chasing.legalBalls } };
+}
+
 async function seedHistory(): Promise<{ readonly repos: Repositories; readonly db: Awaited<ReturnType<typeof openTestRepositories>>['db'] }> {
   const { db, repos } = await openTestRepositories();
   await seedLibrary(db, TEAMS);
@@ -258,9 +266,10 @@ describe('history list and resume queries over 30 matches (IT-DB-10)', () => {
     expect(await ids({ search: 'l', sort: 'oldest', limit: 1, offset: 1 })).toEqual(['u3']);
   });
 
-  it('carries team refs, overs, tournament names and innings lines from the projections', async () => {
+  it('carries team refs, overs, tournament names, innings lines and a live chase requirement from the projections', async () => {
     const { repos } = await seedHistory();
     const items = await repos.matches.list({ sort: 'oldest' });
+    expect(items.some((item) => item.chase !== undefined)).toBe(true);
     const byId = new Map<string, MatchListItem>(items.map((item) => [item.id, item]));
     for (const seeded of SEEDED) {
       const item = byId.get(seeded.match.id);
@@ -278,6 +287,9 @@ describe('history list and resume queries over 30 matches (IT-DB-10)', () => {
         tournamentName: seeded.match.tournamentId === null ? null : 'Spring Cup',
         resumeDismissedAt: null,
         updatedAt: seeded.match.updatedAt,
+        startedAt: seeded.match.startedAt,
+        completedAt: seeded.match.completedAt,
+        ...expectedChase(seeded),
       });
     }
   });

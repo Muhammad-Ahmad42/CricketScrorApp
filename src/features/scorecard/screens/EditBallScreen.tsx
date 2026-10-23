@@ -1,23 +1,28 @@
 import { useMemo, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
-import { router } from 'expo-router';
+import { Stack, router } from 'expo-router';
 import type { HistoryEditPreview } from '@/services/contracts';
 import { scoreRuns, type ScoringIntent } from '@/domain/scoring/commands';
 import type { HistoryEditOp } from '@/domain/scoring/history';
-import { BallChip, Banner, Button, Dialog, EmptyState, ScoringPad, Screen, SectionHeader, Text, space } from '@/ui';
+import type { EditConflict, EditResolution } from '@/domain/scoring/editPlanning';
+import { BallChip, Banner, Button, Dialog, EmptyState, Inset, OptionTile, Screen, SectionHeader, Text, space, useGutter, type PadRuns } from '@/ui';
 import { useLiveMatchStore, useSettingsStore, useToastStore } from '@/stores';
 import { TopBar } from '@/features/scoring/components/common/TopBar';
+import { useLeaveGuard } from '@/features/scoring/hooks/useDiscardGuard';
 import { InsetBody } from '@/features/scoring/components/common/InsetBody';
 import { isReasonValid, ReasonField } from '@/features/scoring/components/common/ReasonField';
-import { leaveMatch, MatchGate } from '@/features/scoring/screens/MatchGate';
+import { MatchGate } from '@/features/scoring/screens/MatchGate';
 import { selectWicketOptions } from '@/features/scoring/selectors/options';
-import { teamName } from '@/features/scoring/selectors/names';
+import { inningsTitle, regularNumberOf } from '@/features/scoring/selectors/labels';
+import { playerName, teamName, teamShortName } from '@/features/scoring/selectors/names';
 import { chipOf } from '@/features/scoring/selectors/scoreboard';
 import { ExtrasSheet } from '@/features/scoring/sheets/ExtrasSheet';
 import { WicketSheet } from '@/features/scoring/sheets/WicketSheet';
+import { EditKeypad, recordedKeyOf, type EditKey } from '../components/EditKeypad';
 import { WhatWillChange } from '../components/WhatWillChange';
 import { useSingleFlight } from '@/features/scoring/hooks/useSingleFlight';
 import { describeBall, findEditTarget, planEdit, selectEditPreview, type EditChoice } from '../selectors/historyEdit';
+import { errorHeadline, scannable } from '@/features/scoring/selectors/scannable';
 
 export interface EditBallScreenProps {
   readonly seq: number;
@@ -31,8 +36,77 @@ interface Previewed {
   readonly preview: HistoryEditPreview;
 }
 
+const REASON_NEEDED = 'Add a reason to apply';
+
+export function leaveEdit(matchId: string): void {
+  if (router.canGoBack()) {
+    router.back();
+    return;
+  }
+  router.replace({ pathname: '/match/[matchId]/balls', params: { matchId } });
+}
+
+function keyOfIntent(intent: ScoringIntent): EditKey | null {
+  if (intent.type === 'wicket') {
+    return 'wicket';
+  }
+  if (intent.type === 'runs') {
+    const runs = (intent.boundary ?? 0) + intent.runsRun;
+    return runs === 0 || runs === 1 || runs === 2 || runs === 3 || runs === 4 || runs === 6 ? (runs as PadRuns) : 'extras';
+  }
+  return 'extras';
+}
+
+function keyOfChoice(choice: EditChoice | null): EditKey | null {
+  return choice === null || choice.kind === 'delete' ? null : keyOfIntent(choice.intent);
+}
+
+interface ConflictPanelProps {
+  readonly conflict: EditConflict;
+  readonly busy: boolean;
+  readonly onResolve: (resolution: EditResolution) => void;
+  readonly onCancel: () => void;
+}
+
+function ConflictPanel({ conflict, busy, onResolve, onCancel }: ConflictPanelProps) {
+  const choices = conflict.resolutions.filter((resolution) => !resolution.automatic);
+  const message = scannable(conflict);
+  return (
+    <View style={styles.conflict} testID="edit-conflict">
+      <Banner tone="warning" message={message.headline} detail={message.detail} testID="edit-conflict-message" />
+      <Inset gap="xs">
+        {conflict.ballLabel !== null ? (
+          <Text variant="subhead" tone="secondary" testID="edit-conflict-ball">{`Choose a fix for ball ${conflict.ballLabel}`}</Text>
+        ) : null}
+        {choices.map((resolution) => (
+          <OptionTile
+            key={resolution.kind}
+            kind="action"
+            title={resolution.label}
+            description={resolution.description}
+            disabled={busy}
+            onPress={() => onResolve(resolution)}
+            accessibilityHint="Shows what this fix would change"
+            testID={`edit-resolution-${resolution.kind}`}
+          />
+        ))}
+        {choices.length === 0 ? (
+          <Text variant="body" tone="secondary">
+            Choose a different change
+          </Text>
+        ) : null}
+        <View style={styles.start}>
+          <Button label="Cancel change" variant="secondary" size="sm" onPress={onCancel} testID="edit-conflict-cancel" />
+        </View>
+      </Inset>
+    </View>
+  );
+}
+
 function EditBallBody({ seq }: EditBallScreenProps) {
+  const gutter = useGutter();
   const live = useLiveMatchStore((s) => s.live);
+  const conflict = useLiveMatchStore((s) => s.editConflict ?? null);
   const dotStyle = useSettingsStore((s) => s.settings.scoring.dotStyle);
   const [mode, setMode] = useState<Mode>('replace');
   const [sheet, setSheet] = useState<'extras' | 'wicket' | null>(null);
@@ -40,21 +114,31 @@ function EditBallBody({ seq }: EditBallScreenProps) {
   const [error, setError] = useState<string | null>(null);
   const [reason, setReason] = useState('');
   const [busy, setBusy] = useState(false);
-  const [conflict, setConflict] = useState(false);
+  const [stale, setStale] = useState(false);
   const [lastChoice, setLastChoice] = useState<EditChoice | null>(null);
   const request = useRef(0);
   const flight = useSingleFlight();
   const target = useMemo(() => (live === null ? null : findEditTarget(live.setup, live.events, live.state, seq)), [live, seq]);
+  const pending = previewed !== null || (lastChoice !== null && (busy || conflict !== null)) || reason.trim() !== '';
+  const matchId = live?.match.id ?? null;
+  const guard = useLeaveGuard(pending, () => {
+    if (useLiveMatchStore.getState().editConflict) {
+      useLiveMatchStore.getState().clearEditConflict?.();
+    }
+    if (matchId !== null) {
+      leaveEdit(matchId);
+    }
+  }, 'edit-discard');
 
-  if (live === null) {
+  if (live === null || matchId === null) {
     return null;
   }
   const label = target?.ball?.label ?? `${seq}`;
   if (target === null) {
     return (
-      <Screen testID="screen-edit" scroll={false} header={<TopBar title="Edit ball" onBack={leaveMatch} />}>
+      <Screen testID="screen-edit" scroll={false} header={<TopBar title="Edit ball" onBack={() => leaveEdit(matchId)} />}>
         <InsetBody>
-          <EmptyState title="This entry can't be edited here" body="Only deliveries can be changed from the ball log." testID="edit-not-delivery" />
+          <EmptyState title="Can't edit this entry" body="Only deliveries can be changed" testID="edit-not-delivery" />
         </InsetBody>
       </Screen>
     );
@@ -68,32 +152,65 @@ function EditBallBody({ seq }: EditBallScreenProps) {
   const requiresReason = preview?.requiresReason ?? false;
   const blocked = preview?.impact?.blocked ?? null;
   const canApply = ops !== null && preview !== null && blocked === null && (!requiresReason || isReasonValid(reason)) && !busy;
-  const isLiveMatch = live.state.lifecycle === 'live' || live.state.lifecycle === 'paused';
+  const innings = target.innings;
+  const inningsLabel =
+    innings === null ? null : `${teamShortName(setup, innings.battingTeamId)} ${inningsTitle(innings, regularNumberOf(live.state.innings, innings.index))}`;
+  const [teamA, teamB] = setup.teams;
+  const subtitle = [`${teamA.shortName} v ${teamB.shortName}`, inningsLabel, `${playerName(setup, target.event.bowlerId)} to ${playerName(setup, target.event.strikerId)}`]
+    .filter((part): part is string => part !== null)
+    .join(' · ');
+  const selectedKey = preview !== null || busy || conflict !== null ? keyOfChoice(lastChoice) : null;
+  const reasonMissing = preview !== null && requiresReason && blocked === null && !isReasonValid(reason);
+  const recordedKey = recordedKeyOf(target.event);
+
+  const showPreview = async (nextOps: readonly HistoryEditOp[], nextNotes: readonly string[], ticket: number) => {
+    setBusy(true);
+    const result = await useLiveMatchStore.getState().previewHistoryEdit(nextOps);
+    if (ticket !== request.current) {
+      return;
+    }
+    setBusy(false);
+    if (result === null) {
+      const state = useLiveMatchStore.getState();
+      if ((state.editConflict ?? null) !== null) {
+        setError(null);
+        return;
+      }
+      const failure = state.error;
+      state.clearError();
+      setError(errorHeadline(failure, "This change can't be applied."));
+      return;
+    }
+    setPreviewed({ ops: nextOps, notes: nextNotes, preview: result });
+  };
 
   const choose = async (choice: EditChoice) => {
     request.current += 1;
     const ticket = request.current;
     setLastChoice(choice);
     setPreviewed(null);
+    useLiveMatchStore.getState().clearEditConflict?.();
     const next = planEdit(setup, live.events, target, choice);
     if (!next.ok) {
       setError(next.message);
       return;
     }
     setError(null);
-    setBusy(true);
-    const result = await useLiveMatchStore.getState().previewHistoryEdit(next.ops);
-    if (ticket !== request.current) {
-      return;
-    }
-    setBusy(false);
-    if (result === null) {
-      const failure = useLiveMatchStore.getState().error;
-      useLiveMatchStore.getState().clearError();
-      setError(failure?.message ?? "This change can't be applied.");
-      return;
-    }
-    setPreviewed({ ops: next.ops, notes: next.notes, preview: result });
+    await showPreview(next.ops, next.notes, ticket);
+  };
+  const resolve = async (resolution: EditResolution) => {
+    request.current += 1;
+    const ticket = request.current;
+    setPreviewed(null);
+    setError(null);
+    await showPreview(resolution.ops, [resolution.description], ticket);
+  };
+  const cancelConflict = () => {
+    request.current += 1;
+    useLiveMatchStore.getState().clearEditConflict?.();
+    setLastChoice(null);
+    setPreviewed(null);
+    setError(null);
   };
   const pick = (intent: ScoringIntent) => {
     setSheet(null);
@@ -108,24 +225,51 @@ function EditBallBody({ seq }: EditBallScreenProps) {
     const ok = await useLiveMatchStore.getState().applyHistoryEdit(ops, text === '' ? null : text, preview);
     setBusy(false);
     if (ok) {
-      useToastStore.getState().show({ kind: 'success', message: `Ball ${label} changed`, action: null });
-      router.back();
+      useToastStore.getState().show({ kind: 'success', message: vm?.reopensMatch ? `Ball ${label} changed · match reopened` : `Ball ${label} changed`, action: null });
+      setPreviewed(null);
+      leaveEdit(matchId);
       return;
     }
     const failure = useLiveMatchStore.getState().error;
     useLiveMatchStore.getState().clearError();
     if (failure?.code === 'CONFLICT') {
-      setConflict(true);
+      setStale(true);
       return;
     }
-    setError(failure?.message ?? "Couldn't apply the change. Nothing was changed.");
+    setError(errorHeadline(failure, "Couldn't apply the change. Nothing was changed."));
   };
 
+  const footer =
+    preview === null ? undefined : (
+      <View style={styles.dock} testID="edit-dock">
+        {reasonMissing ? (
+          <Text variant="footnote" tone="secondary" testID="edit-apply-hint">
+            {REASON_NEEDED}
+          </Text>
+        ) : null}
+        <Button
+          label={vm?.reopensMatch ? 'Apply and reopen' : 'Apply change'}
+          size="lg"
+          fullWidth
+          variant={preview.impact?.severity === 'destructive' ? 'destructiveConfirm' : 'primary'}
+          disabled={!canApply}
+          loading={busy}
+          accessibilityHint={reasonMissing ? REASON_NEEDED : undefined}
+          onPress={() => void flight(apply)}
+          testID="edit-btn-apply"
+        />
+      </View>
+    );
+
   return (
-    <Screen testID="screen-edit" header={<TopBar title={`Edit ball ${label}`} onBack={leaveMatch} />}>
-      {isLiveMatch ? <Banner tone="info" message="This match is live. The change is recorded in the match's audit log." /> : null}
+    <Screen
+      testID="screen-edit"
+      header={<TopBar title={`Edit ball ${label}`} subtitle={subtitle} onBack={guard.requestClose} testID="edit-top-bar" />}
+      footer={footer}
+    >
+      <Stack.Screen options={{ gestureEnabled: !pending }} />
       <SectionHeader title="Recorded" />
-      <View style={styles.recorded} testID="edit-recorded">
+      <View style={[styles.recorded, { paddingHorizontal: gutter }]} testID="edit-recorded">
         {target.ball !== null ? (
           <BallChip
             text={chipOf(target.ball.token, dotStyle).text}
@@ -139,62 +283,57 @@ function EditBallBody({ seq }: EditBallScreenProps) {
         </Text>
       </View>
       <SectionHeader title={mode === 'replace' ? 'Change to' : `Insert a ball before ${label}`} />
-      <ScoringPad
+      <EditKeypad
+        selected={selectedKey}
+        recorded={mode === 'replace' ? recordedKey : null}
+        dotStyle={dotStyle}
         onRuns={(runs) => void choose({ kind: mode, intent: scoreRuns(runs) })}
         onExtras={() => setSheet('extras')}
         onWicket={() => setSheet('wicket')}
-        dotStyle={dotStyle}
-        bottomInset={false}
-        testIDPrefix="edit-btn"
       />
-      <View style={styles.actions}>
-        <Button label="Delete this ball" icon="trash-2" variant="tertiary" size="sm" onPress={() => void choose({ kind: 'delete' })} testID="edit-btn-delete" />
+      <View style={[styles.actions, { paddingLeft: Math.max(0, gutter - space.sm), paddingRight: gutter }]} testID="edit-actions">
         <Button
-          label={mode === 'replace' ? 'Insert a ball before' : 'Change this ball instead'}
+          label={mode === 'replace' ? 'Insert ball before' : 'Change this ball'}
+          icon={mode === 'replace' ? 'plus' : 'pencil-line'}
           variant="tertiary"
           size="sm"
           onPress={() => setMode(mode === 'replace' ? 'insert_before' : 'replace')}
           testID="edit-btn-mode"
         />
+        <View style={styles.end}>
+          <Button label="Delete ball" icon="trash-2" variant="destructive" size="sm" onPress={() => void choose({ kind: 'delete' })} testID="edit-btn-delete" />
+        </View>
       </View>
       {vm?.newToken ? (
-        <View style={styles.recorded} testID="edit-new">
+        <View style={[styles.recorded, { paddingHorizontal: gutter }]} testID="edit-new">
           <Text variant="subhead" tone="secondary">
             New:
           </Text>
           <BallChip text={vm.newToken.text} kind={vm.newToken.kind} isFreeHit={vm.newToken.isFreeHit} accessibilityLabel={vm.newToken.accessibilityLabel} />
-          <Text variant="body">{vm.newToken.accessibilityLabel}</Text>
+          <Text variant="body" style={styles.flex}>
+            {vm.newToken.accessibilityLabel}
+          </Text>
         </View>
       ) : null}
       {lastChoice?.kind === 'delete' && preview !== null ? (
-        <Text variant="subhead" style={styles.padded} testID="edit-delete-note">{`Ball ${label} will be removed.`}</Text>
+        <Inset top="xs">
+          <Text variant="subhead" testID="edit-delete-note">{`Ball ${label} will be removed`}</Text>
+        </Inset>
       ) : null}
-      {error !== null ? (
-        <View style={styles.padded}>
-          <Banner tone="danger" message={error} testID="edit-error" />
-        </View>
-      ) : null}
+      {conflict !== null && preview === null ? <ConflictPanel conflict={conflict} busy={busy} onResolve={(resolution) => void resolve(resolution)} onCancel={cancelConflict} /> : null}
+      {error !== null ? <Banner tone="danger" message={error} testID="edit-error" /> : null}
       {vm !== null && preview !== null ? <WhatWillChange vm={vm} impact={preview.impact} notes={notes} teamName={(teamId) => teamName(setup, teamId)} /> : null}
       {preview !== null ? (
-        <View style={styles.apply}>
+        <Inset top="md" bottom="md" testID="edit-reason-group">
           <ReasonField
             value={reason}
             onChange={setReason}
             required={requiresReason}
-            label={requiresReason ? 'Reason (required for completed and tournament matches)' : 'Reason (optional)'}
+            returnKeyType="done"
+            submitBehavior="blurAndSubmit"
             testID="edit-reason"
           />
-          <Button
-            label="Apply change"
-            size="lg"
-            fullWidth
-            variant={preview.impact?.severity === 'destructive' ? 'destructiveConfirm' : 'primary'}
-            disabled={!canApply}
-            loading={busy}
-            onPress={() => void flight(apply)}
-            testID="edit-btn-apply"
-          />
-        </View>
+        </Inset>
       ) : null}
       <ExtrasSheet visible={sheet === 'extras'} rules={setup.rules} onSubmit={pick} onClose={() => setSheet(null)} title="Change to extras" />
       {wicketOptions !== null ? (
@@ -210,21 +349,22 @@ function EditBallBody({ seq }: EditBallScreenProps) {
         />
       ) : null}
       <Dialog
-        visible={conflict}
+        visible={stale}
         title="This match changed"
-        message="The match changed after you opened the preview. Review the edit again."
+        message="Review the edit again."
         confirm={{
           label: 'Review again',
           onPress: () => {
-            setConflict(false);
+            setStale(false);
             if (lastChoice !== null) {
               void choose(lastChoice);
             }
           },
           testID: 'edit-conflict-review',
         }}
-        onRequestClose={() => setConflict(false)}
+        onRequestClose={() => setStale(false)}
       />
+      {guard.dialog}
     </Screen>
   );
 }
@@ -238,9 +378,11 @@ export function EditBallScreen(props: EditBallScreenProps) {
 }
 
 const styles = StyleSheet.create({
-  flex: { flex: 1 },
-  recorded: { flexDirection: 'row', alignItems: 'center', gap: space.sm, paddingHorizontal: space.md, minHeight: 48 },
-  actions: { flexDirection: 'row', flexWrap: 'wrap', gap: space.xs, paddingHorizontal: space.md, paddingTop: space.xs },
-  padded: { paddingHorizontal: space.md, paddingTop: space.xs },
-  apply: { padding: space.md, gap: space.md },
+  flex: { flex: 1, minWidth: 0 },
+  recorded: { flexDirection: 'row', alignItems: 'center', gap: space.sm, minHeight: 48 },
+  actions: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', gap: space.xs, paddingTop: space.sm },
+  end: { marginLeft: 'auto' },
+  dock: { gap: space.xs },
+  conflict: { paddingTop: space.sm, gap: space.xs },
+  start: { alignItems: 'flex-start' },
 });

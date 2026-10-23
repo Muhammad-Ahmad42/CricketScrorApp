@@ -1,7 +1,7 @@
 import type { ReactNode, Ref } from 'react';
 import { View, type ViewProps } from 'react-native';
 import { GlassView } from 'expo-glass-effect';
-import { useTheme, type GlassLevel } from '../theme';
+import { GlassInkScope, useTheme, type GlassLevel } from '../theme';
 import { cornerStyle, type GlassCorners, type GlassRim } from './corners';
 import { GlassMaterial } from './GlassMaterial';
 import { useGlassRenderer } from './platform';
@@ -14,6 +14,7 @@ export interface GlassSurfaceProps extends ViewProps {
   readonly sheen?: boolean;
   readonly blur?: boolean;
   readonly active?: boolean;
+  readonly rest?: number;
   readonly elevated?: boolean;
   readonly interactive?: boolean;
   readonly materialTestID?: string;
@@ -29,13 +30,14 @@ export function GlassSurface({
   sheen,
   blur = true,
   active = true,
+  rest = 0,
   elevated = false,
   interactive = false,
   materialTestID,
   style,
   children,
   ref,
-  ...rest
+  ...others
 }: GlassSurfaceProps) {
   const theme = useTheme();
   const renderer = useGlassRenderer();
@@ -44,23 +46,23 @@ export function GlassSurface({
   if (renderer === 'liquid') {
     return (
       <GlassView
-        {...rest}
+        {...others}
         ref={ref}
         style={[shape, style]}
-        glassEffectStyle={{ style: active ? 'regular' : 'none', animate: !theme.motion.reduced, animationDuration: 0.2 }}
+        glassEffectStyle={{ style: active || rest > 0 ? 'regular' : 'none', animate: !theme.motion.reduced, animationDuration: 0.2 }}
         tintColor={theme.glass.level[level].tint}
         colorScheme={theme.scheme}
         isInteractive={interactive && !theme.motion.reduced}
       >
-        {children}
+        <GlassInkScope level={level}>{children}</GlassInkScope>
       </GlassView>
     );
   }
 
   return (
-    <View {...rest} ref={ref} style={[shape, elevated && active ? theme.glass.shadow : null, style]}>
-      <GlassMaterial level={level} radius={radius} corners={corners} rim={rim} sheen={sheen} blur={blur} active={active} testID={materialTestID} />
-      {children}
+    <View {...others} ref={ref} style={[shape, elevated && active ? theme.glass.shadow : null, style]}>
+      <GlassMaterial level={level} radius={radius} corners={corners} rim={rim} sheen={sheen} blur={blur} active={active} rest={rest} testID={materialTestID} />
+      <GlassInkScope level={level}>{children}</GlassInkScope>
     </View>
   );
 }

@@ -1,3 +1,4 @@
+import { matchDisplayDate } from '@/domain/scoring/matchDates';
 import { buildScorecardHtml, buildTournamentHtml } from '@/export';
 import type { ExportService } from '../contracts';
 import type { ServiceContext } from '../core/context';
@@ -9,6 +10,18 @@ import { scorecardSource, tournamentSource } from './sources';
 
 function dateOf(iso: string): string {
   return iso.slice(0, 10);
+}
+
+function localDateOf(iso: string): string {
+  if (iso.length <= 10) {
+    return iso;
+  }
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) {
+    return dateOf(iso);
+  }
+  const pad = (value: number) => String(value).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
 }
 
 export function createExportService(ctx: ServiceContext): ExportService {
@@ -34,7 +47,7 @@ export function createExportService(ctx: ServiceContext): ExportService {
         const source = await inTransaction(ctx, (repos) => scorecardSource(ctx, repos, matchId));
         const generatedAt = ctx.clock.now();
         const html = buildScorecardHtml(source, { generatedAt });
-        return printAndStore(html, `Scorecard - ${source.match.title} - ${source.match.scheduledDate ?? dateOf(generatedAt)}`);
+        return printAndStore(html, `scorecard ${source.match.title} ${localDateOf(matchDisplayDate(source.match).value)}`);
       });
     },
 
@@ -43,7 +56,7 @@ export function createExportService(ctx: ServiceContext): ExportService {
         const source = await inTransaction(ctx, (repos) => tournamentSource(ctx, repos, tournamentId));
         const generatedAt = ctx.clock.now();
         const html = buildTournamentHtml(source, { generatedAt });
-        return printAndStore(html, `Tournament - ${source.snapshot.tournament.name} - ${dateOf(generatedAt)}`);
+        return printAndStore(html, `tournament ${source.snapshot.tournament.name} ${dateOf(generatedAt)}`);
       });
     },
 

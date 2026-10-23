@@ -80,6 +80,17 @@ async function newPlayer(ctx: ServiceContext, repos: Repositories, teamId: TeamI
   return player.id;
 }
 
+function assertRoomInSide(log: MatchLog, teamId: TeamId): void {
+  const team = log.setup.teams.find((entry) => entry.id === teamId);
+  const sideSize = team?.playersInSide ?? log.setup.rules.playersPerSide;
+  const regulars = log.setup.players.filter((entry) => entry.teamId === teamId && !entry.isSubstitute).length;
+  if (regulars >= sideSize) {
+    throw failure('VALIDATION', `${team?.name ?? 'This team'} already have ${sideSize} players. Add this player as a substitute.`, {
+      domainCode: 'SQUAD_TOO_LARGE',
+    });
+  }
+}
+
 function nextBattingOrder(log: MatchLog, teamId: TeamId): number {
   const orders = log.setup.players
     .filter((player) => player.teamId === teamId && !player.isSubstitute)
@@ -138,7 +149,7 @@ export function createConfigurationOperations(ctx: ServiceContext): Configuratio
           assertSideSize(sizes.teamAPlayers);
           assertSideSize(sizes.teamBPlayers);
           const next: Match = { ...log.match, rules, teamAPlayers: sizes.teamAPlayers, teamBPlayers: sizes.teamBPlayers, updatedAt: ctx.clock.now() };
-          const live = await reconfigure(ctx, repos, log, next, "These rules don't fit the balls already recorded in this match.");
+          const live = await reconfigure(ctx, repos, log, next, "These rules don't fit this match. They clash with balls already recorded.");
           if (permission(log.match, 'rules') === 'confirm') {
             await writeAudit(ctx, repos, {
               tournamentId: log.match.tournamentId,
@@ -192,7 +203,7 @@ export function createConfigurationOperations(ctx: ServiceContext): Configuratio
           const log = await readMatchLog(repos, matchId);
           await assertMatchTournamentWritable(repos, log.match);
           if (log.events.length > 0) {
-            throw failure('FORBIDDEN_STATE', 'This match has already started, so it can no longer be postponed or cancelled.');
+            throw failure('FORBIDDEN_STATE', "This match has already started. It can't be postponed or cancelled.");
           }
           if (log.match.status === status) {
             return log.match;
@@ -231,13 +242,16 @@ export function createConfigurationOperations(ctx: ServiceContext): Configuratio
           const log = await readMatchLog(repos, matchId);
           await assertMatchTournamentWritable(repos, log.match);
           if (teamId !== log.match.teamAId && teamId !== log.match.teamBId) {
-            throw failure('VALIDATION', 'Players can only be added to one of the two teams in this match.');
+            throw failure('VALIDATION', 'Choose one of the two teams in this match.');
           }
+          const isSubstitute = opts?.isSubstitute ?? false;
           const playerId = 'newPlayer' in player ? await newPlayer(ctx, repos, teamId, player.newPlayer) : player.playerId;
           if (log.setup.players.some((entry) => entry.playerId === playerId)) {
             throw failure('VALIDATION', 'This player is already in the squad.');
           }
-          const isSubstitute = opts?.isSubstitute ?? false;
+          if (!isSubstitute) {
+            assertRoomInSide(log, teamId);
+          }
           await repos.matches.addSquadPlayer(matchId, teamId, {
             playerId,
             battingOrder: isSubstitute ? null : nextBattingOrder(log, teamId),
@@ -278,7 +292,7 @@ export function createConfigurationOperations(ctx: ServiceContext): Configuratio
           }
           await repos.matches.removeSquadPlayer(matchId, playerId);
           const next: Match = { ...log.match, updatedAt: ctx.clock.now() };
-          await reconfigure(ctx, repos, log, next, `${entry.name} has already taken part in this match, so they stay in the squad.`);
+          await reconfigure(ctx, repos, log, next, `${entry.name} has already played. They stay in the squad.`);
           if (auditsSquadChanges(log.match)) {
             await writeAudit(ctx, repos, {
               tournamentId: log.match.tournamentId,

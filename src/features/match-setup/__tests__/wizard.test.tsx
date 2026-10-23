@@ -13,8 +13,10 @@ import { OpenersStep } from '../screens/OpenersStep';
 import { PlayersStep } from '../screens/PlayersStep';
 import { TeamsStep } from '../screens/TeamsStep';
 import { TossStep } from '../screens/TossStep';
-import { battingFirstOf, battingOrderPatch, formatTitle, moved, NO_OPENERS } from '../selectors/wizard';
+import { battingFirstOf, battingOrderPatch, choiceColumns, formatTitle, moved, NO_OPENERS } from '../selectors/wizard';
+import { RULE_KEYS, ruleValue } from '../selectors/rules';
 import { mockStores } from '@/features/scoring/__tests__/support/storeModule';
+import { focusSpy, focusedTestIDs, measureFieldsAt, resetKeyboard, scrollToSpy, showKeyboard, withPlatform } from '@/ui/testing';
 
 const { useMatchSetupStore, useTeamLibraryStore, useToastStore } = mockStores();
 
@@ -91,6 +93,31 @@ describe('wizard helpers', () => {
     expect(battingOrderPatch(base, { toss: { winnerTeamId: 'LIO', decision: 'bowl' } })).toEqual({ toss: { winnerTeamId: 'LIO', decision: 'bowl' } });
     expect(battingOrderPatch(base, { toss: null, battingFirstTeamId: 'LIO' })).toEqual({ toss: null, battingFirstTeamId: 'LIO', openers: NO_OPENERS });
   });
+
+  it('keeps every rule value short enough to show in full beside its title', () => {
+    const rules = getBuiltinPreset('T20')?.rules ?? emptyDraft().rules;
+    const busy = {
+      ...rules,
+      bowlerQuotaMode: 'icc_one_fifth' as const,
+      wide: { penaltyRuns: 2, countsAsBall: true },
+      noBall: { penaltyRuns: 2, freeHit: true, countsAsBall: false },
+      powerplays: [
+        { name: 'P1', fromOver: 1, toOver: 6 },
+        { name: 'P2', fromOver: 16, toOver: 20 },
+      ],
+      superOver: { ...rules.superOver, enabled: true, overs: 2 },
+      mandatoryRetirement: { atRuns: 120, mayReturn: true, timing: 'end_of_over' as const },
+    };
+    for (const variant of [rules, busy]) {
+      for (const key of RULE_KEYS) {
+        expect(ruleValue(key, variant).length).toBeLessThanOrEqual(16);
+      }
+    }
+    expect(ruleValue('wide', rules)).toBe('1 run');
+    expect(ruleValue('noBall', busy)).toBe('2 runs, free hit');
+    expect(ruleValue('powerplay', busy)).toBe('2 phases');
+    expect(ruleValue('superOver', busy)).toBe('2 overs');
+  });
 });
 
 describe('match setup wizard (§64)', () => {
@@ -120,12 +147,118 @@ describe('match setup wizard (§64)', () => {
     expect(router.push).toHaveBeenCalledWith('/match/new/teams');
   });
 
+  it('step 1: long single-choice rule options are radios with full labels', async () => {
+    installStores();
+    await wrap(<MatchInfoStep />);
+    await fireEvent.press(screen.getByTestId('rules-row-bowlerQuota'));
+    expect(screen.getByTestId('rule-quota-icc')).toHaveProp('accessibilityRole', 'radio');
+    await fireEvent.press(screen.getByTestId('rule-quota-icc'));
+    expect(screen.getByTestId('rule-quota-icc')).toHaveProp('accessibilityState', expect.objectContaining({ checked: true }));
+    await fireEvent.press(screen.getByTestId('rule-done'));
+    expect(draft().rules.bowlerQuotaMode).toBe('icc_one_fifth');
+    await fireEvent.press(screen.getByTestId('rules-row-superOver'));
+    if (screen.queryByTestId('rule-super-again-stands') === null) {
+      await fireEvent.press(screen.getByTestId('rule-super-enabled'));
+    }
+    expect(screen.getByText('Another super over')).toBeOnTheScreen();
+    expect(screen.getByTestId('rule-super-again-stands')).toHaveProp('accessibilityRole', 'radio');
+    await fireEvent.press(screen.getByTestId('rule-super-again-stands'));
+    await fireEvent.press(screen.getByTestId('rule-done'));
+    expect(draft().rules.superOver.ifTiedAgain).toBe('tie_stands');
+  });
+
+  it('step 1: keeps a stepper change when the rule sheet is closed with the X, and Discard throws it away (#18)', async () => {
+    installStores();
+    await wrap(<MatchInfoStep />);
+    const before = draft().rules.playersPerSide;
+    await fireEvent.press(screen.getByTestId('rules-row-players'));
+    await fireEvent.press(screen.getByTestId('rule-players-decrement'));
+    expect(screen.getByTestId('sheet-rule-btn-close')).toHaveProp('accessibilityLabel', 'Keep changes and close');
+    await fireEvent.press(screen.getByTestId('sheet-rule-btn-close'));
+    expect(draft().rules.playersPerSide).toBe(before - 1);
+    await fireEvent.press(screen.getByTestId('rules-row-players'));
+    await fireEvent.press(screen.getByTestId('rule-players-decrement'));
+    await fireEvent.press(screen.getByTestId('rule-discard'));
+    expect(draft().rules.playersPerSide).toBe(before - 1);
+  });
+
+  it('step 1: wraps the format and overs choices so the selection is always visible, and edits the date and time through pickers', async () => {
+    installStores({ scheduledDate: '2026-10-02', scheduledTime: '14:15' });
+    await wrap(<MatchInfoStep />);
+    expect(screen.getByTestId('setup-format-group')).toHaveStyle({ flexWrap: 'wrap' });
+    expect(screen.getByTestId('setup-format-T20')).toHaveProp('accessibilityRole', 'radio');
+    expect(screen.getByTestId('setup-format-T20')).toHaveProp('accessibilityState', expect.objectContaining({ selected: true, checked: true }));
+    expect(screen.getByTestId('setup-overs-custom')).toHaveProp('placeholder', 'e.g. 12');
+    expect(screen.getByTestId('setup-overs-custom')).toHaveProp('keyboardType', 'number-pad');
+    expect(screen.getByTestId('setup-overs-1')).toHaveProp('accessibilityLabel', '1 over');
+    expect(screen.getByTestId('setup-overs-20')).toHaveProp('accessibilityLabel', '20 overs');
+    expect(screen.queryByDisplayValue('2026-10-02')).toBeNull();
+    expect(screen.getByTestId('setup-date-value')).toHaveTextContent(/2 Oct/);
+    expect(screen.getByTestId('setup-time-value')).toHaveTextContent('14:15');
+    await fireEvent.press(screen.getByTestId('setup-date'));
+    await fireEvent(screen.getByTestId('setup-date-sheet-picker'), 'change', { nativeEvent: { timestamp: new Date(2026, 9, 3, 12).getTime() } });
+    await fireEvent.press(screen.getByTestId('setup-date-sheet-done'));
+    await fireEvent.press(screen.getByTestId('setup-time'));
+    await fireEvent(screen.getByTestId('setup-time-sheet-picker'), 'change', { nativeEvent: { timestamp: new Date(2026, 9, 3, 14, 30).getTime() } });
+    await fireEvent.press(screen.getByTestId('setup-time-sheet-done'));
+    expect(draft()).toMatchObject({ scheduledDate: '2026-10-03', scheduledTime: '14:30' });
+  });
+
+  it('step 1: uses a chip grid only where every selected label fits, and lets chips wrap freely on small screens or large text', () => {
+    expect(choiceColumns('format', 'compact', 1)).toBe(3);
+    expect(choiceColumns('format', 'medium', 1)).toBe(4);
+    expect(choiceColumns('format', 'compact-s', 1)).toBeUndefined();
+    expect(choiceColumns('overs', 'compact-s', 1)).toBeUndefined();
+    expect(choiceColumns('overs', 'compact', 1)).toBe(4);
+    expect(choiceColumns('overs', 'expanded', 1)).toBe(5);
+    expect(choiceColumns('overs', 'compact', 1.3)).toBeUndefined();
+    expect(choiceColumns('format', 'expanded', 1.3)).toBeUndefined();
+  });
+
+  it('step 1: clearing the date drops the time too and hides the time field', async () => {
+    installStores({ scheduledDate: '2026-10-02', scheduledTime: '14:15' });
+    await wrap(<MatchInfoStep />);
+    await fireEvent.press(screen.getByTestId('setup-date-clear'));
+    expect(draft()).toMatchObject({ scheduledDate: null, scheduledTime: null });
+    expect(screen.queryByTestId('setup-time')).not.toBeOnTheScreen();
+  });
+
+  it('step 1: the title returns to the overs field and the keyboard never hides the focused field', async () => {
+    installStores();
+    const focus = focusSpy();
+    await wrap(<MatchInfoStep />);
+    expect(screen.getByTestId('wizard-index-scroll').props.keyboardShouldPersistTaps).toBe('handled');
+    expect(screen.getByTestId('setup-title')).toHaveProp('returnKeyType', 'next');
+    expect(screen.getByTestId('setup-title')).toHaveProp('autoCapitalize', 'sentences');
+    expect(screen.getByTestId('setup-overs-custom')).toHaveProp('returnKeyType', 'done');
+    await fireEvent(screen.getByTestId('setup-title'), 'submitEditing');
+    expect(focusedTestIDs(focus)).toEqual(['setup-overs-custom']);
+    focus.mockRestore();
+  });
+
+  it('step 1: scrolls the focused overs field above the Android keyboard and the dock', async () => {
+    installStores();
+    await withPlatform('android', async () => {
+      await wrap(<MatchInfoStep />);
+      const scrollTo = scrollToSpy();
+      measureFieldsAt(1200, 80);
+      await fireEvent(screen.getByTestId('setup-overs-custom'), 'focus');
+      await showKeyboard(320);
+      expect(scrollTo).toHaveBeenCalled();
+      const last = scrollTo.mock.calls[scrollTo.mock.calls.length - 1][0] as { readonly y: number };
+      expect(last.y).toBeGreaterThan(0);
+      await resetKeyboard();
+      scrollTo.mockRestore();
+    });
+  });
+
   it('step 1: blocks Next for an invalid number of overs', async () => {
     installStores();
     await wrap(<MatchInfoStep />);
     await fireEvent.changeText(screen.getByTestId('setup-overs-custom'), '0');
-    expect(screen.getByText('Enter the number of overs (1 or more)', { includeHiddenElements: true })).toBeTruthy();
+    expect(screen.getAllByText('Enter 1 or more overs', { includeHiddenElements: true }).length).toBeGreaterThan(0);
     expect(screen.getByTestId('wizard-btn-next')).toBeDisabled();
+    expect(screen.getByTestId('wizard-next-reason')).toHaveTextContent('Enter 1 or more overs');
   });
 
   it('step 1: a fixture entry prepares the draft and jumps to players', async () => {
@@ -192,6 +325,64 @@ describe('match setup wizard (§64)', () => {
     await fireEvent.press(screen.getByTestId('player-submit'));
     await waitFor(() => expect(draft().squadA).toEqual(['P5']));
     expect(useTeamLibraryStore.getState().addPlayer).toHaveBeenCalledWith('PAK', { name: 'Late Addition', jerseyNumber: null, role: 'unknown' });
+  });
+
+  it('step 3: refuses Next with too many players for the side size and says why (#7)', async () => {
+    installStores({ teamAId: 'PAK', teamBId: 'LIO', teamAPlayers: 3, teamBPlayers: 3 });
+    await wrap(<PlayersStep />);
+    await waitFor(() => expect(screen.getByTestId('setup-player-P1')).toBeOnTheScreen());
+    await fireEvent.press(screen.getByTestId('setup-players-all'));
+    expect(draft().squadA).toEqual(['P1', 'P2', 'P3', 'P4']);
+    expect(screen.getByTestId('setup-players-too-many-text-headline')).toHaveTextContent('Pakistan XI: 1 player too many');
+    expect(screen.getByTestId('wizard-btn-next')).toBeDisabled();
+    expect(screen.getByTestId('wizard-next-reason')).toHaveTextContent('Pakistan XI: 1 player too many');
+    await fireEvent.press(screen.getByTestId('setup-player-P4'));
+    expect(screen.queryByTestId('setup-players-too-many')).not.toBeOnTheScreen();
+    expect(screen.getByTestId('wizard-btn-next')).not.toBeDisabled();
+    expect(screen.queryByTestId('wizard-next-reason')).not.toBeOnTheScreen();
+  });
+
+  it('step 3: ticks a squad that exactly fills the side, labels the tabs and disables moves at the ends', async () => {
+    installStores({ teamAId: 'PAK', teamBId: 'LIO', teamAPlayers: 5, teamBPlayers: 3 });
+    await wrap(<PlayersStep />);
+    await waitFor(() => expect(draft().squadB).toEqual(['L1', 'L2', 'L3']));
+    expect(draft().squadA).toEqual([]);
+    expect(screen.getByTestId('setup-players-tab-B')).toHaveTextContent('LIO 3 of 3');
+    expect(screen.getByTestId('setup-players-tab-A')).toHaveProp('accessibilityLabel', 'Pakistan XI, 0 of 5 players selected');
+    expect(screen.getByTestId('wizard-next-reason')).toHaveTextContent('Choose at least 2 players for Pakistan XI');
+    await fireEvent.press(screen.getByTestId('setup-player-P1'));
+    await fireEvent.press(screen.getByTestId('setup-player-P2'));
+    expect(screen.getByTestId('setup-player-P1-up')).toBeDisabled();
+    expect(screen.getByTestId('setup-player-P2-down')).toBeDisabled();
+    expect(screen.getByTestId('setup-player-P1-down')).not.toBeDisabled();
+    expect(screen.getByTestId('setup-player-P3-sub')).toHaveProp('accessibilityRole', 'checkbox');
+    expect(screen.getByTestId('setup-player-P3-sub')).toHaveProp('accessibilityState', expect.objectContaining({ checked: false }));
+    expect(screen.getByTestId('setup-player-P1')).toHaveProp('accessibilityRole', 'checkbox');
+    expect(screen.getByTestId('setup-player-P1-mark', { includeHiddenElements: true })).toBeOnTheScreen();
+  });
+
+  it('step 3: saves a player and keeps the sheet open to add another', async () => {
+    installStores({ teamAId: 'PAK', teamBId: 'LIO' });
+    let next = 4;
+    const addPlayer = jest.fn((_teamId: string, input: { readonly name: string }) => {
+      next += 1;
+      return Promise.resolve({ ...roster('PAK', 'P', next)[next - 1], name: input.name });
+    });
+    useTeamLibraryStore.setState({ addPlayer });
+    await wrap(<PlayersStep />);
+    await waitFor(() => expect(screen.getByTestId('setup-player-P1')).toBeOnTheScreen());
+    await fireEvent.press(screen.getByTestId('setup-players-add'));
+    await fireEvent.changeText(screen.getByTestId('player-name'), 'First Newcomer');
+    await fireEvent.press(screen.getByTestId('player-submit-another'));
+    await waitFor(() => expect(draft().squadA).toEqual(['P5']));
+    expect(screen.getByTestId('sheet-player')).toBeOnTheScreen();
+    expect(screen.getByTestId('player-name')).toHaveProp('value', '');
+    expect(screen.getByText('Pakistan XI · 1 added · 1 of 11 selected')).toBeOnTheScreen();
+    await fireEvent.changeText(screen.getByTestId('player-name'), 'Second Newcomer');
+    expect(screen.getByTestId('player-jersey')).toHaveProp('returnKeyType', 'next');
+    await fireEvent.press(screen.getByTestId('player-submit'));
+    await waitFor(() => expect(draft().squadA).toEqual(['P5', 'P6']));
+    await waitFor(() => expect(screen.queryByTestId('player-submit-another')).not.toBeOnTheScreen());
   });
 
   it('step 4: records the toss winner and decision, or who bats first without a toss', async () => {

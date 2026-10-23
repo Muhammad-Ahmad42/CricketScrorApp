@@ -69,7 +69,7 @@ function statusReason(snapshot: TournamentSnapshot): string {
     case 'completed':
       return 'The tournament is completed. Reopen it for corrections first.';
     default:
-      return "This change isn't possible at this stage of the tournament.";
+      return "This change isn't possible at this stage.";
   }
 }
 
@@ -89,7 +89,7 @@ function deletionBlock(snapshot: TournamentSnapshot, deleted: readonly (Fixture 
   const played = deleted.find(hasMatch);
   if (played) return `${fixtureName(played)} already has a match. Delete or detach that match first.`;
   const replayed = deleted.find((fixture): fixture is Fixture => !!fixture && hasMatchHistory(snapshot, fixture));
-  return replayed ? `${fixtureName(replayed)} keeps an abandoned match on record from before its replay, so it can't be deleted.` : null;
+  return replayed ? `${fixtureName(replayed)} can't be deleted. It keeps an abandoned match on record.` : null;
 }
 
 function structuralBlock(ctx: PlanContext, change: ProposedChange, plan: ChangePlan): string | null {
@@ -107,13 +107,13 @@ function structuralBlock(ctx: PlanContext, change: ProposedChange, plan: ChangeP
       const fixture = byId.get(change.fixtureId);
       if (!hasMatch(fixture)) return null;
       const patch = change.patch;
-      if (patch.sideA || patch.sideB) return `${fixtureName(fixture)} has already been played, so its teams can't change.`;
+      if (patch.sideA || patch.sideB) return `${fixtureName(fixture)} has been played. Its teams can't change.`;
       if (isFixtureReplay(fixture, patch)) {
         const guard = fixtureReplayGuard(ctx.snapshot, fixture);
         return guard.ok ? null : guard.reason;
       }
       const scheduling = patch.scheduledDate !== undefined || patch.scheduledTime !== undefined || patch.venueId !== undefined || patch.status !== undefined;
-      return scheduling ? `${fixtureName(fixture)} has already been played, so it can't be rescheduled.` : null;
+      return scheduling ? `${fixtureName(fixture)} has been played. It can't be rescheduled.` : null;
     }
     case 'team_withdraw': {
       const live = ctx.snapshot.fixtures.find(

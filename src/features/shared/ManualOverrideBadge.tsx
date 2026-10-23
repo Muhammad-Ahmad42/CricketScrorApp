@@ -11,9 +11,9 @@ export interface ManualOverrideBadgeProps {
 
 export function ManualOverrideBadge({ reason, showReason = true, testID }: ManualOverrideBadgeProps) {
   return (
-    <View style={styles.root} accessible accessibilityLabel={`${MANUAL_OVERRIDE_LABEL}. Reason: ${reason}`}>
+    <View style={styles.root} accessible accessibilityLabel={reason.length > 0 ? `${MANUAL_OVERRIDE_LABEL}. Reason: ${reason}` : MANUAL_OVERRIDE_LABEL}>
       <Badge label={MANUAL_OVERRIDE_LABEL} tone="override" testID={testID} />
-      {showReason ? (
+      {showReason && reason.length > 0 ? (
         <Text variant="footnote" tone="secondary" numberOfLines={3}>
           {`“${reason}”`}
         </Text>

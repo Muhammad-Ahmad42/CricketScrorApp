@@ -52,10 +52,10 @@ function manual(assignment: PoolAssignment, pools: readonly Pool[], entrants: re
   const allowed = new Set(entrants.map(sideKey));
   const members = assignment.pools.flatMap((pool) => pool.members.map(sideKey));
   if (assignment.pools.some((pool) => !poolIds.has(pool.poolId))) {
-    throw failure('VALIDATION', 'The arrangement uses a pool that is not part of this stage.');
+    throw failure('VALIDATION', "That pool isn't part of this stage.");
   }
   if (members.some((member) => !allowed.has(member))) {
-    throw failure('VALIDATION', 'The arrangement includes a team that does not enter this stage.');
+    throw failure('VALIDATION', "That team doesn't enter this stage.");
   }
   if (new Set(members).size !== members.length) {
     throw failure('VALIDATION', 'A team can only be in one pool.');

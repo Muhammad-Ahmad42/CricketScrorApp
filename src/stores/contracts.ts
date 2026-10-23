@@ -38,6 +38,7 @@ import type {
 } from '@/domain/types';
 import type { ScoringIntent } from '@/domain/scoring/commands';
 import type { HistoryEditOp, RedoStack } from '@/domain/scoring/history';
+import type { EditConflict } from '@/domain/scoring/editPlanning';
 import type { PoolAssignment } from '@/domain/tournament/pools';
 import type { MatchListItem, MatchListQuery, TournamentListItem } from '@/domain/types';
 import type { BootstrapReport, ChangePreview, FixturePlan, LiveMatch, NewTournamentInput, ServiceError } from '@/services/contracts';
@@ -74,6 +75,7 @@ export interface LiveMatchStore {
   readonly redoStack: RedoStack;
   readonly error: ServiceError | null;
   readonly warnings: readonly ValidationWarning[];
+  readonly editConflict?: EditConflict | null;
   open(matchId: MatchId): Promise<boolean>;
   close(): void;
   dispatch(intent: ScoringIntent): Promise<boolean>;
@@ -85,6 +87,7 @@ export interface LiveMatchStore {
     opts?: { readonly isSubstitute?: boolean },
   ): Promise<boolean>;
   clearError(): void;
+  clearEditConflict?(): void;
   previewHistoryEdit(ops: readonly HistoryEditOp[]): Promise<HistoryEditPreview | null>;
   applyHistoryEdit(ops: readonly HistoryEditOp[], reason: string | null, preview: HistoryEditPreview): Promise<boolean>;
   updateDetails(patch: MatchDetailsPatch): Promise<boolean>;
@@ -234,6 +237,7 @@ export interface TeamDetail {
 export interface TeamLibraryStore {
   readonly status: AsyncStatus;
   readonly teams: readonly Team[];
+  readonly playerCounts?: Readonly<Record<TeamId, number>>;
   readonly venues: readonly Venue[];
   readonly detail: TeamDetail | null;
   readonly error: ServiceError | null;

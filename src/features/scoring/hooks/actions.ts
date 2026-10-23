@@ -3,9 +3,10 @@ import type { ServiceError } from '@/services/contracts';
 import { useLiveMatchStore, useToastStore } from '@/stores';
 import { lastActionText } from '../selectors/announce';
 import type { SubmitResult } from '../sheets/WicketSheet';
+import { errorHeadline } from '../selectors/scannable';
 
-export const SAVE_FAILED = "Couldn't save this delivery. Your previous match data is still safe.";
-export const CONFLICT_MESSAGE = 'This match was updated elsewhere. Showing the latest score.';
+export const SAVE_FAILED = "Couldn't save this ball. Your match is safe.";
+export const CONFLICT_MESSAGE = 'Updated elsewhere. Showing the latest score.';
 
 export interface SendOptions {
   readonly quietValidation?: boolean;
@@ -19,7 +20,7 @@ function toastFor(error: ServiceError | null, retry: () => void, quietValidation
   }
   if (error?.code === 'VALIDATION' || error?.code === 'FORBIDDEN_STATE') {
     if (!quietValidation) {
-      toasts.show({ kind: 'error', message: error.message, action: null });
+      toasts.show({ kind: 'error', message: errorHeadline(error, SAVE_FAILED), action: null });
     }
     return;
   }
@@ -35,7 +36,7 @@ export async function sendIntent(intent: ScoringIntent, options: SendOptions = {
   const error = store.error;
   toastFor(error, () => void sendIntent(intent, options), options.quietValidation === true);
   store.clearError();
-  return { ok: false, message: error?.message ?? SAVE_FAILED, code: error?.domainCode ?? null };
+  return { ok: false, message: errorHeadline(error, SAVE_FAILED), code: error?.domainCode ?? null };
 }
 
 export type UndoOutcome = 'done' | 'needs_reason' | 'failed';
@@ -61,7 +62,7 @@ export async function undoLast(reason?: string): Promise<UndoOutcome> {
   if (error?.code === 'CONFIRMATION_REQUIRED') {
     return 'needs_reason';
   }
-  useToastStore.getState().show({ kind: 'error', message: error?.message ?? "Couldn't undo. Your match data is still safe.", action: null });
+  useToastStore.getState().show({ kind: 'error', message: errorHeadline(error, "Couldn't undo. Your match is safe."), action: null });
   return 'failed';
 }
 
@@ -76,7 +77,7 @@ export async function redoLast(reason?: string): Promise<UndoOutcome> {
   if (error?.code === 'CONFIRMATION_REQUIRED') {
     return 'needs_reason';
   }
-  useToastStore.getState().show({ kind: 'error', message: error?.message ?? "Couldn't redo.", action: null });
+  useToastStore.getState().show({ kind: 'error', message: errorHeadline(error, "Couldn't redo."), action: null });
   return 'failed';
 }
 

@@ -1,15 +1,42 @@
 import { useState } from 'react';
-import { View, type LayoutChangeEvent } from 'react-native';
+import { StyleSheet, View, type LayoutChangeEvent } from 'react-native';
 import { LineChart } from 'react-native-gifted-charts';
 import { Table, type TableColumn } from '../primitives/Table';
 import { useTheme, type Theme } from '../theme';
-import { textStyle } from '../typography';
+import { Text, textStyle } from '../typography';
 import { ChartFrame, type LegendItem } from './ChartFrame';
 import { SERIES_DASH_PATTERN, SERIES_TOKENS } from './chartTheme';
-import { axisLabelEvery, MAX_SERIES, niceMax, wormMax, wormOvers, wormTableRows, type WormSeries, type WormTableRow } from './chartData';
+import { axisLabelEvery, MAX_SERIES, niceMax, runsAndWicketsText, wicketMarkText, wormMax, wormOvers, wormTableRows, type WormSeries, type WormTableRow } from './chartData';
 
 const Y_AXIS_WIDTH = 32;
 const SECTIONS = 4;
+export const WORM_EDGE_SPACING = 12;
+export const WICKET_DOT = 10;
+const WICKET_LABEL_WIDTH = 16;
+const WICKET_LABEL_SHIFT = -22;
+
+export function wormSpacing(plotWidth: number, overs: number): number {
+  const usable = Math.max(0, plotWidth - WORM_EDGE_SPACING * 2);
+  return overs > 0 ? usable / overs : usable;
+}
+
+function WicketDot({ fill, ring }: { readonly fill: string; readonly ring: string }) {
+  return <View style={[styles.dot, { backgroundColor: fill, borderColor: ring }]} />;
+}
+
+function WicketLabel({ wickets }: { readonly wickets: number }) {
+  return (
+    <View style={[styles.wicketLabel, { width: wicketLabelWidth(wickets) }]}>
+      <Text variant="label" style={styles.wicketText}>
+        {wicketMarkText(wickets)}
+      </Text>
+    </View>
+  );
+}
+
+function wicketLabelWidth(wickets: number): number {
+  return wickets > 1 ? WICKET_LABEL_WIDTH + 10 : WICKET_LABEL_WIDTH;
+}
 
 export interface WormChartProps {
   readonly series: readonly WormSeries[];
@@ -24,19 +51,24 @@ function lineData(theme: Theme, series: WormSeries | undefined, every: number) {
     return undefined;
   }
   const origin = { value: 0, label: '0', hideDataPoint: true };
+  const fill = theme.color.textPrimary;
+  const ring = theme.color.surface;
   return [
     origin,
-    ...series.points.map((point) => ({
-      value: point.runs,
-      label: point.over % every === 0 ? String(point.over) : '',
-      hideDataPoint: point.wickets === 0,
-      dataPointColor: theme.color.textPrimary,
-      dataPointRadius: 4,
-      dataPointText: point.wickets > 0 ? 'W' : undefined,
-      textColor: theme.color.textSecondary,
-      textFontSize: 12,
-      textShiftY: -6,
-    })),
+    ...series.points.map((point) => {
+      const wicket = point.wickets > 0;
+      return {
+        value: point.runs,
+        label: point.over % every === 0 ? String(point.over) : '',
+        hideDataPoint: !wicket,
+        dataPointWidth: WICKET_DOT,
+        dataPointHeight: WICKET_DOT,
+        customDataPoint: wicket ? () => <WicketDot fill={fill} ring={ring} /> : undefined,
+        dataPointLabelComponent: wicket ? () => <WicketLabel wickets={point.wickets} /> : undefined,
+        dataPointLabelWidth: wicketLabelWidth(point.wickets),
+        dataPointLabelShiftY: WICKET_LABEL_SHIFT,
+      };
+    }),
   ];
 }
 
@@ -70,7 +102,7 @@ export function WormChart({ series, accessibilityLabel, title = 'Worm', height =
   const overs = Math.max(1, wormOvers(shown));
   const every = axisLabelEvery(overs);
   const plotWidth = Math.max(0, width - Y_AXIS_WIDTH - 16);
-  const spacing = overs > 0 ? plotWidth / overs : plotWidth;
+  const spacing = wormSpacing(plotWidth, overs);
   const axisText = textStyle('footnote', theme, { tone: 'secondary' });
   const legend: LegendItem[] = shown.map((s, index) => ({ label: s.label, color: SERIES_TOKENS[index], dashed: index === 1 }));
   const rows = wormTableRows(shown);
@@ -89,8 +121,8 @@ export function WormChart({ series, accessibilityLabel, title = 'Worm', height =
           height={height}
           width={plotWidth}
           spacing={spacing}
-          initialSpacing={0}
-          endSpacing={0}
+          initialSpacing={WORM_EDGE_SPACING}
+          endSpacing={WORM_EDGE_SPACING}
           maxValue={niceMax(wormMax(shown), SECTIONS)}
           noOfSections={SECTIONS}
           yAxisLabelWidth={Y_AXIS_WIDTH}
@@ -127,7 +159,7 @@ export function WormChart({ series, accessibilityLabel, title = 'Worm', height =
           rowAccessibilityLabel={(row) =>
             [`Over ${row.over}`, ...shown.map((s, index) => {
               const cell = row.cells[index];
-              return cell ? `${s.label} ${cell.runs} runs, ${cell.wickets} wickets` : `${s.label}, no score`;
+              return cell ? `${s.label} ${runsAndWicketsText(cell.runs, cell.wickets)}` : `${s.label}, no score`;
             })].join('. ')
           }
           emptyText="No overs bowled yet"
@@ -137,3 +169,9 @@ export function WormChart({ series, accessibilityLabel, title = 'Worm', height =
     />
   );
 }
+
+const styles = StyleSheet.create({
+  dot: { width: WICKET_DOT, height: WICKET_DOT, borderRadius: WICKET_DOT, borderWidth: 2 },
+  wicketLabel: { width: WICKET_LABEL_WIDTH, alignItems: 'center' },
+  wicketText: { textTransform: 'none', letterSpacing: 0 },
+});

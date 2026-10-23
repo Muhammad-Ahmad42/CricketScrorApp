@@ -29,8 +29,8 @@ describe('StandingsScreen (§50, §51, §98)', () => {
     const expected = [
       ['Lions', '3', '3', '0', '0', '6', '+6.000'],
       ['Tigers', '3', '2', '1', '0', '4', '+2.000'],
-      ['Eagles', '3', '1', '2', '0', '2', '-2.000'],
-      ['Hawks', '3', '0', '3', '0', '0', '-6.000'],
+      ['Eagles', '3', '1', '2', '0', '2', '−2.000'],
+      ['Hawks', '3', '0', '3', '0', '0', '−6.000'],
     ] as const;
     expected.forEach(([team, p, w, l, nr, pts, nrr], position) => {
       const id = `a-${position + 1}`;
@@ -48,12 +48,12 @@ describe('StandingsScreen (§50, §51, §98)', () => {
   it('labels qualification with text and the §98 explanation, never colour alone', async () => {
     loadTournament(playGroups(cupSnapshot(), 6));
     await renderWithTheme(<StandingsScreen tournamentId="t1" />);
-    expect(screen.getByTestId('standings-text-qual-a-1')).toHaveTextContent(/Lions have mathematically qualified for the Knockouts/);
+    expect(screen.getByTestId('standings-text-qual-a-1')).toHaveTextContent('As Pool A winners');
     expect(screen.getByTestId('standings-badge-qual-a-1')).toHaveTextContent('Qualified');
     expect(screen.getByTestId('standings-badge-qual-a-4')).toHaveTextContent('Eliminated');
     expect(screen.getByTestId('standings-row-a-1')).toHaveProp(
       'accessibilityLabel',
-      'Position 1, Lions, played 3, won 3, lost 0, no result 0, 6 points, net run rate plus 6.000. Qualified, mathematical.',
+      'Position 1, Lions, played 3, won 3, lost 0, no result 0, 6 points, net run rate plus 6.000. Qualified, mathematical. Knockouts as Pool A winners.',
     );
   });
 
@@ -61,8 +61,11 @@ describe('StandingsScreen (§50, §51, §98)', () => {
     loadTournament(playPair(playPair(cupSnapshot(), 'LIO', 'TIG', 'LIO', 6), 'EAG', 'HAW', 'EAG', 12));
     await renderWithTheme(<StandingsScreen tournamentId="t1" />);
     expect(screen.getByTestId('standings-text-rule')).toHaveTextContent('Top 2 from each pool qualify for the Knockouts.');
-    expect(screen.getByTestId('standings-text-chain')).toHaveTextContent('Ranking: Points → NRR → Head-to-Head → Most wins → Organizer decision');
     expect(screen.getByTestId('standings-cell-a-1-team')).toHaveTextContent('Eagles');
+    expect(screen.queryByTestId('standings-text-chain')).not.toBeOnTheScreen();
+    expect(screen.queryByTestId('standings-text-tiebreak-a-1')).not.toBeOnTheScreen();
+    await fireEvent.press(screen.getByTestId('standings-btn-tiebreaks'));
+    expect(screen.getByTestId('standings-text-chain')).toHaveTextContent('Ranking: Points → NRR → Head-to-Head → Most wins → Organizer decision');
     expect(screen.getByTestId('standings-text-tiebreak-a-1')).toHaveTextContent(/net run rate/i);
   });
 

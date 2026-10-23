@@ -1,14 +1,13 @@
 import { useEffect, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { router } from 'expo-router';
-import { Button, Dialog, IconButton, Screen, Tabs, Text, space } from '@/ui';
+import { Button, ChoiceSheet, Dialog, IconButton, Inset, Screen, Tabs, Text, space, type SheetChoice } from '@/ui';
 import { useExportStore, useHomeStore, useLiveMatchStore, useMatchHistoryStore, useSettingsStore, useTeamLibraryStore, useToastStore } from '@/stores';
 import { TopBar } from '@/features/scoring/components/common/TopBar';
 import { ReasonDialog } from '@/features/scoring/components/common/ReasonDialog';
 import { undoLast } from '@/features/scoring/hooks/actions';
 import { leaveMatch, MatchGate } from '@/features/scoring/screens/MatchGate';
 import { matchHref } from '@/features/scoring/screens/ScoringScreen';
-import { ChoiceSheet, type Choice } from '../components/ChoiceSheet';
 import { InningsCard } from '../components/InningsCard';
 import { ResultBanner } from '../components/ResultBanner';
 import { shareMatchBackup, shareScorecardPdf } from '../hooks/share';
@@ -64,23 +63,41 @@ function ScorecardBody() {
       useToastStore.getState().show({ kind: 'error', message: "Couldn't delete the match. Nothing was changed.", action: null });
     }
   };
-  const menu: Choice[] = [
-    { key: 'manage', title: 'Match settings', icon: 'settings', onPress: () => {
+  const menu: SheetChoice[] = [
+    {
+      key: 'manage',
+      title: 'Match settings',
+      icon: 'settings',
+      kind: 'navigate',
+      onPress: () => {
         close();
         router.push(matchHref(matchId, 'manage'));
-      } },
+      },
+    },
   ];
   if (header.isLive) {
-    menu.unshift({ key: 'score', title: 'Continue scoring', icon: 'play', onPress: () => {
+    menu.unshift({
+      key: 'score',
+      title: 'Continue scoring',
+      icon: 'play',
+      kind: 'navigate',
+      onPress: () => {
         close();
         router.push(matchHref(matchId, 'score'));
-      } });
+      },
+    });
   }
   if (header.canReopen) {
-    menu.push({ key: 'reopen', title: 'Reopen match', subtitle: 'Removes the result until you confirm it again', icon: 'undo-2', onPress: () => setOverlay(header.tournamentId === null ? 'reopen' : 'reopen_reason') });
+    menu.push({
+      key: 'reopen',
+      title: 'Reopen match',
+      icon: 'undo-2',
+      kind: 'action',
+      onPress: () => setOverlay(header.tournamentId === null ? 'reopen' : 'reopen_reason'),
+    });
   }
   if (header.canDelete && !header.isLive) {
-    menu.push({ key: 'delete', title: 'Delete match', icon: 'trash-2', onPress: () => setOverlay('delete') });
+    menu.push({ key: 'delete', title: 'Delete match', icon: 'trash-2', kind: 'action', destructive: true, onPress: () => setOverlay('delete') });
   }
 
   return (
@@ -100,10 +117,11 @@ function ScorecardBody() {
           />
           {cards.length > 1 ? (
             <Tabs
-              tabs={cards.map((card) => ({ key: `${card.index}`, label: card.tabLabel, testID: `scorecard-tab-${card.index}` }))}
+              tabs={cards.map((card) => ({ key: `${card.index}`, label: card.tabLabel, accessibilityLabel: card.tabAccessibilityLabel, testID: `scorecard-tab-${card.index}` }))}
               selectedKey={`${selected.index}`}
               onSelect={setChosen}
               accessibilityLabel="Innings"
+              testID="scorecard-tabs"
             />
           ) : null}
         </View>
@@ -118,9 +136,11 @@ function ScorecardBody() {
         }}
       />
       {cards.length === 0 ? (
-        <Text variant="body" tone="secondary" style={styles.empty} testID="scorecard-empty">
-          The scorecard fills in as the match is scored.
-        </Text>
+        <Inset top="md">
+          <Text variant="body" tone="secondary" testID="scorecard-empty">
+            No balls scored yet
+          </Text>
+        </Inset>
       ) : null}
       {selected ? (
         <InningsCard
@@ -130,28 +150,41 @@ function ScorecardBody() {
           }
         />
       ) : null}
-      <View style={styles.links}>
+      <Inset top="md" bottom="md" direction="row" gap="xs">
         <View style={styles.flex}>
           <Button label="Ball by ball" variant="secondary" fullWidth onPress={() => router.push(matchHref(matchId, 'balls'))} testID="scorecard-btn-balls" />
         </View>
         <View style={styles.flex}>
           <Button label="Analytics" variant="secondary" fullWidth onPress={() => router.push(matchHref(matchId, 'analytics'))} testID="scorecard-btn-analytics" />
         </View>
-      </View>
+      </Inset>
       <ChoiceSheet
         visible={overlay === 'share'}
         title="Share"
         onClose={close}
         testID="sheet-share"
         choices={[
-          { key: 'pdf', title: 'PDF scorecard', icon: 'file-text', onPress: () => {
-        close();
-        void shareScorecardPdf(matchId);
-      } },
-          { key: 'backup', title: 'Backup file (JSON)', subtitle: 'Import it on another phone', icon: 'hard-drive-download', onPress: () => {
-        close();
-        void shareMatchBackup(matchId);
-      } },
+          {
+            key: 'pdf',
+            title: 'PDF scorecard',
+            icon: 'file-text',
+            kind: 'action',
+            onPress: () => {
+              close();
+              void shareScorecardPdf(matchId);
+            },
+          },
+          {
+            key: 'backup',
+            title: 'Backup file',
+            subtitle: 'Import on another phone',
+            icon: 'hard-drive-download',
+            kind: 'action',
+            onPress: () => {
+              close();
+              void shareMatchBackup(matchId);
+            },
+          },
         ]}
       />
       <ChoiceSheet visible={overlay === 'menu'} title="Match" choices={menu} onClose={close} testID="sheet-scorecard-menu" />
@@ -166,7 +199,7 @@ function ScorecardBody() {
       <ReasonDialog
         visible={overlay === 'reopen_reason'}
         title="Reopen this tournament match?"
-        message="Standings, net run rate and qualification go back to how they were before this result until you confirm it again."
+        message="Standings revert until the result is confirmed again."
         confirmLabel="Reopen match"
         onConfirm={(reason) => void reopen(reason)}
         onCancel={close}
@@ -175,7 +208,7 @@ function ScorecardBody() {
         visible={overlay === 'delete'}
         destructive
         title={`Delete ${live.match.title}?`}
-        message={`Its scorecard and ${live.events.length} recorded events will be deleted. This can't be undone.`}
+        message="This can't be undone."
         confirm={{ label: 'Delete match', onPress: () => void remove(), testID: 'scorecard-delete-confirm' }}
         cancel={{ label: 'Cancel', onPress: close }}
         onRequestClose={close}
@@ -194,7 +227,5 @@ export function ScorecardScreen() {
 
 const styles = StyleSheet.create({
   trailing: { flexDirection: 'row', alignItems: 'center', gap: space.xxs },
-  links: { flexDirection: 'row', gap: space.xs, padding: space.md },
-  empty: { padding: space.md },
   flex: { flex: 1 },
 });

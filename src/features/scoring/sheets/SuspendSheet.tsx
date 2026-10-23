@@ -2,8 +2,8 @@ import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import type { SuspensionReason } from '@/domain/types';
 import type { ScoringIntent } from '@/domain/scoring/commands';
-import { Button, Sheet, TextField, space } from '@/ui';
-import { OptionButton } from '../components/common/OptionButton';
+import { Button, RadioList, Sheet, TextField, space } from '@/ui';
+import { useDiscardGuard } from '../hooks/useDiscardGuard';
 import { SUSPENSION_REASONS, SUSPENSION_TEXT } from '../selectors/labels';
 
 export interface SuspendSheetProps {
@@ -15,44 +15,32 @@ export interface SuspendSheetProps {
 export function SuspendSheet({ visible, onSubmit, onClose }: SuspendSheetProps) {
   const [reason, setReason] = useState<SuspensionReason>('rain');
   const [note, setNote] = useState('');
+  const guard = useDiscardGuard(note.trim() !== '', onClose);
+  const submit = () => onSubmit({ type: 'suspend_play', reason, note: note.trim() === '' ? null : note.trim() });
   return (
-    <Sheet
-      visible={visible}
-      title="Suspend play"
-      onClose={onClose}
-      testID="sheet-suspend"
-      footer={
-        <Button
-          label="Suspend play"
-          size="lg"
-          fullWidth
-          onPress={() => onSubmit({ type: 'suspend_play', reason, note: note.trim() === '' ? null : note.trim() })}
-          testID="suspend-submit"
-        />
-      }
-    >
-      <View style={styles.body}>
-        <View style={styles.grid}>
-          {SUSPENSION_REASONS.map((value) => (
-            <View key={value} style={styles.cell}>
-              <OptionButton
-                label={SUSPENSION_TEXT[value]}
-                selected={reason === value}
-                compact
-                onPress={() => setReason(value)}
-                testID={`suspend-reason-${value}`}
-              />
-            </View>
-          ))}
+    <>
+      <Sheet
+        visible={visible && !guard.asking}
+        title="Suspend play"
+        onClose={guard.requestClose}
+        testID="sheet-suspend"
+        footer={<Button label="Suspend play" size="lg" fullWidth onPress={submit} testID="suspend-submit" />}
+      >
+        <View style={styles.body}>
+          <RadioList
+            accessibilityLabel="Reason"
+            value={reason}
+            onChange={setReason}
+            choices={SUSPENSION_REASONS.map((value) => ({ value, label: SUSPENSION_TEXT[value], testID: `suspend-reason-${value}` }))}
+          />
+          <TextField label="Note (optional)" value={note} onChangeText={setNote} autoCapitalize="sentences" returnKeyType="done" submitBehavior="blurAndSubmit" onSubmitEditing={submit} testID="suspend-note" />
         </View>
-        <TextField label="Note (optional)" value={note} onChangeText={setNote} testID="suspend-note" />
-      </View>
-    </Sheet>
+      </Sheet>
+      {guard.dialog}
+    </>
   );
 }
 
 const styles = StyleSheet.create({
   body: { gap: space.md },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: space.xs },
-  cell: { flexBasis: '48%', flexGrow: 1 },
 });

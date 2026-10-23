@@ -69,7 +69,7 @@ export function createInsightOperations(ctx: ServiceContext): InsightOperations 
           }
           const snapshot = await readSnapshot(ctx, repos, tournamentId);
           if (snapshot.stages.length === 0) {
-            throw failure('VALIDATION', 'Add at least one stage before saving the structure as a template.');
+            throw failure('VALIDATION', 'Add a stage before saving a template.');
           }
           const template = templateFromSnapshot(snapshot, { id: ctx.ids(), name, description: meta.description.trim(), now: ctx.clock.now() });
           await repos.templates.upsert(template);

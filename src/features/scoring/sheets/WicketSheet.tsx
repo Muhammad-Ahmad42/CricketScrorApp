@@ -1,9 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet, View, useWindowDimensions } from 'react-native';
 import type { CreaseEnd, DeliveryCall, DeliveryDismissalType, PlayerId } from '@/domain/types';
 import { noBall, scoreRuns, wicket, wide, type ScoringIntent } from '@/domain/scoring/commands';
-import { Banner, Button, SegmentedControl, Sheet, Text, space } from '@/ui';
-import { OptionButton } from '../components/common/OptionButton';
+import { Banner, Button, IconButton, OptionTile, RadioList, SegmentedControl, Sheet, Text, space } from '@/ui';
 import { PickerRow } from '../components/common/PickerRow';
 import { DISMISSAL_LABEL, MAIN_DISMISSALS, RARE_DISMISSALS } from '../selectors/labels';
 import type { PlayerOption, WicketOptionsVM } from '../selectors/options';
@@ -29,6 +28,12 @@ const CALLS: readonly { readonly value: DeliveryCall; readonly label: string; re
 const SIMPLE: readonly DeliveryDismissalType[] = ['bowled', 'lbw', 'hit_wicket', 'hit_ball_twice'];
 const WITH_FIELDER: readonly DeliveryDismissalType[] = ['caught', 'stumped'];
 const RUNS_COMPLETED = ['0', '1', '2', '3'] as const;
+const LATER = '__later__';
+const TWO_COLUMN_MIN_WIDTH = 300;
+
+export function dismissalColumns(windowWidth: number, fontScale: number): 1 | 2 {
+  return windowWidth / Math.max(1, fontScale) < TWO_COLUMN_MIN_WIDTH ? 1 : 2;
+}
 
 interface DetailState {
   readonly who: 'striker' | 'non_striker';
@@ -67,6 +72,8 @@ export function WicketSheet({ visible, options, onSubmit, onClose, title = 'Wick
   const [pickingFielder, setPickingFielder] = useState<number | null>(null);
   const [failure, setFailure] = useState<{ readonly message: string; readonly code: string | null; readonly runs: number } | null>(null);
   const [busy, setBusy] = useState(false);
+  const window = useWindowDimensions();
+  const cellStyle = dismissalColumns(window.width, window.fontScale) === 1 ? styles.cellFull : styles.cell;
   const inFlight = useRef(false);
   const committed = useRef(false);
   useEffect(() => {
@@ -158,9 +165,10 @@ export function WicketSheet({ visible, options, onSubmit, onClose, title = 'Wick
   const fielderGrid = (onPick: (id: PlayerId | null) => void, unknownLabel: string, highlight: PlayerId | null, list: readonly PlayerOption[] = options.fielders) => (
     <View style={styles.grid}>
       {list.map((fielder: PlayerOption) => (
-        <View key={fielder.id} style={styles.cell}>
-          <OptionButton
-            label={fielder.label}
+        <View key={fielder.id} style={cellStyle}>
+          <OptionTile
+            kind="action"
+            title={fielder.label}
             tag={fielder.tag}
             highlighted={fielder.id === highlight}
             onPress={() => onPick(fielder.id)}
@@ -168,8 +176,8 @@ export function WicketSheet({ visible, options, onSubmit, onClose, title = 'Wick
           />
         </View>
       ))}
-      <View style={styles.cell}>
-        <OptionButton label={unknownLabel} onPress={() => onPick(null)} testID="wicket-fielder-unknown" />
+      <View style={cellStyle}>
+        <OptionTile kind="action" title={unknownLabel} onPress={() => onPick(null)} testID="wicket-fielder-unknown" />
       </View>
     </View>
   );
@@ -181,33 +189,26 @@ export function WicketSheet({ visible, options, onSubmit, onClose, title = 'Wick
       </Text>
     ) : (
       <View>
-        <PickerRow label="Next in" value={nextLabel} placeholder={nextBatterId === null} onPress={() => setPickingNext(!pickingNext)} testID="wicket-next" />
+        <PickerRow label="Next in" value={nextLabel} placeholder={nextBatterId === null} expanded={pickingNext} onPress={() => setPickingNext(!pickingNext)} testID="wicket-next" />
         {pickingNext ? (
-          <View style={styles.list}>
-            {options.nextBatters.map((option) => (
-              <OptionButton
-                key={option.id}
-                label={option.label}
-                detail={option.detail}
-                tag={option.tag}
-                selected={option.id === nextBatterId}
-                onPress={() => {
-                  setNextId(option.id);
-                  setPickingNext(false);
-                }}
-                testID={`wicket-next-option-${option.id}`}
-              />
-            ))}
-            <OptionButton
-              label="Choose later"
-              selected={nextBatterId === null}
-              onPress={() => {
-                setNextId(null);
-                setPickingNext(false);
-              }}
-              testID="wicket-next-later"
-            />
-          </View>
+          <RadioList
+            accessibilityLabel="Next in"
+            value={nextBatterId ?? LATER}
+            onChange={(value) => {
+              setNextId(value === LATER ? null : value);
+              setPickingNext(false);
+            }}
+            choices={[
+              ...options.nextBatters.map((option) => ({
+                value: option.id,
+                label: option.label,
+                description: option.detail ?? undefined,
+                meta: option.tag ?? undefined,
+                testID: `wicket-next-option-${option.id}`,
+              })),
+              { value: LATER, label: 'Choose later', testID: 'wicket-next-later' },
+            ]}
+          />
         ) : null}
       </View>
     );
@@ -225,15 +226,24 @@ export function WicketSheet({ visible, options, onSubmit, onClose, title = 'Wick
     list
       .filter((type) => allowed.includes(type))
       .map((type) => (
-        <View key={type} style={styles.cell}>
+        <View key={type} style={cellStyle}>
           <Button label={DISMISSAL_LABEL[type]} variant="secondary" size="lg" fullWidth disabled={busy} onPress={() => choose(type)} testID={`wicket-btn-${type}`} />
         </View>
       ));
 
   const sheetTitle = step === 'choose' || dismissal === null ? title : DISMISSAL_LABEL[dismissal];
+  const bowlerName = options.fielders.find((option) => option.id === options.bowlerId)?.label ?? null;
+  const subtitle = [options.strikerLine, bowlerName === null ? null : `${bowlerName} bowling`].filter((part): part is string => part !== null).join(' · ');
 
   return (
-    <Sheet visible={visible} title={sheetTitle} onClose={close} testID="sheet-wicket">
+    <Sheet
+      visible={visible}
+      title={sheetTitle}
+      subtitle={subtitle === '' ? undefined : subtitle}
+      onClose={close}
+      leading={step === 'choose' ? undefined : <IconButton icon="chevron-left" accessibilityLabel="Back to dismissals" onPress={() => setStep('choose')} testID="wicket-btn-back" />}
+      testID="sheet-wicket"
+    >
       <View style={styles.body}>
         {step === 'choose' ? (
           <>
@@ -251,33 +261,26 @@ export function WicketSheet({ visible, options, onSubmit, onClose, title = 'Wick
             ) : RARE_DISMISSALS.some((type) => allowed.includes(type)) ? (
               <Button label="More dismissals" variant="tertiary" size="sm" onPress={() => setShowRare(true)} testID="wicket-btn-more" />
             ) : null}
-            {options.strikerLine ? (
-              <Text variant="footnote" tone="secondary">
-                {options.strikerLine}
-              </Text>
-            ) : null}
           </>
         ) : null}
         {step === 'fielder' ? (
           <>
-            <Button label="Back" icon="chevron-left" variant="tertiary" size="sm" onPress={() => setStep('choose')} testID="wicket-btn-back" />
+            {nextRow}
             <Text variant="headline">{dismissal === 'stumped' ? 'Who made the stumping?' : 'Who took the catch?'}</Text>
             {dismissal === 'stumped'
               ? fielderGrid(pickFielder, 'Keeper not known', options.keeperId, options.stumpers)
               : fielderGrid(pickFielder, 'Catcher not known', null)}
-            {nextRow}
           </>
         ) : null}
         {step === 'detail' ? (
           <>
-            <Button label="Back" icon="chevron-left" variant="tertiary" size="sm" onPress={() => setStep('choose')} testID="wicket-btn-back" />
             <Text variant="subhead" tone="secondary">
               {"Who's out"}
             </Text>
-            <SegmentedControl
-              options={[
-                { value: 'striker', label: options.striker?.label ?? 'Striker', testID: 'wicket-who-striker' },
-                { value: 'non_striker', label: options.nonStriker?.label ?? 'Non-striker', testID: 'wicket-who-non-striker' },
+            <RadioList
+              choices={[
+                { value: 'striker', label: options.striker?.label ?? 'Striker', meta: options.striker ? 'Striker' : undefined, testID: 'wicket-who-striker' },
+                { value: 'non_striker', label: options.nonStriker?.label ?? 'Non-striker', meta: options.nonStriker ? 'Non-striker' : undefined, testID: 'wicket-who-non-striker' },
               ]}
               value={detail.who}
               onChange={(who) => setDetail({ ...detail, who, end: who === 'striker' ? 'striker_end' : 'non_striker_end' })}
@@ -315,6 +318,7 @@ export function WicketSheet({ visible, options, onSubmit, onClose, title = 'Wick
                       label={label}
                       value={options.fielders.find((option) => option.id === detail.fielders[index])?.label ?? 'Choose'}
                       placeholder={detail.fielders[index] === null}
+                      expanded={pickingFielder === index}
                       onPress={() => setPickingFielder(pickingFielder === index ? null : index)}
                       testID={`wicket-fielder-slot-${index}`}
                     />
@@ -355,6 +359,6 @@ const styles = StyleSheet.create({
   callRow: { gap: space.xs },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: space.xs },
   cell: { flexBasis: '48%', flexGrow: 1 },
-  list: { gap: space.xs, paddingTop: space.xs },
+  cellFull: { flexBasis: '100%', flexGrow: 1 },
   failure: { gap: space.xs },
 });

@@ -2,8 +2,9 @@ import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import type { PlayerId } from '@/domain/types';
 import type { ScoringIntent } from '@/domain/scoring/commands';
-import { Button, Dialog, ListRow, SegmentedControl, Sheet, Text, space } from '@/ui';
+import { Button, Chip, ChoiceRow, Dialog, RadioList, Sheet, Text, space } from '@/ui';
 import type { PlayerOption } from '../selectors/options';
+import { useDiscardGuard } from '../hooks/useDiscardGuard';
 
 export interface EndInningsSheetProps {
   readonly visible: boolean;
@@ -20,6 +21,7 @@ export function EndInningsSheet({ visible, teamName, scoreText, yetToBat, onSubm
   const [reason, setReason] = useState<Reason>('declared');
   const [absent, setAbsent] = useState<ReadonlyMap<PlayerId, boolean>>(new Map());
   const [confirming, setConfirming] = useState(false);
+  const guard = useDiscardGuard(reason !== 'declared' || absent.size > 0, onClose);
 
   const toggle = (playerId: PlayerId) => {
     const next = new Map(absent);
@@ -43,46 +45,56 @@ export function EndInningsSheet({ visible, teamName, scoreText, yetToBat, onSubm
   return (
     <>
       <Sheet
-        visible={visible && !confirming}
+        visible={visible && !confirming && !guard.asking}
         title="End innings"
-        onClose={onClose}
+        onClose={guard.requestClose}
         testID="sheet-end-innings"
         footer={<Button label="End innings" size="lg" fullWidth onPress={() => setConfirming(true)} testID="end-innings-next" />}
       >
         <View style={styles.body}>
-          <SegmentedControl
-            options={[
+          <RadioList
+            accessibilityLabel="Why the innings ends"
+            value={reason}
+            onChange={setReason}
+            choices={[
               { value: 'declared', label: 'Declared', testID: 'end-innings-declared' },
               { value: 'batters_unavailable', label: 'No batters available', testID: 'end-innings-unavailable' },
             ]}
-            value={reason}
-            onChange={setReason}
-            accessibilityLabel="Why the innings ends"
           />
           {reason === 'batters_unavailable' ? (
             <>
-              <Text variant="footnote" tone="secondary">
-                Mark the players who can't bat. The innings counts as all out.
+              <Text variant="subhead" tone="secondary">
+                {"Who can't bat?"}
               </Text>
-              {yetToBat.map((option) => (
-                <View key={option.id}>
-                  <ListRow
-                    title={option.label}
-                    trailing={{ kind: 'switch', value: absent.has(option.id), onValueChange: () => toggle(option.id) }}
-                    accessibilityLabel={`${option.label} absent`}
-                    testID={`end-innings-absent-${option.id}`}
-                  />
-                  {absent.has(option.id) ? (
-                    <ListRow
-                      title="Absent hurt"
-                      compact
-                      trailing={{ kind: 'switch', value: absent.get(option.id) ?? false, onValueChange: () => toggleHurt(option.id) }}
-                      accessibilityLabel={`${option.label} absent hurt`}
-                      testID={`end-innings-hurt-${option.id}`}
+              <View>
+                {yetToBat.map((option, index) => {
+                  const marked = absent.has(option.id);
+                  return (
+                    <ChoiceRow
+                      key={option.id}
+                      kind="checkbox"
+                      label={option.label}
+                      selected={marked}
+                      onPress={() => toggle(option.id)}
+                      accessibilityLabel={`${option.label} absent`}
+                      separator={index < yetToBat.length - 1}
+                      trailing={
+                        marked ? (
+                          <Chip
+                            kind="checkbox"
+                            label="Hurt"
+                            selected={absent.get(option.id) ?? false}
+                            onPress={() => toggleHurt(option.id)}
+                            accessibilityLabel={`${option.label} absent hurt`}
+                            testID={`end-innings-hurt-${option.id}`}
+                          />
+                        ) : undefined
+                      }
+                      testID={`end-innings-absent-${option.id}`}
                     />
-                  ) : null}
-                </View>
-              ))}
+                  );
+                })}
+              </View>
             </>
           ) : null}
         </View>
@@ -90,7 +102,7 @@ export function EndInningsSheet({ visible, teamName, scoreText, yetToBat, onSubm
       <Dialog
         visible={visible && confirming}
         title={`End ${teamName}'s innings at ${scoreText}?`}
-        message={reason === 'declared' ? 'The innings is declared closed.' : 'The innings ends because no more batters are available.'}
+        message={reason === 'declared' ? 'Declared' : 'No batters available'}
         confirm={{
           label: 'End innings',
           onPress: () => {
@@ -102,6 +114,7 @@ export function EndInningsSheet({ visible, teamName, scoreText, yetToBat, onSubm
         cancel={{ label: 'Cancel', onPress: () => setConfirming(false) }}
         onRequestClose={() => setConfirming(false)}
       />
+      {guard.dialog}
     </>
   );
 }

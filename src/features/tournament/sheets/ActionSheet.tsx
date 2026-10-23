@@ -1,5 +1,5 @@
 import { StyleSheet, View } from 'react-native';
-import { ListRow, Sheet, Text, space, type IconName } from '@/ui';
+import { ActionRow, Sheet, Text, space, type IconName } from '@/ui';
 
 export interface SheetAction {
   readonly key: string;
@@ -9,6 +9,8 @@ export interface SheetAction {
   readonly onPress: () => void;
   readonly testID: string;
   readonly disabled?: boolean;
+  readonly destructive?: boolean;
+  readonly kind?: 'navigate' | 'action';
 }
 
 export interface ActionSheetProps {
@@ -24,16 +26,21 @@ export interface ActionSheetProps {
 export function ActionSheet({ visible, title, subtitle, actions, note, onClose, testID = 'sheet-actions' }: ActionSheetProps) {
   return (
     <Sheet visible={visible} title={title} subtitle={subtitle} onClose={onClose} testID={testID}>
-      <View style={styles.body}>
-        {actions.map((action) => (
-          <ListRow
+      <View>
+        {actions.map((action, index) => (
+          <ActionRow
             key={action.key}
-            title={action.label}
-            subtitle={action.description}
-            leading={action.icon ? { icon: action.icon } : undefined}
-            onPress={action.onPress}
-            disabled={action.disabled}
-            trailing={{ kind: 'chevron' }}
+            choice={{
+              key: action.key,
+              title: action.label,
+              subtitle: action.description,
+              icon: action.icon,
+              kind: action.kind ?? (action.label.endsWith('…') ? 'navigate' : 'action'),
+              disabled: action.disabled,
+              destructive: action.destructive,
+              onPress: action.onPress,
+            }}
+            separator={index < actions.length - 1}
             testID={action.testID}
           />
         ))}
@@ -48,6 +55,5 @@ export function ActionSheet({ visible, title, subtitle, actions, note, onClose, 
 }
 
 const styles = StyleSheet.create({
-  body: { gap: space.xxs },
-  note: { paddingTop: space.xs },
+  note: { paddingTop: space.sm },
 });

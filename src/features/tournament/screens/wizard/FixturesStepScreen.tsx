@@ -1,13 +1,13 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
-import type { FixtureDraft, FixtureSide, StageId } from '@/domain/types';
+import type { FixtureDraft, FixtureSide, Pool, Stage, StageId } from '@/domain/types';
 import type { FixturePlan } from '@/services/contracts';
-import { Notice, plural } from '@/features/shared';
-import { Button, Dialog, IconButton, ListRow, SectionHeader, Separator, Text, TextField, space } from '@/ui';
+import { plural } from '@/features/shared';
+import { Banner, Button, Dialog, Disclosure, Icon, IconButton, Inset, SectionHeader, Separator, Text, TextField, space, useGutter } from '@/ui';
 import { useTeamLibraryStore, useTournamentStore, useTournamentWizardStore } from '@/stores';
-import { showError, showToast } from '../../hooks/toast';
-import { useLibraryLoaded, useVenues } from '../../hooks/useLibrary';
-import { legsLabel } from '../../labels';
+import { showError } from '../../hooks/toast';
+import { tournamentVenues, useLibraryLoaded, useVenues } from '../../hooks/useLibrary';
+import { REPEAT_DRAW_LABEL, legsLabel } from '../../labels';
 import { parseSeed } from '../../selectors/poolDraw';
 import { planIssues, planSections, schedulePlan, sideNamer, updatePlanFixture } from '../../selectors/planPreview';
 import { ScheduleDatesSheet } from '../../sheets/ScheduleDatesSheet';
@@ -21,12 +21,37 @@ interface LaterPlan {
   readonly note: string | null;
 }
 
+export function fixtureFormatLine(stage: Stage, pools: readonly Pool[]): string {
+  const legs = legsLabel(stage.config.fixtureGeneration.legs);
+  const line = `${legs.charAt(0).toUpperCase()}${legs.slice(1)}`;
+  const count = pools.filter((pool) => pool.stageId === stage.id).length;
+  return count > 1 ? `${line} · ${plural(count, 'pool')}` : line;
+}
+
 async function ensureOpen(tournamentId: string): Promise<boolean> {
   const store = useTournamentStore.getState();
   if (store.tournamentId === tournamentId && store.snapshot !== null) {
     return true;
   }
   return store.open(tournamentId);
+}
+
+function PlanRow({ label, teams, when, testID, trailing }: { readonly label: string; readonly teams: string; readonly when: string | null; readonly testID: string; readonly trailing?: ReactNode }) {
+  const gutter = useGutter();
+  return (
+    <View style={[styles.row, { paddingLeft: gutter, paddingRight: trailing ? Math.max(space.xxs, gutter - space.sm) : gutter }]} testID={testID}>
+      <Text variant="tableNumeric" tone="secondary" style={styles.label}>
+        {label}
+      </Text>
+      <View style={styles.flex}>
+        <Text variant="body">{teams}</Text>
+        <Text variant="footnote" tone="secondary">
+          {when ?? 'Date to be set'}
+        </Text>
+      </View>
+      {trailing}
+    </View>
+  );
 }
 
 export function FixturesStepScreen() {
@@ -76,7 +101,7 @@ export function FixturesStepScreen() {
     const opened = await ensureOpen(tournamentId);
     if (!opened) {
       setGenerating(false);
-      showError(useTournamentStore.getState().error, "Couldn't open the tournament to generate fixtures.");
+      showError(useTournamentStore.getState().error, "Couldn't generate fixtures.");
       return;
     }
     const store = useTournamentStore.getState();
@@ -84,13 +109,13 @@ export function FixturesStepScreen() {
     const firstPlan = await store.generateFixtures(first.id, seed === null ? undefined : { seed });
     if (firstPlan === null) {
       setGenerating(false);
-      showError(useTournamentStore.getState().error, "Couldn't generate fixtures. Check the pools and try again.");
+      showError(useTournamentStore.getState().error, "Couldn't generate fixtures.");
       return;
     }
     const others: LaterPlan[] = [];
     for (const stage of stages.slice(1)) {
       if (stage.config.fixtureGeneration.method === 'manual') {
-        others.push({ stageId: stage.id, name: stage.name, plan: null, note: 'Matches for this stage are added by hand.' });
+        others.push({ stageId: stage.id, name: stage.name, plan: null, note: 'Added by hand' });
         continue;
       }
       const stagePlan = await useTournamentStore.getState().generateFixtures(stage.id);
@@ -98,7 +123,7 @@ export function FixturesStepScreen() {
         stageId: stage.id,
         name: stage.name,
         plan: stagePlan,
-        note: stagePlan ? null : 'Fixtures for this stage are created once its teams are known.',
+        note: stagePlan ? null : 'Created once its teams are known',
       });
     }
     setLater(others);
@@ -112,32 +137,54 @@ export function FixturesStepScreen() {
     const saved = await useTournamentWizardStore.getState().saveStep();
     if (!saved) {
       setConfirming(false);
-      showError(useTournamentWizardStore.getState().error, "Couldn't save the fixtures. Nothing was changed.");
+      showError(useTournamentWizardStore.getState().error, "Couldn't save the fixtures.");
       return;
     }
     await useTournamentStore.getState().refresh();
     setConfirming(false);
     setConfirmed(true);
-    showToast('success', 'Fixtures confirmed');
   };
+
+  const confirmMode = plan !== null && !isConfirmed;
+  const total = plan ? plan.fixtures.length + later.reduce((sum, entry) => sum + (entry.plan?.fixtures.length ?? 0), 0) : 0;
+  const dockHint = (() => {
+    if (manualFirst || isConfirmed) {
+      return null;
+    }
+    if (plan === null) {
+      return 'Generate the fixtures first.';
+    }
+    if (errors.length > 0) {
+      return 'Fix the problems above first.';
+    }
+    return `Review the ${plural(total, 'fixture')}, then confirm.`;
+  })();
 
   return (
     <WizardFrame
       step="fixtures"
-      onNext={async () => isConfirmed || manualFirst}
-      nextDisabled={!isConfirmed && !manualFirst}
-      nextHint={!isConfirmed && !manualFirst ? 'Generate and confirm the fixtures first.' : null}
+      onNext={
+        confirmMode
+          ? async () => {
+              await confirm();
+              return false;
+            }
+          : async () => isConfirmed || manualFirst
+      }
+      nextLabel={confirmMode ? 'Confirm fixtures' : 'Next'}
+      nextTestID={confirmMode ? 'twiz-btn-confirm-fixtures' : 'twiz-btn-next'}
+      nextDisabled={confirmMode ? errors.length > 0 || confirming : !isConfirmed && !manualFirst}
+      nextHint={dockHint}
     >
       {first ? (
         <View>
           <SectionHeader title={first.name} />
-          <View style={styles.padded}>
-            <Text variant="callout" tone="secondary">
-              {manualFirst ? 'Matches for this stage are added by hand from the tournament after setup.' : `Each pool plays a ${legsLabel(first.config.fixtureGeneration.legs)}. Change this in Format.`}
+          <Inset gap="sm">
+            <Text variant="callout" tone="secondary" testID="twiz-text-fixture-format">
+              {manualFirst ? 'Matches are added by hand after setup.' : fixtureFormatLine(first, draft.pools)}
             </Text>
             {!manualFirst ? (
               <>
-                <TextField label="Draw seed (optional)" value={seedText} onChangeText={setSeedText} numeric testID="twiz-input-fixture-seed" />
                 <View style={styles.buttons}>
                   <Button
                     label={plan ? 'Regenerate' : 'Generate'}
@@ -147,32 +194,50 @@ export function FixturesStepScreen() {
                   />
                   {plan ? <Button label="Schedule dates" variant="secondary" onPress={() => setScheduling(true)} testID="twiz-btn-schedule" /> : null}
                 </View>
+                <Disclosure label={REPEAT_DRAW_LABEL} defaultExpanded={seedText !== ''} testID="twiz-btn-fixture-repeat-draw">
+                  <TextField
+                    label="Draw number"
+                    value={seedText}
+                    onChangeText={setSeedText}
+                    numeric
+                    returnKeyType="done"
+                    onSubmitEditing={() => (plan ? setAskRegenerate(true) : void generate())}
+                    testID="twiz-input-fixture-seed"
+                  />
+                </Disclosure>
               </>
             ) : null}
-          </View>
+          </Inset>
         </View>
       ) : null}
       {plan ? (
         <View>
           <Separator />
-          <View style={styles.previewLine}>
-            <Text variant="label" tone="secondary" accessibilityRole="header">
-              Preview
-            </Text>
-            <Text variant="label" tone="secondary" testID="twiz-text-fixture-count">
-              {plural(plan.fixtures.length, 'match', 'matches')}
-            </Text>
-            <Text variant="label" tone={isConfirmed ? 'success' : 'warning'}>
-              {isConfirmed ? 'Saved' : 'Not saved yet'}
-            </Text>
-          </View>
+          <Inset top="lg">
+            <View style={styles.previewLine}>
+              <Text variant="label" tone="secondary" accessibilityRole="header">
+                Preview
+              </Text>
+              <Text variant="label" tone="secondary" testID="twiz-text-fixture-count">
+                {plural(plan.fixtures.length, 'match', 'matches')}
+              </Text>
+              <View style={styles.saved}>
+                <Icon name={isConfirmed ? 'circle-check' : 'circle-alert'} size={16} color={isConfirmed ? 'success' : 'warning'} />
+                <Text variant="label" tone={isConfirmed ? 'success' : 'warning'} testID="twiz-text-fixtures-state">
+                  {isConfirmed ? 'Saved' : 'Not saved yet'}
+                </Text>
+              </View>
+            </View>
+          </Inset>
           {plan.seed !== null ? (
-            <Text variant="footnote" tone="secondary" style={styles.padded} testID="twiz-text-fixture-seed">
-              {`Draw seed ${plan.seed}`}
-            </Text>
+            <Inset top="xs">
+              <Text variant="footnote" tone="secondary" testID="twiz-text-fixture-seed">
+                {`Draw no. ${plan.seed}`}
+              </Text>
+            </Inset>
           ) : null}
           {issues.map((issue, index) => (
-            <Notice
+            <Banner
               key={`${issue.code}-${issue.fixtureId}-${index}`}
               tone={issue.severity === 'error' ? 'danger' : 'warning'}
               message={issue.message}
@@ -183,54 +248,43 @@ export function FixturesStepScreen() {
             <View key={section.key}>
               <SectionHeader title={section.title} />
               {section.rows.map((row) => (
-                <View key={row.key} style={styles.row} testID={`twiz-row-fixture-${row.matchNumber}`}>
-                  <Text variant="tableNumeric" tone="secondary" style={styles.label}>
-                    {row.label}
-                  </Text>
-                  <View style={styles.flex}>
-                    <Text variant="body">{row.teams}</Text>
-                    <Text variant="footnote" tone="secondary">
-                      {row.when ?? 'Date to be set'}
-                    </Text>
-                  </View>
-                  <IconButton
-                    icon="pencil-line"
-                    accessibilityLabel={`Edit ${row.label}, ${row.teams}`}
-                    onPress={() => setEditing(plan.fixtures.find((fixture) => fixture.id === row.fixtureId) ?? null)}
-                    testID={`twiz-btn-edit-fixture-${row.matchNumber}`}
-                  />
-                </View>
+                <PlanRow
+                  key={row.key}
+                  label={row.label}
+                  teams={row.teams}
+                  when={row.when}
+                  testID={`twiz-row-fixture-${row.matchNumber}`}
+                  trailing={
+                    <IconButton
+                      icon="pencil-line"
+                      accessibilityLabel={`Edit ${row.label}, ${row.teams}`}
+                      onPress={() => setEditing(plan.fixtures.find((fixture) => fixture.id === row.fixtureId) ?? null)}
+                      testID={`twiz-btn-edit-fixture-${row.matchNumber}`}
+                    />
+                  }
+                />
               ))}
             </View>
           ))}
           {later.map((entry) => (
             <View key={entry.stageId}>
-              <SectionHeader title={`${entry.name} (between qualifiers)`} />
+              <SectionHeader title={entry.name} />
               {entry.plan ? (
                 planSections(entry.plan, draft.pools, sideNamer(new Map(library.map((team) => [team.id, team.name])), [...draft.slots, ...entry.plan.slots])).flatMap((section) =>
-                  section.rows.map((row) => <ListRow key={row.key} title={`${row.label}  ${row.teams}`} compact testID={`twiz-row-later-${row.matchNumber}`} />),
+                  section.rows.map((row) => <PlanRow key={row.key} label={row.label} teams={row.teams} when={row.when} testID={`twiz-row-later-${row.matchNumber}`} />),
                 )
               ) : (
-                <Text variant="footnote" tone="secondary" style={styles.padded}>
-                  {entry.note}
-                </Text>
+                <Inset>
+                  <Text variant="footnote" tone="secondary">
+                    {entry.note}
+                  </Text>
+                </Inset>
               )}
             </View>
           ))}
-          <View style={styles.confirm}>
-            <Button
-              label={isConfirmed ? 'Fixtures confirmed' : 'Confirm fixtures'}
-              icon={isConfirmed ? 'check' : undefined}
-              disabled={errors.length > 0 || isConfirmed}
-              loading={confirming}
-              onPress={() => void confirm()}
-              fullWidth
-              testID="twiz-btn-confirm-fixtures"
-            />
-          </View>
         </View>
       ) : isConfirmed ? (
-        <Notice tone="success" message="Fixtures are confirmed. Continue to review." testID="twiz-text-fixtures-saved" />
+        <Banner tone="success" message="Fixtures confirmed" testID="twiz-text-fixtures-saved" />
       ) : null}
       <Dialog
         visible={askRegenerate}
@@ -250,9 +304,10 @@ export function FixturesStepScreen() {
       {editing && plan ? (
         <ScheduleSheet
           visible
-          title={`Edit ${editing.label ?? `M${editing.matchNumber}`}`}
+          title="Edit match"
+          subtitle={`${editing.label ?? `M${editing.matchNumber}`} · ${names(editing.sideA)} v ${names(editing.sideB)}`}
           initial={{ scheduledDate: editing.scheduledDate, scheduledTime: editing.scheduledTime, venueId: editing.venueId, notes: editing.notes, label: editing.label }}
-          venues={venues}
+          venues={tournamentVenues(venues, draft.info.venueIds, editing.venueId)}
           confirmLabel="Save"
           extra={
             <Button
@@ -279,7 +334,7 @@ export function FixturesStepScreen() {
           initialStart={draft.info.startDate}
           onClose={() => setScheduling(false)}
           onSubmit={({ startDate, matchesPerDay, times }) => {
-            setPlan(schedulePlan(plan, startDate, matchesPerDay, times));
+            setPlan(schedulePlan(plan, startDate, matchesPerDay, times, draft.info.venueIds));
             setScheduling(false);
           }}
         />
@@ -289,11 +344,10 @@ export function FixturesStepScreen() {
 }
 
 const styles = StyleSheet.create({
-  padded: { paddingHorizontal: space.md, gap: space.sm },
   buttons: { flexDirection: 'row', flexWrap: 'wrap', gap: space.xs },
-  previewLine: { flexDirection: 'row', alignItems: 'center', gap: space.sm, paddingHorizontal: space.md, paddingTop: space.lg },
-  row: { flexDirection: 'row', alignItems: 'center', gap: space.sm, paddingLeft: space.md, paddingRight: space.xxs, minHeight: 56 },
-  label: { width: 44 },
-  flex: { flex: 1 },
-  confirm: { paddingHorizontal: space.md, paddingTop: space.lg },
+  previewLine: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: space.sm },
+  row: { flexDirection: 'row', alignItems: 'center', gap: space.sm, minHeight: 56, paddingVertical: space.xs },
+  label: { minWidth: space['3xl'] },
+  flex: { flex: 1, minWidth: 0 },
+  saved: { flexDirection: 'row', alignItems: 'center', gap: space.xxs },
 });

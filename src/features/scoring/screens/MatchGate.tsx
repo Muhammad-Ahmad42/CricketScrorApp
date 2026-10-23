@@ -4,6 +4,7 @@ import { ErrorState, Screen, Skeleton } from '@/ui';
 import { useLiveMatchStore } from '@/stores';
 import { InsetBody } from '../components/common/InsetBody';
 import { TopBar } from '../components/common/TopBar';
+import { errorHeadline } from '../selectors/scannable';
 
 export interface MatchGateProps {
   readonly title: string;
@@ -22,7 +23,7 @@ export function MatchGate({ title, children }: MatchGateProps) {
   const ready = useLiveMatchStore((s) => s.live !== null);
   const status = useLiveMatchStore((s) => s.status);
   const matchId = useLiveMatchStore((s) => s.matchId);
-  const message = useLiveMatchStore((s) => s.error?.message ?? null);
+  const message = useLiveMatchStore((s) => (s.error === null ? null : errorHeadline(s.error, '')));
   if (ready) {
     return <>{children}</>;
   }
@@ -32,7 +33,7 @@ export function MatchGate({ title, children }: MatchGateProps) {
         {status === 'error' ? (
           <ErrorState
             title="Couldn't open this match"
-            body={message ?? 'Your data is safe on this device. Try again.'}
+            body={message === null || message === '' ? 'Your data is safe on this device.' : message}
             onRetry={() => {
               if (matchId !== null) {
                 void useLiveMatchStore.getState().open(matchId);

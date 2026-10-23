@@ -13,12 +13,16 @@ export const useTeamLibraryStore = create<TeamLibraryStore>()((set, get) => {
   let options: LoadOptions = {};
 
   const reloadLists = async (): Promise<boolean> => {
-    const [teams, venues] = await Promise.all([call((services) => services.teams.list(options)), call((services) => services.teams.listVenues())]);
+    const [teams, venues, counts] = await Promise.all([
+      call((services) => services.teams.list(options)),
+      call((services) => services.teams.listVenues()),
+      call((services) => (services.teams.playerCounts ? services.teams.playerCounts() : Promise.resolve({ ok: true as const, value: {} }))),
+    ]);
     if (!teams.ok || !venues.ok) {
       set({ error: teams.ok ? (venues.ok ? null : venues.error) : teams.error });
       return false;
     }
-    set({ teams: teams.value, venues: venues.value });
+    set({ teams: teams.value, venues: venues.value, playerCounts: counts.ok ? counts.value : {} });
     return true;
   };
 
@@ -47,6 +51,7 @@ export const useTeamLibraryStore = create<TeamLibraryStore>()((set, get) => {
   return {
     status: 'idle',
     teams: [],
+    playerCounts: {},
     venues: [],
     detail: null,
     error: null,

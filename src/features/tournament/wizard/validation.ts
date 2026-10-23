@@ -9,7 +9,7 @@ export interface InfoErrors {
   readonly endDate: string | null;
 }
 
-const DATE_FORMAT = 'Use the format YYYY-MM-DD, for example 2026-09-12.';
+const DATE_FORMAT = 'Choose a valid date.';
 
 export function infoErrors(info: NewTournamentInput): InfoErrors {
   const start = info.startDate?.trim() ?? '';
@@ -19,7 +19,7 @@ export function infoErrors(info: NewTournamentInput): InfoErrors {
   return {
     name: info.name.trim().length === 0 ? 'Enter a tournament name.' : null,
     startDate: startValid ? null : DATE_FORMAT,
-    endDate: !endValid ? DATE_FORMAT : start.length > 0 && end.length > 0 && startValid && end < start ? 'The end date is before the start date.' : null,
+    endDate: !endValid ? DATE_FORMAT : start.length > 0 && end.length > 0 && startValid && end < start ? 'Ends before it starts.' : null,
   };
 }
 
@@ -40,7 +40,7 @@ export function structureError(stages: readonly Stage[]): string | null {
   }
   const champions = stages.filter((stage) => stage.config.decidesChampion).length;
   if (champions !== 1) {
-    return 'Mark exactly one stage as the one that decides the champion.';
+    return 'Exactly one stage must decide the champion.';
   }
   return null;
 }

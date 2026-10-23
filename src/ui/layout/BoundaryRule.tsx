@@ -1,14 +1,23 @@
-import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
+import { PixelRatio, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 import { useTheme } from '../theme';
 import { boundaryRule } from '../theme/tokens';
 
+export type BoundaryRuleTone = 'section' | 'band';
+
 export interface BoundaryRuleProps {
+  readonly tone?: BoundaryRuleTone;
   readonly style?: StyleProp<ViewStyle>;
   readonly testID?: string;
 }
 
-export function BoundaryRule({ style, testID }: BoundaryRuleProps) {
-  const { color } = useTheme();
+export function snapHairline(width: number, ratio: number = PixelRatio.get()): number {
+  const device = Math.max(1, Math.round(width * ratio));
+  return device / ratio;
+}
+
+export function BoundaryRule({ tone = 'section', style, testID }: BoundaryRuleProps) {
+  const theme = useTheme();
+  const { color } = theme;
   return (
     <View
       testID={testID}
@@ -17,9 +26,15 @@ export function BoundaryRule({ style, testID }: BoundaryRuleProps) {
       importantForAccessibility="no-hide-descendants"
       accessibilityElementsHidden
     >
-      <View style={{ height: boundaryRule.heavy, backgroundColor: color.textPrimary }} />
-      <View style={{ height: boundaryRule.gap }} />
-      <View style={{ height: boundaryRule.light, backgroundColor: color.border }} />
+      {tone === 'band' ? (
+        <>
+          <View style={{ height: boundaryRule.heavy, backgroundColor: color.accentDeep }} />
+          <View style={{ height: boundaryRule.gap }} />
+          <View style={{ height: boundaryRule.light, backgroundColor: color.border }} />
+        </>
+      ) : (
+        <View style={{ height: snapHairline(theme.borderWidth.hairline), backgroundColor: color.border }} />
+      )}
     </View>
   );
 }
@@ -36,7 +51,7 @@ export function Separator({ inset = 0, style }: SeparatorProps) {
       accessible={false}
       importantForAccessibility="no"
       accessibilityElementsHidden
-      style={[{ height: theme.borderWidth.hairline, backgroundColor: theme.color.border, marginLeft: inset }, style]}
+      style={[{ height: snapHairline(theme.borderWidth.hairline), backgroundColor: theme.color.border, marginLeft: inset, flexShrink: 0 }, style]}
     />
   );
 }

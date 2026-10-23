@@ -68,13 +68,23 @@ describe('replaying an abandoned fixture (§39, §59, §99)', () => {
     const impact = computeImpact(REPLAY, snapshot, ctx());
     expect(impact.blocked).toBeNull();
     expect(impact).toMatchObject({ severity: 'destructive', requiresConfirmation: true, requiresReason: true, completedMatchesAffected: 1 });
-    expect(impact.fixtures).toEqual([{ fixtureId: 'g-m2', label: 'Match 2 · Eagles v Hawks', change: 'status_changed', hasMatchData: true }]);
+    expect(impact.fixtures).toEqual([
+      {
+        fixtureId: 'g-m2',
+        label: 'Match 2 · Eagles v Hawks',
+        change: 'status_changed',
+        hasMatchData: true,
+        changeText: 'Status changes',
+        note: 'The played match stays in history.',
+      },
+    ]);
     expect(impact.lines).toEqual(
       expect.arrayContaining([
         'Match 2 · Eagles v Hawks will be replayed as a new match.',
-        'The abandoned match stays on record, but its no result stops counting in the standings, net run rate and statistics.',
+        'The abandoned match stays on record but no longer counts.',
       ]),
     );
+    expect(impact.keyItems).toContainEqual({ headline: 'Match 2 will be replayed', detail: 'The abandoned match stays on record but no longer counts.' });
     const eagles = impact.standings.find((line) => line.teamId === 'EAG');
     const hawks = impact.standings.find((line) => line.teamId === 'HAW');
     expect(eagles?.before?.points).toBe((eagles?.after?.points ?? 0) + 1);
@@ -133,20 +143,21 @@ describe('replaying an abandoned fixture (§39, §59, §99)', () => {
     expect(stageAllowsReplay(snapshot.stages[0])).toBe(false);
     expect(fixtureReplayGuard(snapshot, fixtureOf(snapshot, 'g-m2'))).toEqual({
       ok: false,
-      reason: "This stage doesn't allow abandoned matches to be replayed, so the match stays a no result.",
+      reason: "This stage doesn't allow replays. The match stays a no result.",
     });
     expect(computeImpact(REPLAY, snapshot, ctx()).blocked).toEqual({
-      reason: "This stage doesn't allow abandoned matches to be replayed, so the match stays a no result.",
+      reason: "This stage doesn't allow replays. The match stays a no result.",
     });
+    expect(computeImpact(REPLAY, snapshot, ctx()).keyItems?.[0]).toEqual({ headline: "This stage doesn't allow replays", detail: 'The match stays a no result.' });
     const completed = computeImpact({ kind: 'fixture_update', fixtureId: 'g-m1', patch: { status: 'rescheduled' } }, league(), ctx());
     expect(isFixtureReplay(fixtureOf(league(), 'g-m1'), { status: 'rescheduled' })).toBe(false);
-    expect(completed.blocked?.reason).toBe("Match 1 has already been played, so it can't be rescheduled.");
+    expect(completed.blocked?.reason).toBe("Match 1 has been played. It can't be rescheduled.");
   });
 
   it('keeps a replayed fixture and its history: no deletion, kept by regeneration and pool moves, and the tournament still counts as started', () => {
     const after = applyChange(league(), REPLAY, ctx());
     expect(computeImpact({ kind: 'fixture_delete', fixtureId: 'g-m2' }, after, ctx()).blocked).toEqual({
-      reason: "Match 2 keeps an abandoned match on record from before its replay, so it can't be deleted.",
+      reason: "Match 2 can't be deleted. It keeps an abandoned match on record.",
     });
     const regenerated = planChange(after, { kind: 'fixtures_replace', stageId: 'groups', poolId: 'pA', fixtures: [], slots: [], seed: null }, ctx());
     expect(regenerated.fixtures.delete).toEqual(['g-m4', 'g-m5', 'g-m6']);

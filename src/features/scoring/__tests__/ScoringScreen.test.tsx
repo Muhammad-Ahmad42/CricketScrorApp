@@ -5,6 +5,7 @@ import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import { router } from 'expo-router';
 import { scoreRuns, swapStrike } from '@/domain/scoring/commands';
 import { ScoringScreen } from '../screens/ScoringScreen';
+import { isLeanScoring } from '../selectors/layout';
 import { liveMatch, OPEN } from './support/liveMatch';
 import { renderScreen, resetCommonStores, setLive, setWindow } from './support/render';
 import { mockStores } from './support/storeModule';
@@ -96,7 +97,7 @@ describe('ScoringScreen', () => {
     await fireEvent.press(screen.getByTestId('score-btn-4'));
     await waitFor(() => expect(useToastStore.getState().show).toHaveBeenCalled());
     const toast = jest.mocked(useToastStore.getState().show).mock.calls[0][0];
-    expect(toast.message).toBe("Couldn't save this delivery. Your previous match data is still safe.");
+    expect(toast.message).toBe("Couldn't save this ball. Your match is safe.");
     expect(toast.action?.label).toBe('Try again');
     await act(async () => {
       toast.action?.run();
@@ -177,5 +178,69 @@ describe('ScoringScreen', () => {
     setLive(liveMatch([OPEN]));
     await renderScreen(<ScoringScreen />);
     expect(screen.queryByTestId('score-two-pane')).not.toBeOnTheScreen();
+  });
+});
+
+describe('ScoringScreen on a short window', () => {
+  beforeEach(() => {
+    resetCommonStores();
+    jest.clearAllMocks();
+  });
+
+  it('switches to the lean layout only when the crease, bowler and this over would sit under the pad', () => {
+    const phone = (windowHeight: number, insetTop: number, insetBottom: number, fontScale = 1, widthClass: 'compact-s' | 'compact' = 'compact') => isLeanScoring({ windowHeight, insetTop, insetBottom, widthClass, fontScale });
+    expect(phone(568, 24, 24, 1, 'compact-s')).toBe(true);
+    expect(phone(640, 0, 0, 1, 'compact-s')).toBe(false);
+    expect(phone(640, 24, 48)).toBe(true);
+    expect(phone(800, 24, 24)).toBe(false);
+    expect(phone(914, 24, 24, 1.3)).toBe(false);
+    expect(phone(760, 24, 24, 1.3)).toBe(true);
+    expect(phone(844, 47, 34)).toBe(false);
+  });
+
+  it('at 320 x 568 keeps the crease, bowler and this over clear of the pad: Undo and More move to the top bar, the pad keeps all eight keys', async () => {
+    const restore = setWindow(320, 568);
+    const store = setLive(liveMatch([OPEN, '1', '4']), { redoStack: [[]] });
+    await renderScreen(<ScoringScreen />);
+    expect(screen.queryByTestId('score-row-actions')).not.toBeOnTheScreen();
+    for (const key of ['0', '1', '2', '3', '4', '6', 'extras', 'wicket']) {
+      expect(screen.getByTestId(`score-btn-${key}`)).toBeOnTheScreen();
+    }
+    expect(screen.getByTestId('score-row-striker')).toBeOnTheScreen();
+    expect(screen.getByTestId('score-row-non-striker')).toBeOnTheScreen();
+    expect(screen.getByTestId('score-row-bowler')).toBeOnTheScreen();
+    expect(screen.getByTestId('score-row-over')).toBeOnTheScreen();
+    expect(screen.getByTestId('score-text-crr')).toBeOnTheScreen();
+    expect(screen.getByText('ECON')).toBeOnTheScreen();
+    expect(screen.queryByText('THIS OVER')).not.toBeOnTheScreen();
+    expect(screen.getByTestId('score-row-over').props.accessibilityLabel).toMatch(/^This over: /);
+    expect(screen.queryByTestId('score-text-powerplay')).not.toBeOnTheScreen();
+    expect(screen.queryByTestId('score-text-context')).not.toBeOnTheScreen();
+    expect(screen.queryByText(/On strike/)).not.toBeOnTheScreen();
+    await fireEvent.press(screen.getByTestId('score-top-undo'));
+    expect(store.undo).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId('score-top-more')).toHaveProp('accessibilityLabel', 'More actions');
+    await fireEvent.press(screen.getByTestId('score-top-more'));
+    const rows = within(screen.getByTestId('sheet-match-menu')).getAllByTestId(/^more-row-/);
+    expect(rows[0]).toHaveProp('testID', 'more-row-swap');
+    expect(screen.getByTestId('more-row-scorecard')).toBeOnTheScreen();
+    expect(screen.getByTestId('more-row-change_bowler')).toBeOnTheScreen();
+    expect(screen.getByTestId('more-row-redo')).toBeOnTheScreen();
+    await fireEvent.press(screen.getByTestId('more-row-swap'));
+    expect(store.dispatch).toHaveBeenCalledWith(swapStrike());
+    await restore();
+  });
+
+  it('keeps the action row in the dock and the full header on a regular phone', async () => {
+    const restore = setWindow(390, 844);
+    setLive(liveMatch([OPEN, '1', '4']));
+    await renderScreen(<ScoringScreen />);
+    expect(screen.getByTestId('score-row-actions')).toBeOnTheScreen();
+    expect(screen.queryByTestId('score-top-undo')).not.toBeOnTheScreen();
+    expect(screen.getByText('THIS OVER')).toBeOnTheScreen();
+    expect(screen.getByTestId('score-text-powerplay')).toBeOnTheScreen();
+    await fireEvent.press(screen.getByTestId('score-top-more'));
+    expect(screen.queryByTestId('more-row-swap')).not.toBeOnTheScreen();
+    await restore();
   });
 });

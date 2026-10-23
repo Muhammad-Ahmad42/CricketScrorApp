@@ -15,8 +15,9 @@ export function ordinal(value: number): string {
   }
 }
 
-export function plural(count: number, singular: string, pluralForm: string = `${singular}s`): string {
-  return `${count} ${count === 1 ? singular : pluralForm}`;
+export function plural(count: number | string, singular: string, pluralForm: string = `${singular}s`): string {
+  const one = typeof count === 'number' ? count === 1 : count.trim() === '1';
+  return `${count} ${one ? singular : pluralForm}`;
 }
 
 export function joinList(items: readonly string[]): string {

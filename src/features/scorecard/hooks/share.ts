@@ -1,4 +1,5 @@
 import type { MatchId } from '@/domain/types';
+import type { ShareMimeType } from '@/services/contracts';
 import { useBackupStore, useExportStore, useToastStore } from '@/stores';
 
 export const PDF_FAILED = "Couldn't create the PDF. Your match is safe.";
@@ -9,32 +10,30 @@ function failed(message: string, retry: () => void): void {
   useToastStore.getState().show({ kind: 'error', message, action: { label: 'Try again', run: retry } });
 }
 
-export async function shareScorecardPdf(matchId: MatchId): Promise<boolean> {
-  const exporter = useExportStore.getState();
-  const uri = await exporter.scorecardPdf(matchId);
-  if (uri === null) {
-    useExportStore.getState().clearError();
-    failed(PDF_FAILED, () => void shareScorecardPdf(matchId));
-    return false;
-  }
-  const shared = await useExportStore.getState().share(uri, 'application/pdf');
+async function shareFile(uri: string, mimeType: ShareMimeType, retry: () => void): Promise<boolean> {
+  const shared = await useExportStore.getState().share(uri, mimeType);
   if (!shared) {
-    useExportStore.getState().clearError();
-    failed(SHARE_FAILED, () => void useExportStore.getState().share(uri, 'application/pdf'));
+    failed(SHARE_FAILED, retry);
   }
   return shared;
 }
 
-export async function shareMatchBackup(matchId: MatchId): Promise<boolean> {
-  const uri = await useBackupStore.getState().exportBackup({ kind: 'match', matchId });
+export async function shareScorecardPdf(matchId: MatchId): Promise<boolean> {
+  const retry = () => void shareScorecardPdf(matchId);
+  const uri = await useExportStore.getState().scorecardPdf(matchId);
   if (uri === null) {
-    failed(BACKUP_FAILED, () => void shareMatchBackup(matchId));
+    failed(PDF_FAILED, retry);
     return false;
   }
-  const shared = await useExportStore.getState().share(uri, 'application/json');
-  if (!shared) {
-    useExportStore.getState().clearError();
-    failed(SHARE_FAILED, () => void useExportStore.getState().share(uri, 'application/json'));
+  return shareFile(uri, 'application/pdf', retry);
+}
+
+export async function shareMatchBackup(matchId: MatchId): Promise<boolean> {
+  const retry = () => void shareMatchBackup(matchId);
+  const uri = await useBackupStore.getState().exportBackup({ kind: 'match', matchId });
+  if (uri === null) {
+    failed(BACKUP_FAILED, retry);
+    return false;
   }
-  return shared;
+  return shareFile(uri, 'application/json', retry);
 }

@@ -41,16 +41,37 @@ const LOOKS: { readonly [K in ButtonVariant]: VariantLook } = {
   tertiaryInverse: { background: null, pressed: null, label: 'inverseAccent', border: null, pressedOpacity: 1 },
 };
 
-const SIZES = {
+export const BUTTON_SIZES = {
   lg: { height: 56, paddingX: space.xl, icon: 20 },
   md: { height: 48, paddingX: space.lg, icon: 20 },
-  sm: { height: 36, paddingX: space.sm, icon: 16 },
+  sm: { height: 44, paddingX: space.sm, icon: 16 },
 } as const;
+
+export type DisabledLook = 'filled' | 'outlined' | 'text';
+
+export function disabledLookFor(variant: ButtonVariant): DisabledLook {
+  const look = LOOKS[variant];
+  if (look.background === null) {
+    return 'text';
+  }
+  return look.border === null ? 'filled' : 'outlined';
+}
+
+export function disabledFill(theme: Theme): string {
+  return theme.scheme === 'dark' ? theme.color.surfaceElevated : theme.color.surfaceSunken;
+}
 
 export function buttonSurfaceStyle(theme: Theme, variant: ButtonVariant, pressed: boolean, disabled: boolean): ViewStyle {
   const look = LOOKS[variant];
   if (disabled) {
-    return { backgroundColor: theme.color.surfaceSunken, borderWidth: 0 };
+    switch (disabledLookFor(variant)) {
+      case 'text':
+        return { backgroundColor: 'transparent', borderWidth: 0, opacity: 1 };
+      case 'outlined':
+        return { backgroundColor: 'transparent', borderWidth: theme.borderWidth.control, borderColor: theme.color.border, opacity: 1 };
+      default:
+        return { backgroundColor: disabledFill(theme), borderWidth: 0, opacity: 1 };
+    }
   }
   const token = pressed ? look.pressed ?? look.background : look.background;
   return {
@@ -79,7 +100,7 @@ export function Button({
   const theme = useTheme();
   const focus = useFocusRing();
   const look = LOOKS[variant];
-  const dims = SIZES[size];
+  const dims = BUTTON_SIZES[size];
   const labelToken: ColorToken = disabled ? 'textMuted' : look.label;
   const inactive = disabled || loading;
   return (
@@ -90,6 +111,8 @@ export function Button({
       accessibilityLabel={accessibilityLabel ?? label}
       accessibilityHint={accessibilityHint}
       accessibilityState={{ disabled, busy: loading }}
+      aria-disabled={disabled}
+      aria-busy={loading}
       disabled={disabled}
       hitSlop={hitSlopFor(dims.height)}
       onPress={inactive ? undefined : onPress}

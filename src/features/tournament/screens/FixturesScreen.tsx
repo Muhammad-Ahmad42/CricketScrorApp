@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { SectionList, StyleSheet, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import type { TournamentId } from '@/domain/types';
-import { EmptyState, FAB_GAP, FAB_HEIGHT, FloatingActionButton, SegmentedControl, Tabs, Text, TextField, space, useScreenList, useTheme } from '@/ui';
+import { EmptyState, FAB_GAP, FAB_HEIGHT, FloatingActionButton, Inset, SegmentedControl, Tabs, Text, TextField, space, useScreenList, useTheme } from '@/ui';
 import { FixtureRow } from '../components/FixtureRow';
 import { useVenues, venueLookup } from '../hooks/useLibrary';
 import { routes } from '../routes';
@@ -17,13 +17,12 @@ export interface FixturesScreenProps {
 
 type FixtureGrouping = 'round' | 'date';
 
-const STATUS_TABS: readonly { readonly key: FixtureStatusFilter; readonly label: string }[] = [
+const STATUS_TABS: readonly { readonly key: FixtureStatusFilter; readonly label: string; readonly accessibilityLabel?: string }[] = [
   { key: 'all', label: 'All' },
   { key: 'upcoming', label: 'Upcoming' },
   { key: 'live', label: 'Live' },
-  { key: 'completed', label: 'Completed' },
-  { key: 'postponed', label: 'Postponed' },
-  { key: 'cancelled', label: 'Cancelled' },
+  { key: 'completed', label: 'Results' },
+  { key: 'off', label: 'Called off', accessibilityLabel: 'Postponed or cancelled' },
 ];
 
 interface FixtureFiltersProps {
@@ -36,7 +35,7 @@ interface FixtureFiltersProps {
 function FixtureFilters({ mode, onMode, filter, onFilter }: FixtureFiltersProps) {
   return (
     <View>
-      <View style={styles.grouping}>
+      <Inset bottom="xs">
         <SegmentedControl
           options={[
             { value: 'round', label: 'By round', testID: 'fixtures-chip-round' },
@@ -46,9 +45,9 @@ function FixtureFilters({ mode, onMode, filter, onFilter }: FixtureFiltersProps)
           onChange={onMode}
           accessibilityLabel="Group fixtures"
         />
-      </View>
+      </Inset>
       <Tabs
-        tabs={STATUS_TABS.map((tab) => ({ key: tab.key, label: tab.label, testID: `fixtures-tab-${tab.key}` }))}
+        tabs={STATUS_TABS.map((tab) => ({ key: tab.key, label: tab.label, accessibilityLabel: tab.accessibilityLabel, testID: `fixtures-tab-${tab.key}` }))}
         selectedKey={filter}
         onSelect={onFilter}
         accessibilityLabel="Fixture status"
@@ -73,7 +72,7 @@ function FixturesBody({ tournamentId, index, mode, filter }: FixturesBodyProps) 
   const canAdd = editPolicy(index).fixtureSchedule !== 'forbidden';
   const fixtures = filterFixtures(index, index.snapshot.fixtures, filter, search);
   const sections = fixtureSections(index, fixtures, mode, venueLookup(venues)).map((section) => ({ ...section, data: [...section.data] }));
-  const clearance = canAdd ? FAB_HEIGHT + FAB_GAP : 0;
+  const clearance = canAdd ? FAB_HEIGHT + FAB_GAP + space.md : 0;
   return (
     <View style={styles.fill}>
       <SectionList
@@ -81,29 +80,33 @@ function FixturesBody({ tournamentId, index, mode, filter }: FixturesBodyProps) 
         keyExtractor={(row) => row.key}
         renderItem={({ item }) => <FixtureRow row={item} onPress={() => router.push(routes.fixture(tournamentId, item.fixtureId))} />}
         renderSectionHeader={({ section }) => (
-          <View style={[styles.sectionHeader, { backgroundColor: theme.color.background }]}>
-            <Text variant="label" tone="secondary" accessibilityRole="header">
-              {section.title}
-            </Text>
+          <View style={{ backgroundColor: theme.color.background }}>
+            <Inset top="md" bottom="xs">
+              <Text variant="label" tone="secondary" accessibilityRole="header">
+                {section.title}
+              </Text>
+            </Inset>
           </View>
         )}
         ListHeaderComponent={
-          <View style={styles.search}>
-            <TextField label="Search teams" value={search} onChangeText={setSearch} leadingIcon="search" autoCapitalize="none" testID="fixtures-input-search" />
-          </View>
+          <Inset top="sm">
+            <TextField
+              label="Search"
+              value={search}
+              onChangeText={setSearch}
+              placeholder="Team or match number"
+              leadingIcon="search"
+              autoCapitalize="none"
+              returnKeyType="search"
+              testID="fixtures-input-search"
+            />
+          </Inset>
         }
         ListEmptyComponent={
           index.snapshot.fixtures.length === 0 ? (
-            <EmptyState
-              icon="file-text"
-              title="No fixtures yet"
-              body="Generate fixtures for a stage, or add a match by hand."
-              testID="fixtures-empty"
-            />
+            <EmptyState icon="file-text" title="No fixtures yet" body="Generate them from a stage or add a match." testID="fixtures-empty" />
           ) : (
-            <Text variant="callout" tone="secondary" style={styles.none} testID="fixtures-text-none">
-              No fixtures match this filter.
-            </Text>
+            <EmptyState title="No matching fixtures" testID="fixtures-text-none" />
           )
         }
         stickySectionHeadersEnabled={false}
@@ -117,12 +120,7 @@ function FixturesBody({ tournamentId, index, mode, filter }: FixturesBodyProps) 
         testID="fixtures-list"
       />
       {canAdd ? (
-        <FloatingActionButton
-          label="Add match"
-          icon="plus"
-          onPress={() => router.push(routes.addFixture(tournamentId))}
-          testID="fixtures-btn-add"
-        />
+        <FloatingActionButton label="Add match" icon="plus" onPress={() => router.push(routes.addFixture(tournamentId))} testID="fixtures-btn-add" />
       ) : null}
     </View>
   );
@@ -146,8 +144,4 @@ export function FixturesScreen({ tournamentId }: FixturesScreenProps) {
 
 const styles = StyleSheet.create({
   fill: { flex: 1 },
-  grouping: { paddingHorizontal: space.md, paddingBottom: space.xs },
-  search: { paddingHorizontal: space.md, paddingTop: space.sm },
-  sectionHeader: { paddingHorizontal: space.md, paddingTop: space.md, paddingBottom: space.xs },
-  none: { paddingHorizontal: space.md, paddingTop: space.md },
 });

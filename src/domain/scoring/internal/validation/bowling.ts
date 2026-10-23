@@ -20,11 +20,11 @@ export function validateBowlerSelected(setup: MatchSetup, state: MatchState, eve
   const atOverStart = innings.currentOver === null;
   if (event.reason === 'over_start') {
     if (!atOverStart) {
-      return fail('BOWLER_CHANGE_REASON_INVALID', 'This over has already started. Choose injury or suspension as the reason for a change.');
+      return fail('BOWLER_CHANGE_REASON_INVALID', 'This over has started. Choose injury or suspension as the reason.');
     }
   } else if (event.reason === 'injury' || event.reason === 'suspended') {
     if (atOverStart) {
-      return fail('BOWLER_CHANGE_REASON_INVALID', 'No ball of this over has been bowled yet, so just choose the bowler for the over.');
+      return fail('BOWLER_CHANGE_REASON_INVALID', "This over hasn't started. Just choose the bowler.");
     }
     if (event.bowlerId === innings.bowlerId) {
       return fail('BOWLER_CHANGE_REASON_INVALID', `${name} is already bowling this over.`);
@@ -36,16 +36,16 @@ export function validateBowlerSelected(setup: MatchSetup, state: MatchState, eve
     return fail('BOWLER_CHANGE_REASON_INVALID', 'Choose why the bowler is changing.');
   }
   if (innings.removedBowlerIds.includes(event.bowlerId)) {
-    return fail('BOWLER_REMOVED_FROM_ATTACK', `${name} was removed from the attack and can't bowl again in this innings.`);
+    return fail('BOWLER_REMOVED_FROM_ATTACK', `${name} can't bowl again this innings. They were removed from the attack.`);
   }
   if (!setup.rules.allowBowlerConsecutiveOvers && innings.previousOverBowlerIds.includes(event.bowlerId)) {
-    return fail('BOWLER_CONSECUTIVE_OVERS', `${name} bowled the previous over and can't bowl two overs in a row.`);
+    return fail('BOWLER_CONSECUTIVE_OVERS', `${name} bowled the previous over. Choose another bowler.`);
   }
   if (quotaReached(innings.limits, innings.bowling, event.bowlerId)) {
     return fail('BOWLER_QUOTA_REACHED', `${name} has bowled the maximum number of overs.`);
   }
   if (bowlerBarredFromSuperOver(setup, state, innings, event.bowlerId)) {
-    return fail('PLAYER_INELIGIBLE_SUPER_OVER', `${name} bowled the previous super over and can't bowl this one.`);
+    return fail('PLAYER_INELIGIBLE_SUPER_OVER', `${name} bowled the previous super over. Choose another bowler.`);
   }
   const warnings: ValidationWarning[] = [];
   if (startsFinalQuotaOver(innings.limits, innings.bowling, event.bowlerId)) {

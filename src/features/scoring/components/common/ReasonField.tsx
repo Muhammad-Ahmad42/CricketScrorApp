@@ -1,4 +1,5 @@
-import { TextField } from '@/ui';
+import type { ReturnKeyTypeOptions } from 'react-native';
+import { TextField, type FormChainField, type SubmitBehavior } from '@/ui';
 
 export const MIN_REASON_LENGTH = 3;
 
@@ -12,19 +13,27 @@ export interface ReasonFieldProps {
   readonly required: boolean;
   readonly label?: string;
   readonly placeholder?: string;
+  readonly ref?: FormChainField['ref'];
+  readonly returnKeyType?: ReturnKeyTypeOptions;
+  readonly submitBehavior?: SubmitBehavior;
+  readonly onSubmitEditing?: () => void;
   readonly testID?: string;
 }
 
-export function ReasonField({ value, onChange, required, label, placeholder, testID = 'field-reason' }: ReasonFieldProps) {
-  const shown = label ?? (required ? 'Reason (required)' : 'Reason (optional)');
+export function ReasonField({ value, onChange, required, label, placeholder, ref, returnKeyType, submitBehavior, onSubmitEditing, testID = 'field-reason' }: ReasonFieldProps) {
   return (
     <TextField
-      label={shown}
+      ref={ref}
+      label={label ?? (required ? 'Reason' : 'Reason (optional)')}
       value={value}
       onChangeText={onChange}
       multiline
       placeholder={placeholder ?? 'Why is this changing?'}
-      helper={required ? `At least ${MIN_REASON_LENGTH} characters. Saved in the audit log.` : 'Saved in the audit log.'}
+      helper={required ? `At least ${MIN_REASON_LENGTH} characters` : undefined}
+      autoCapitalize="sentences"
+      returnKeyType={returnKeyType}
+      submitBehavior={submitBehavior}
+      onSubmitEditing={onSubmitEditing}
       testID={testID}
     />
   );

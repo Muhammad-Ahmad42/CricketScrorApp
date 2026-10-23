@@ -2,18 +2,23 @@ import '../../testing';
 import { BarChart, LineChart } from 'react-native-gifted-charts';
 import { fireEvent, screen, userEvent } from '@testing-library/react-native';
 import { renderWithTheme } from '../../testing';
-import { darkColors, lightColors } from '../../theme';
+import { darkColors, lightColors, parseColor } from '../../theme';
 import {
   ManhattanChart,
   PartnershipBars,
+  WORM_EDGE_SPACING,
   WormChart,
   axisLabelEvery,
   barFraction,
   niceMax,
+  seriesToken,
+  wormSpacing,
   wormTableRows,
   type ManhattanInnings,
   type PartnershipBarItem,
   type WormSeries,
+  wicketMarkText,
+  runsAndWicketsText,
 } from '..';
 
 const lineChart = jest.mocked(LineChart);
@@ -92,8 +97,38 @@ describe('WormChart', () => {
     expect(props.rulesColor).toBe(lightColors.chartGrid);
     expect(props.backgroundColor).toBe(lightColors.surface);
     expect(props.maxValue).toBe(40);
-    expect(props.data?.[2]).toMatchObject({ value: 15, hideDataPoint: false, dataPointText: 'W', dataPointColor: lightColors.textPrimary });
+    expect(props.data?.[2]).toMatchObject({ value: 15, hideDataPoint: false });
+    expect(props.data?.[2]?.dataPointText).toBeUndefined();
+    expect(typeof props.data?.[2]?.customDataPoint).toBe('function');
+    expect(typeof props.data?.[2]?.dataPointLabelComponent).toBe('function');
     expect(props.data?.[1]).toMatchObject({ value: 8, hideDataPoint: true });
+    expect(props.data?.[1]?.customDataPoint).toBeUndefined();
+    expect(props.initialSpacing).toBe(WORM_EDGE_SPACING);
+    expect(props.endSpacing).toBe(WORM_EDGE_SPACING);
+  });
+
+  it('draws wicket marks as app views in the app typeface, never SVG text, and keeps the first axis label inside the plot (#14)', async () => {
+    await renderWithTheme(<WormChart series={WORM} accessibilityLabel="Worm chart marks" testID="worm" />);
+    await layout('Worm chart marks');
+    const props = lineChart.mock.calls[lineChart.mock.calls.length - 1][0];
+    const point = props.data?.[2];
+    await renderWithTheme(<>{point?.dataPointLabelComponent?.(point, 2)}</>);
+    const mark = screen.getByText('W');
+    expect(mark).toHaveStyle({ fontFamily: expect.stringMatching(/^Inter/) });
+    expect(props.data?.some((item) => 'onPress' in (item as object))).toBe(false);
+    expect(props.onPress).toBeUndefined();
+    expect(props.focusEnabled).toBeFalsy();
+    expect(wormSpacing(300, 3)).toBe((300 - WORM_EDGE_SPACING * 2) / 3);
+    expect(wormSpacing(0, 3)).toBe(0);
+  });
+
+  it('counts wickets on a mark when an over has more than one', async () => {
+    expect([wicketMarkText(1), wicketMarkText(2), wicketMarkText(3)]).toEqual(['W', '2W', '3W']);
+    await renderWithTheme(<ManhattanChart innings={[{ label: 'LIO', overs: [{ over: 1, runs: 4, wickets: 2 }] }]} accessibilityLabel="Manhattan double" />);
+    await layout('Manhattan double');
+    const props = barChart.mock.calls[barChart.mock.calls.length - 1][0];
+    await renderWithTheme(<>{props.data?.[0]?.topLabelComponent?.()}</>);
+    expect(screen.getByText('2W')).toBeOnTheScreen();
   });
 
   it('uses the dark series steps in the dark theme', async () => {
@@ -110,8 +145,8 @@ describe('WormChart', () => {
     expect(screen.getByRole('image', { name: 'Worm chart. Tigers ahead throughout.' })).toBeOnTheScreen();
     expect(screen.getByText('TIG', { includeHiddenElements: true })).toBeOnTheScreen();
     await user.press(screen.getByRole('button', { name: 'Show as table' }));
-    expect(screen.getByLabelText('Over 2. TIG 15 runs, 1 wickets. LIO 19 runs, 0 wickets')).toBeOnTheScreen();
-    expect(screen.getByLabelText('Over 3. TIG 27 runs, 1 wickets. LIO, no score')).toBeOnTheScreen();
+    expect(screen.getByLabelText('Over 2. TIG 15 runs, 1 wicket. LIO 19 runs, 0 wickets')).toBeOnTheScreen();
+    expect(screen.getByLabelText('Over 3. TIG 27 runs, 1 wicket. LIO, no score')).toBeOnTheScreen();
     await user.press(screen.getByRole('button', { name: 'Show as chart' }));
     expect(screen.getByRole('image')).toBeOnTheScreen();
   });
@@ -144,7 +179,16 @@ describe('ManhattanChart', () => {
     const user = userEvent.setup();
     await renderWithTheme(<ManhattanChart innings={MANHATTAN} accessibilityLabel="Runs per over chart" />);
     await user.press(screen.getByRole('button', { name: 'Show as table' }));
-    expect(screen.getByLabelText('Over 2. TIG 7 runs, 1 wickets. LIO 15 runs, 0 wickets')).toBeOnTheScreen();
+    expect(screen.getByLabelText('Over 2. TIG 7 runs, 1 wicket. LIO 15 runs, 0 wickets')).toBeOnTheScreen();
+  });
+
+  it('says 1 run and 1 wicket in the table row labels', async () => {
+    const user = userEvent.setup();
+    await renderWithTheme(<ManhattanChart innings={[{ label: 'LIO', overs: [{ over: 1, runs: 1, wickets: 1 }] }]} accessibilityLabel="Manhattan singular" />);
+    await user.press(screen.getByRole('button', { name: 'Show as table' }));
+    expect(screen.getByLabelText('Over 1. LIO 1 run, 1 wicket')).toBeOnTheScreen();
+    expect(runsAndWicketsText(1, 1)).toBe('1 run, 1 wicket');
+    expect(runsAndWicketsText(0, 2)).toBe('0 runs, 2 wickets');
   });
 });
 
@@ -156,5 +200,22 @@ describe('PartnershipBars', () => {
     const bar = view.queryAll((node) => node.type === 'View' && JSON.stringify(node.props.style ?? '').includes('"width":"50%"'));
     expect(bar).toHaveLength(1);
     expect(bar[0]).toHaveStyle({ backgroundColor: lightColors.chartSeries1 });
+  });
+
+  it('draws the second side in the same series colour it has in the worm and Manhattan', async () => {
+    await renderWithTheme(<PartnershipBars rows={PARTNERSHIPS} series={1} accessibilityLabel="Second innings partnerships" />);
+    const view = screen.getByLabelText('2nd wicket, Babar and Rizwan, 21 runs from 20 balls');
+    const bar = view.queryAll((node) => node.type === 'View' && JSON.stringify(node.props.style ?? '').includes('"width":"50%"'));
+    expect(bar[0]).toHaveStyle({ backgroundColor: lightColors.chartSeries2 });
+    expect(seriesToken(7)).toBe('chartSeries2');
+    expect(seriesToken(-1)).toBe('chartSeries1');
+  });
+
+  it('never paints a team series in the success green (§107)', () => {
+    for (const color of [lightColors, darkColors]) {
+      const series2 = parseColor(color.chartSeries2);
+      expect(series2.b).toBeGreaterThan(series2.g);
+      expect(color.chartSeries2).not.toBe(color.success);
+    }
   });
 });

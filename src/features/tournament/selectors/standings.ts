@@ -11,7 +11,17 @@ import type {
   TeamId,
   TeamQualification,
 } from '@/domain/types';
-import { CERTAINTY_LABEL, MANUAL_OVERRIDE_LABEL, QUALIFICATION_SHORT, QUALIFICATION_STATE_LABEL, joinList, ordinal, plural, type QualificationCertainty } from '@/features/shared';
+import {
+  CERTAINTY_LABEL,
+  MANUAL_OVERRIDE_LABEL,
+  QUALIFICATION_SHORT,
+  QUALIFICATION_STATE_LABEL,
+  conciseExplanation,
+  joinList,
+  ordinal,
+  plural,
+  type QualificationCertainty,
+} from '@/features/shared';
 import type { TournamentIndex } from './names';
 
 export interface RowQualificationVM {
@@ -20,6 +30,9 @@ export interface RowQualificationVM {
   readonly short: string;
   readonly manual: boolean;
   readonly explanation: string;
+  readonly condition: string | null;
+  readonly headline: string | null;
+  readonly detail: string | null;
   readonly reason: string | null;
 }
 
@@ -34,6 +47,7 @@ export interface StandingRowVM {
   readonly rank: number;
   readonly position: string;
   readonly team: string;
+  readonly teamShort: string;
   readonly teamId: TeamId | null;
   readonly played: number;
   readonly won: number;
@@ -48,6 +62,8 @@ export interface StandingRowVM {
   readonly note: string | null;
   readonly muted: boolean;
   readonly accessibilityLabel: string;
+  readonly delta?: string | null;
+  readonly nrrUncertain?: boolean;
 }
 
 export interface StandingsTableVM {
@@ -81,7 +97,7 @@ export function spokenNrr(text: string): string {
   return 'not available';
 }
 
-function rowQualification(qualification: TeamQualification | null): RowQualificationVM | null {
+function rowQualification(qualification: TeamQualification | null, teamName: string): RowQualificationVM | null {
   if (qualification === null) {
     return null;
   }
@@ -92,8 +108,21 @@ function rowQualification(qualification: TeamQualification | null): RowQualifica
     short: manual ? 'M' : QUALIFICATION_SHORT[qualification.state],
     manual,
     explanation: qualification.explanation,
+    condition: qualification.note !== undefined ? qualification.note : conciseExplanation(qualification.explanation, teamName),
+    headline: qualification.headline ?? null,
+    detail: qualification.detail ?? null,
     reason: qualification.override?.reason ?? null,
   };
+}
+
+function shortText(index: TournamentIndex, row: StandingRow): string {
+  if (row.teamId) {
+    const short = index.teamShort(row.teamId);
+    if (short !== '?') {
+      return row.provisional && row.slotLabel ? `${row.slotLabel} ${short}` : short;
+    }
+  }
+  return row.slotLabel ?? 'TBD';
 }
 
 function teamText(index: TournamentIndex, row: StandingRow): string {
@@ -167,13 +196,14 @@ function rowLabel(row: StandingRow, team: string, nrr: string, qualification: Ro
 export function standingRowVM(index: TournamentIndex, row: StandingRow, tableKey: string, stageId: StageId | null = null): StandingRowVM {
   const team = teamText(index, row);
   const nrr = formatNrr(row.nrr);
-  const qualification = row.membership === 'active' ? rowQualification(row.qualification) : null;
+  const qualification = row.membership === 'active' ? rowQualification(row.qualification, row.teamId ? index.teamName(row.teamId) : team) : null;
   const adjustment = rowAdjustment(index, row, stageId);
   return {
     key: `${tableKey}:${row.side.kind === 'team' ? row.side.teamId : row.side.slotId}`,
     rank: row.position,
     position: row.sharedPosition ? `=${row.position}` : String(row.position),
     team,
+    teamShort: shortText(index, row),
     teamId: row.teamId,
     played: row.played,
     won: row.won,
@@ -251,7 +281,7 @@ export function stageStandingsVM(index: TournamentIndex, stage: StageEvaluation)
   });
   for (const table of ordered) {
     const poolKey = table.poolId ? index.poolKey(table.poolId) : 'a';
-    const title = (table.poolId ? index.poolName(table.poolId) : null) ?? index.stageName(stage.stageId);
+    const title = (table.poolId && pools.length > 1 ? index.poolName(table.poolId) : null) ?? index.stageName(stage.stageId);
     tables.push(tableVM(index, table, poolKey, title));
   }
   if (stage.overall && stage.tables.length > 1) {

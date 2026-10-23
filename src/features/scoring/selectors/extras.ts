@@ -127,12 +127,12 @@ export function extrasRuleNote(tab: ExtrasTab, rules: MatchRules): string | null
     case 'wide': {
       const runs = rules.wide.penaltyRuns;
       const again = rules.wide.countsAsBall ? 'counts as a ball' : 'bowled again';
-      return `Wide penalty is ${runs} ${runs === 1 ? 'run' : 'runs'}, ${again} (match rule).`;
+      return `Wide: ${runs} ${runs === 1 ? 'run' : 'runs'} · ${again}`;
     }
     case 'no_ball': {
       const runs = rules.noBall.penaltyRuns;
-      const free = rules.noBall.freeHit ? ' Next ball is a free hit.' : '';
-      return `No-ball penalty is ${runs} ${runs === 1 ? 'run' : 'runs'} (match rule).${free}`;
+      const free = rules.noBall.freeHit ? ' · free hit next' : '';
+      return `No-ball: ${runs} ${runs === 1 ? 'run' : 'runs'}${free}`;
     }
     case 'bye':
     case 'leg_bye':

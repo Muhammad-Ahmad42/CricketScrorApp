@@ -6,6 +6,7 @@ import { useLiveMatchStore, useSettingsStore } from '@/stores';
 import { ActionRow } from '../components/ActionRow';
 import { CreasePanel } from '../components/CreasePanel';
 import { CurrentOver } from '../components/CurrentOver';
+import { InningsSummary } from '../components/InningsSummary';
 import { RetirementBanner } from '../components/RetirementBanner';
 import { ScoreHeader, type ScoreShortcut } from '../components/ScoreHeader';
 import { TopBar } from '../components/common/TopBar';
@@ -13,7 +14,9 @@ import { sendIntent, swapStrikeWithToast } from '../hooks/actions';
 import { useCommitAnnouncer } from '../hooks/useCommitAnnouncer';
 import { playerName } from '../selectors/names';
 import { memoizeLast, memoizeLast2 } from '../selectors/memo';
-import { selectBowler, selectCrease, selectHeader, selectLastBall, selectMatchTitle, selectOverStrip } from '../selectors/scoreboard';
+import { selectBowler, selectCrease, selectHeader, selectInningsSummary, selectLastBall, selectMatchTitle, selectOverStrip } from '../selectors/scoreboard';
+import { InningsCard } from '@/features/scorecard/components/InningsCard';
+import { selectInningsCards } from '@/features/scorecard/selectors/innings';
 
 const headerOf = memoizeLast(selectHeader);
 const lastBallOf = memoizeLast(selectLastBall);
@@ -21,22 +24,51 @@ const creaseOf = memoizeLast(selectCrease);
 const bowlerOf = memoizeLast(selectBowler);
 const titleOf = memoizeLast(selectMatchTitle);
 const overOf = memoizeLast2(selectOverStrip);
+const summaryOf = memoizeLast(selectInningsSummary);
 import { leaveMatch } from './MatchGate';
+
+export const LIVE_SUMMARY_OVERS = 3;
 
 export function CommitAnnouncer() {
   useCommitAnnouncer();
   return null;
 }
 
-export function TitleBarContainer({ onMore }: { readonly onMore: () => void }) {
+export interface TitleBarContainerProps {
+  readonly onMore: () => void;
+  readonly onUndo?: () => void;
+}
+
+export function TitleBarContainer({ onMore, onUndo }: TitleBarContainerProps) {
   const vm = useLiveMatchStore(useShallow((s) => titleOf(s.live)));
+  const canUndo = useLiveMatchStore((s) => (s.live?.events.length ?? 0) > 1);
   return (
     <TopBar
       title={vm.title}
       badge={vm.paused ? 'Paused' : null}
       onBack={leaveMatch}
       backLabel="Leave scoring"
-      trailing={<IconButton icon="ellipsis" accessibilityLabel="More actions" onPress={onMore} testID="score-top-more" />}
+      trailing={
+        <>
+          {onUndo ? (
+            <IconButton
+              icon="undo-2"
+              accessibilityLabel="Undo last action"
+              accessibilityHint={canUndo ? undefined : 'Nothing to undo'}
+              disabled={!canUndo}
+              onPress={onUndo}
+              testID="score-top-undo"
+            />
+          ) : null}
+          <IconButton
+            icon="ellipsis"
+            accessibilityLabel={onUndo ? 'More actions' : 'Match menu'}
+            accessibilityHint={onUndo ? 'Swap strike, change bowler, scorecard and more' : 'Scorecard, ball by ball, analytics, match settings'}
+            onPress={onMore}
+            testID="score-top-more"
+          />
+        </>
+      }
       testID="score-top-bar"
     />
   );
@@ -45,12 +77,13 @@ export function TitleBarContainer({ onMore }: { readonly onMore: () => void }) {
 export interface HeaderContainerProps {
   readonly heroSize?: HeroSize;
   readonly compact: boolean;
+  readonly lean?: boolean;
   readonly onScorecard: () => void;
   readonly shortcuts?: readonly ScoreShortcut[];
   readonly onShortcut?: (shortcut: ScoreShortcut) => void;
 }
 
-export function HeaderContainer({ heroSize, compact, onScorecard, shortcuts, onShortcut }: HeaderContainerProps) {
+export function HeaderContainer({ heroSize, compact, lean = false, onScorecard, shortcuts, onShortcut }: HeaderContainerProps) {
   const vm = useLiveMatchStore(useShallow((s) => headerOf(s.live)));
   const last = useLiveMatchStore(useShallow((s) => lastBallOf(s.live)));
   return (
@@ -58,6 +91,7 @@ export function HeaderContainer({ heroSize, compact, onScorecard, shortcuts, onS
       vm={vm}
       heroSize={heroSize}
       compact={compact}
+      lean={lean}
       flashSix={last.six}
       wicketTrigger={last.kind === 'wicket' ? last.seq : null}
       onPressScore={onScorecard}
@@ -67,16 +101,39 @@ export function HeaderContainer({ heroSize, compact, onScorecard, shortcuts, onS
   );
 }
 
-export function CreaseContainer({ compact, onBatter, onBowler }: { readonly compact: boolean; readonly onBatter: () => void; readonly onBowler: () => void }) {
-  const crease = useLiveMatchStore((s) => creaseOf(s.live));
-  const bowler = useLiveMatchStore((s) => bowlerOf(s.live));
-  return <CreasePanel crease={crease} bowler={bowler} compact={compact} onPressBatter={onBatter} onPressBowler={onBowler} />;
+export interface CreaseContainerProps {
+  readonly compact: boolean;
+  readonly lean?: boolean;
+  readonly onBatter: () => void;
+  readonly onBowler: () => void;
 }
 
-export function OverContainer({ compact }: { readonly compact: boolean }) {
+export function CreaseContainer({ compact, lean = false, onBatter, onBowler }: CreaseContainerProps) {
+  const crease = useLiveMatchStore((s) => creaseOf(s.live));
+  const bowler = useLiveMatchStore((s) => bowlerOf(s.live));
+  return <CreasePanel crease={crease} bowler={bowler} compact={compact} lean={lean} onPressBatter={onBatter} onPressBowler={onBowler} />;
+}
+
+export function OverContainer({ compact = false, lean = false }: { readonly compact?: boolean; readonly lean?: boolean }) {
   const dotStyle = useSettingsStore((s) => s.settings.scoring.dotStyle);
   const vm = useLiveMatchStore((s) => overOf(s.live, dotStyle));
-  return <CurrentOver vm={vm} showLabel={!compact} />;
+  return <CurrentOver vm={vm} showLabel={!lean} size={compact || lean ? 'md' : 'lg'} />;
+}
+
+export function SummaryContainer() {
+  const vm = useLiveMatchStore((s) => summaryOf(s.live));
+  return vm === null ? null : <InningsSummary vm={vm} />;
+}
+
+export function ScorecardSummaryContainer() {
+  const live = useLiveMatchStore((s) => s.live);
+  const dotStyle = useSettingsStore((s) => s.settings.scoring.dotStyle);
+  if (live === null) {
+    return null;
+  }
+  const cards = selectInningsCards(live.setup, live.state, dotStyle);
+  const latest = cards[cards.length - 1];
+  return latest === undefined ? null : <InningsCard vm={latest} maxOvers={LIVE_SUMMARY_OVERS} testID="score-summary-innings" />;
 }
 
 export function RetirementContainer({ onRetire }: { readonly onRetire: (playerId: string) => void }) {
@@ -90,7 +147,7 @@ export function RetirementContainer({ onRetire }: { readonly onRetire: (playerId
   }
   return (
     <RetirementBanner
-      message={`${playerName(setup, first.playerId)} has reached ${first.atRuns}. Retire now? (match rule)`}
+      message={`${playerName(setup, first.playerId)} reached ${first.atRuns} · retire now?`}
       onRetire={() => onRetire(first.playerId)}
       onDismiss={() => setDismissedAt(lastSeq)}
     />
@@ -100,6 +157,7 @@ export function RetirementContainer({ onRetire }: { readonly onRetire: (playerId
 export interface PadContainerProps {
   readonly compact: boolean;
   readonly tablet: boolean;
+  readonly actions?: boolean;
   readonly onExtras: () => void;
   readonly onWicket: () => void;
   readonly onMore: () => void;
@@ -107,23 +165,25 @@ export interface PadContainerProps {
   readonly onRedo: () => void;
 }
 
-export function PadContainer({ compact, tablet, onExtras, onWicket, onMore, onUndo, onRedo }: PadContainerProps) {
+export function PadContainer({ compact, tablet, actions = true, onExtras, onWicket, onMore, onUndo, onRedo }: PadContainerProps) {
   const canUndo = useLiveMatchStore((s) => (s.live?.events.length ?? 0) > 1);
   const canRedo = useLiveMatchStore((s) => s.redoStack.length > 0);
   const canSwap = useLiveMatchStore((s) => creaseOf(s.live).canSwap);
   const dotStyle = useSettingsStore((s) => s.settings.scoring.dotStyle);
   return (
     <>
-      <ActionRow
-        canUndo={canUndo}
-        canRedo={canRedo}
-        canSwap={canSwap}
-        showRedo={!compact}
-        onUndo={onUndo}
-        onRedo={onRedo}
-        onSwap={() => void swapStrikeWithToast()}
-        onMore={onMore}
-      />
+      {actions ? (
+        <ActionRow
+          canUndo={canUndo}
+          canRedo={canRedo}
+          canSwap={canSwap}
+          showRedo={!compact}
+          onUndo={onUndo}
+          onRedo={onRedo}
+          onSwap={() => void swapStrikeWithToast()}
+          onMore={onMore}
+        />
+      ) : null}
       <ScoringPad
         onRuns={(runs) => void sendIntent(scoreRuns(runs))}
         onExtras={onExtras}

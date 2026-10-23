@@ -11,7 +11,7 @@ export function routerModule() {
     dismissTo: jest.fn(),
     canGoBack: jest.fn(() => true),
   };
-  const StackScreen = () => null;
+  const StackScreen = jest.fn(() => null);
   const Stack = Object.assign(
     jest.fn((props: { readonly children?: ReactNode }) => props.children ?? null),
     { Screen: StackScreen },

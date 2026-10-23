@@ -1,5 +1,5 @@
 /** @jest-environment node */
-import { commentsIn, importsOf, isAllowedPragma, layerOf, sourceTree, type ImportSite, type SourceFile } from './sourceTree';
+import { commentsIn, importsOf, isAllowedPragma, layerOf, namedImportsOf, propertiesOf, sourceTree, type ImportSite, type SourceFile } from './sourceTree';
 
 const ALL = sourceTree('src');
 const PRODUCTION = ALL.filter((source) => !source.isTest);
@@ -177,5 +177,94 @@ describe('liquid glass stays inside the design system (§106)', () => {
     expect(glassImportsOutside([feature, store], 'src/ui/')).toHaveLength(3);
     expect(glassImportsOutside([primitive], 'src/ui/')).toHaveLength(0);
     expect(glassImportsOutside([primitive], GLASS_MODULE)).toHaveLength(2);
+  });
+});
+
+const SCREEN_CODE = PRODUCTION.filter((source) => source.rel.startsWith('src/features/') || source.rel.startsWith('src/app/'));
+const RAW_CONTROLS = new Set(['Pressable', 'TouchableOpacity', 'TouchableHighlight', 'TouchableWithoutFeedback', 'TouchableNativeFeedback', 'TextInput']);
+const TYPE_KEYS = new Set(['fontSize', 'fontWeight', 'fontFamily', 'lineHeight', 'letterSpacing']);
+const SPACING_KEY = /^(?:(?:padding|margin)(?:Top|Bottom|Left|Right|Horizontal|Vertical|Start|End|Block|Inline)?|gap|rowGap|columnGap)$/;
+
+function rawControls(sources: readonly SourceFile[]): readonly string[] {
+  return sources
+    .flatMap(namedImportsOf)
+    .filter((site) => site.spec === 'react-native' && !site.typeOnly && RAW_CONTROLS.has(site.name))
+    .map((site) => `${site.from} imports ${site.name} from react-native`);
+}
+
+function typeOverrides(sources: readonly SourceFile[]): readonly string[] {
+  return sources
+    .flatMap(propertiesOf)
+    .filter((property) => TYPE_KEYS.has(property.key))
+    .map((property) => `${property.at}: ${property.text}`);
+}
+
+function rawSpacing(sources: readonly SourceFile[]): readonly string[] {
+  return sources
+    .flatMap(propertiesOf)
+    .filter((property) => SPACING_KEY.test(property.key) && property.number !== null && property.number !== 0)
+    .map((property) => `${property.at}: ${property.text}`);
+}
+
+function centredText(sources: readonly SourceFile[]): readonly string[] {
+  return sources
+    .flatMap(propertiesOf)
+    .filter((property) => property.key === 'textAlign' && property.string === 'center')
+    .map((property) => `${property.at}: ${property.text}`);
+}
+
+describe('UI consistency in screens and routes (CLAUDE.md "UI consistency", "Text layout")', () => {
+  it('scans every production feature and route file', () => {
+    expect(SCREEN_CODE.filter((source) => source.rel.startsWith('src/features/')).length).toBeGreaterThan(100);
+    expect(SCREEN_CODE.some((source) => source.rel.startsWith('src/app/'))).toBe(true);
+  });
+
+  it('builds controls and fields from src/ui, never from raw react-native Pressable, Touchable* or TextInput', () => {
+    expect(rawControls(SCREEN_CODE)).toEqual([]);
+  });
+
+  it('sets type only through Text variants: no fontSize, fontWeight, fontFamily, lineHeight or letterSpacing', () => {
+    expect(typeOverrides(SCREEN_CODE)).toEqual([]);
+  });
+
+  it('spaces only with space tokens: no numeric padding, margin or gap other than 0', () => {
+    expect(rawSpacing(SCREEN_CODE)).toEqual([]);
+  });
+
+  it('never centres text through a textAlign style; centred figures come from the design system', () => {
+    expect(centredText(SCREEN_CODE)).toEqual([]);
+  });
+
+  it('detects each violation and lets the allowed forms through', () => {
+    const probe = (text: string): SourceFile => ({ file: 'probe.tsx', rel: 'src/features/home/Probe.tsx', text, isTest: false });
+    const bad = probe(
+      [
+        "import { Pressable, TextInput as Field, TouchableOpacity, View } from 'react-native';",
+        'const styles = StyleSheet.create({',
+        "  a: { fontSize: 13, fontWeight: '700', paddingHorizontal: 6, marginTop: -2, gap: 10, textAlign: 'center' },",
+        '});',
+      ].join(String.fromCharCode(10)),
+    );
+    expect(rawControls([bad])).toEqual([
+      'src/features/home/Probe.tsx imports Pressable from react-native',
+      'src/features/home/Probe.tsx imports TextInput from react-native',
+      'src/features/home/Probe.tsx imports TouchableOpacity from react-native',
+    ]);
+    expect(typeOverrides([bad])).toHaveLength(2);
+    expect(rawSpacing([bad])).toHaveLength(3);
+    expect(centredText([bad])).toHaveLength(1);
+    const good = probe(
+      [
+        "import { StyleSheet, View, type TextInput } from 'react-native';",
+        "import type { Pressable } from 'react-native';",
+        'const styles = StyleSheet.create({',
+        "  a: { padding: 0, margin: space.md, gap: space.xs, borderBottomWidth: StyleSheet.hairlineWidth, marginTop: StyleSheet.hairlineWidth, textAlign: 'right' },",
+        '});',
+      ].join(String.fromCharCode(10)),
+    );
+    expect(rawControls([good])).toEqual([]);
+    expect(typeOverrides([good])).toEqual([]);
+    expect(rawSpacing([good])).toEqual([]);
+    expect(centredText([good])).toEqual([]);
   });
 });

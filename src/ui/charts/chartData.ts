@@ -90,3 +90,11 @@ export function wormTableRows(series: readonly WormSeries[]): readonly WormTable
     return { over, cells: series.map((s) => cellAt(s.points, over)) };
   });
 }
+
+export function wicketMarkText(wickets: number): string {
+  return wickets > 1 ? `${wickets}W` : 'W';
+}
+
+export function runsAndWicketsText(runs: number, wickets: number): string {
+  return `${runs} ${runs === 1 ? 'run' : 'runs'}, ${wickets} ${wickets === 1 ? 'wicket' : 'wickets'}`;
+}

@@ -1,5 +1,7 @@
-import { Pressable, StyleSheet, View } from 'react-native';
-import { Button, Icon, Text, space, useTheme } from '@/ui';
+import { StyleSheet, View } from 'react-native';
+import { Chip, ChoiceRow, IconButton } from '@/ui';
+
+export const SQUAD_CONTROLS_WIDTH = 96;
 
 export interface SquadRowProps {
   readonly name: string;
@@ -7,6 +9,8 @@ export interface SquadRowProps {
   readonly tags: string;
   readonly selected: boolean;
   readonly substitute: boolean;
+  readonly isFirst?: boolean;
+  readonly isLast?: boolean;
   readonly onToggle: () => void;
   readonly onToggleSubstitute?: () => void;
   readonly onMoveUp?: () => void;
@@ -14,74 +18,58 @@ export interface SquadRowProps {
   readonly testID: string;
 }
 
-export function SquadRow({ name, order, tags, selected, substitute, onToggle, onToggleSubstitute, onMoveUp, onMoveDown, testID }: SquadRowProps) {
-  const theme = useTheme();
+export function SquadRow({
+  name,
+  order,
+  tags,
+  selected,
+  substitute,
+  isFirst = false,
+  isLast = false,
+  onToggle,
+  onToggleSubstitute,
+  onMoveUp,
+  onMoveDown,
+  testID,
+}: SquadRowProps) {
   const label = `${name}${tags ? `, ${tags}` : ''}${selected ? `, batting at ${order ?? ''}` : substitute ? ', substitute fielder' : ', not selected'}`;
-  return (
-    <View style={[styles.line, { borderBottomWidth: theme.borderWidth.hairline, borderBottomColor: theme.color.border }]}>
-      <Pressable
-        testID={testID}
-        accessibilityRole="checkbox"
-        accessibilityLabel={label}
-        accessibilityState={{ checked: selected }}
-        onPress={onToggle}
-        style={({ pressed }) => [styles.row, pressed ? { backgroundColor: theme.color.surfaceSunken } : null]}
-      >
-        <View
-          style={[
-            styles.box,
-            {
-              borderRadius: theme.radius.sm,
-              borderWidth: theme.borderWidth.emphasis,
-              borderColor: selected ? theme.color.accent : theme.color.borderStrong,
-              backgroundColor: selected ? theme.color.accent : 'transparent',
-            },
-          ]}
-        >
-          {selected ? <Icon name="check" size={16} color="onAccent" /> : null}
-        </View>
-        <Text variant="tableNumeric" tone="muted" style={styles.order}>
-          {selected && order !== null ? `${order}` : ''}
-        </Text>
-        <Text variant="body" numberOfLines={1} style={styles.flex}>
-          {name}
-        </Text>
-        {tags ? (
-          <Text variant="footnote" weight="semibold" tone="secondary">
-            {tags}
-          </Text>
-        ) : null}
-      </Pressable>
+  const controls = (
+    <View style={styles.controls}>
       {selected && onMoveUp && onMoveDown ? (
-        <View style={styles.moves}>
-          <Button label="Up" variant="tertiary" size="sm" accessibilityLabel={`Move ${name} up the order`} onPress={onMoveUp} testID={`${testID}-up`} />
-          <Button label="Down" variant="tertiary" size="sm" accessibilityLabel={`Move ${name} down the order`} onPress={onMoveDown} testID={`${testID}-down`} />
-        </View>
+        <>
+          <IconButton icon="chevron-up" accessibilityLabel={`Move ${name} up the batting order`} disabled={isFirst} onPress={onMoveUp} testID={`${testID}-up`} />
+          <IconButton icon="chevron-down" accessibilityLabel={`Move ${name} down the batting order`} disabled={isLast} onPress={onMoveDown} testID={`${testID}-down`} />
+        </>
       ) : null}
       {!selected && onToggleSubstitute ? (
-        <Pressable
-          testID={`${testID}-sub`}
-          accessibilityRole="switch"
-          accessibilityLabel={`${name} as substitute fielder`}
-          accessibilityState={{ checked: substitute }}
+        <Chip
+          kind="checkbox"
+          label="Sub"
+          selected={substitute}
           onPress={onToggleSubstitute}
-          style={[styles.sub, { borderRadius: theme.radius.sm, borderColor: substitute ? theme.color.accent : theme.color.borderStrong, borderWidth: theme.borderWidth.control }]}
-        >
-          <Text variant="footnote" weight="semibold" tone={substitute ? 'accent' : 'secondary'}>
-            sub
-          </Text>
-        </Pressable>
+          accessibilityLabel={`${name} as substitute`}
+          accessibilityHint="Substitutes field only"
+          testID={`${testID}-sub`}
+        />
       ) : null}
     </View>
+  );
+  return (
+    <ChoiceRow
+      kind="checkbox"
+      label={name}
+      selected={selected}
+      onPress={onToggle}
+      lead={selected && order !== null ? `${order}` : ''}
+      meta={tags === '' ? undefined : tags}
+      trailing={controls}
+      separator
+      accessibilityLabel={label}
+      testID={testID}
+    />
   );
 }
 
 const styles = StyleSheet.create({
-  line: { flexDirection: 'row', alignItems: 'center', paddingRight: space.xs },
-  row: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: space.sm, minHeight: 48, paddingHorizontal: space.md },
-  box: { width: 24, height: 24, alignItems: 'center', justifyContent: 'center' },
-  order: { width: 20 },
-  flex: { flex: 1 },
-  moves: { flexDirection: 'row' },
-  sub: { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
+  controls: { minWidth: SQUAD_CONTROLS_WIDTH, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end' },
 });

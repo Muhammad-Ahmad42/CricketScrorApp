@@ -1,16 +1,25 @@
-import { useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { describeTieBreakerChain } from '@/domain/tournament/tiebreakers';
+import type { Fixture } from '@/domain/types';
 import { plural } from '@/features/shared';
-import { SectionHeader, Separator, Text, space } from '@/ui';
+import { Inset, SectionHeader, Separator, Text } from '@/ui';
 import { useTeamLibraryStore, useTournamentStore, useTournamentWizardStore, type TournamentWizardStep } from '@/stores';
 import { showError } from '../../hooks/toast';
 import { useLibraryLoaded } from '../../hooks/useLibrary';
 import { routes } from '../../routes';
 import { formatDateRange } from '../../selectors/dates';
-import { CHAMPION_MARK, stageNameMap, stageSummary } from '../../selectors/stages';
+import { CHAMPION_MARK, stageLine, stageNameMap } from '../../selectors/stages';
 import { WizardFrame } from './WizardFrame';
+
+export function fixturesLine(fixtures: readonly Pick<Fixture, 'scheduledDate'>[]): string {
+  const dated = fixtures.filter((fixture) => fixture.scheduledDate !== null).length;
+  const count = plural(fixtures.length, 'match', 'matches');
+  if (dated === 0) {
+    return `${count} · dates to be set`;
+  }
+  return dated === fixtures.length ? `${count} · all dated` : `${count} · ${dated} dated`;
+}
 
 function ReviewSection({ title, step, lines, testID }: { readonly title: string; readonly step: TournamentWizardStep; readonly lines: readonly string[]; readonly testID: string }) {
   const router = useRouter();
@@ -27,13 +36,13 @@ function ReviewSection({ title, step, lines, testID }: { readonly title: string;
           testID: `${testID}-edit`,
         }}
       />
-      <View style={styles.lines} testID={testID}>
+      <Inset bottom="sm" gap="xxs" testID={testID}>
         {lines.map((line, index) => (
           <Text key={`${index}:${line}`} variant="callout">
             {line}
           </Text>
         ))}
-      </View>
+      </Inset>
       <Separator />
     </View>
   );
@@ -44,10 +53,9 @@ export function ReviewStepScreen() {
   const router = useRouter();
   const library = useTeamLibraryStore((state) => state.teams);
   const draft = useTournamentWizardStore((state) => state.draft);
-  const fixtureCount = useTournamentStore((state) =>
-    state.snapshot && state.snapshot.tournament.id === draft.tournamentId ? state.snapshot.fixtures.length : null,
+  const fixtures = useTournamentStore((state) =>
+    state.snapshot && state.snapshot.tournament.id === draft.tournamentId ? state.snapshot.fixtures : null,
   );
-  const [busy, setBusy] = useState(false);
   const names = new Map(library.map((team) => [team.id, team.name]));
   const teamNames = draft.teams.map((team) => names.get(team.teamId) ?? 'Team');
   const stages = [...draft.stages].sort((a, b) => a.orderIndex - b.orderIndex);
@@ -59,24 +67,24 @@ export function ReviewStepScreen() {
   const planCount = draft.fixturePlan?.fixtures.length ?? null;
 
   const confirm = async () => {
-    setBusy(true);
     useTournamentWizardStore.getState().goTo('review');
     const tournamentId = await useTournamentWizardStore.getState().commit();
-    setBusy(false);
     if (tournamentId === null) {
-      showError(useTournamentWizardStore.getState().error, "Couldn't confirm the tournament. Your setup is still saved.");
+      showError(useTournamentWizardStore.getState().error, "Couldn't confirm the tournament.");
       return;
     }
     useTournamentWizardStore.getState().reset();
     router.replace(routes.dashboard(tournamentId));
   };
 
+  const confirmStep = async () => {
+    await confirm();
+    return false;
+  };
+
   return (
-    <WizardFrame step="review" nextLabel="Confirm tournament" nextTestID="twiz-btn-confirm-tournament" onNext={async () => {
-      await confirm();
-      return false;
-    }}>
-      <View style={styles.head}>
+    <WizardFrame step="review" nextLabel="Confirm tournament" nextTestID="twiz-btn-confirm-tournament" onNext={confirmStep}>
+      <Inset top="md" bottom="md" gap="xxs">
         <Text variant="title2" testID="twiz-text-review-name">
           {draft.info.season ? `${draft.info.name} ${draft.info.season}` : draft.info.name}
         </Text>
@@ -85,7 +93,7 @@ export function ReviewStepScreen() {
             {meta.join(' · ')}
           </Text>
         ) : null}
-      </View>
+      </Inset>
       <Separator />
       <ReviewSection
         title={`Teams · ${draft.teams.length}`}
@@ -97,7 +105,7 @@ export function ReviewStepScreen() {
         title="Format"
         step="structure"
         testID="twiz-review-format"
-        lines={stages.map((stage) => `${stage.name}: ${stageSummary(stage, draft.pools, stageNames)}${stage.config.decidesChampion ? ` · ${CHAMPION_MARK}` : ''}`)}
+        lines={stages.map((stage) => `${stageLine(stage, draft.pools, stageNames)}${stage.config.decidesChampion && stages.length > 1 ? ` · ${CHAMPION_MARK}` : ''}`)}
       />
       <ReviewSection
         title="Rules"
@@ -108,7 +116,7 @@ export function ReviewStepScreen() {
             ? [
                 `Win ${rules.pointsSystem.win} · Tie ${rules.pointsSystem.tie} · NR ${rules.pointsSystem.noResult} · Loss ${rules.pointsSystem.loss} · ${rules.nrr.mode === 'icc' ? 'ICC NRR' : 'NRR on actual overs'}`,
                 describeTieBreakerChain(rules.tieBreakers),
-                `${rules.defaultMatchRules.oversPerInnings} overs · ${rules.defaultMatchRules.playersPerSide} players per side`,
+                `${plural(rules.defaultMatchRules.oversPerInnings, 'over')} · ${rules.defaultMatchRules.playersPerSide} players per side`,
               ]
             : ['Default rules']
         }
@@ -119,8 +127,8 @@ export function ReviewStepScreen() {
         step="fixtures"
         testID="twiz-review-fixtures"
         lines={[
-          fixtureCount !== null && fixtureCount > 0
-            ? `${plural(fixtureCount, 'match', 'matches')} scheduled`
+          fixtures !== null && fixtures.length > 0
+            ? fixturesLine(fixtures)
             : planCount !== null
               ? `${plural(planCount, 'match', 'matches')} in the first stage`
               : 'No fixtures yet',
@@ -129,8 +137,3 @@ export function ReviewStepScreen() {
     </WizardFrame>
   );
 }
-
-const styles = StyleSheet.create({
-  head: { paddingHorizontal: space.md, paddingVertical: space.md, gap: space.xxs },
-  lines: { paddingHorizontal: space.md, paddingBottom: space.sm, gap: space.xxs },
-});

@@ -37,7 +37,7 @@ export function tournamentRowVM(item: TournamentListItem): TournamentRowVM {
   if (dates) {
     metaParts.push(dates);
   }
-  const progressText = draft || item.fixturesTotal === 0 ? null : `${item.fixturesDone}/${item.fixturesTotal} played`;
+  const progressText = draft || item.fixturesTotal === 0 ? null : `${item.fixturesDone} of ${item.fixturesTotal} played`;
   const statusLabel = TOURNAMENT_STATUS_LABEL[item.status];
   const spoken = [name, metaParts.join(', '), statusLabel];
   if (progressText) {
@@ -63,11 +63,11 @@ export function tournamentRowVM(item: TournamentListItem): TournamentRowVM {
 export function emptyListText(filter: TournamentListFilter): string {
   switch (filter) {
     case 'drafts':
-      return 'No drafts.';
+      return 'No drafts';
     case 'completed':
-      return 'No completed tournaments yet.';
+      return 'No completed tournaments';
     case 'active':
-      return 'No active tournaments.';
+      return 'No active tournaments';
     case 'all':
       return 'No tournaments yet';
     default: {

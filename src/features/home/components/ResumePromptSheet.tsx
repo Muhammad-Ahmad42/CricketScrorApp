@@ -22,23 +22,23 @@ export function ResumePromptSheet({ visible, items, onResume, onSaveExit, onDisc
     <Sheet
       visible={visible}
       blocking
-      title="Match in progress"
+      title={single === null ? 'Matches in progress' : 'Match in progress'}
       testID="sheet-resume"
       footer={
         single !== null ? (
           <View style={styles.actions}>
-            <Button label="RESUME" caps size="lg" fullWidth onPress={() => onResume(single.vm.id)} testID="resume-btn-resume" />
-            <Button label="SAVE & EXIT" caps variant="secondary" size="lg" fullWidth onPress={onSaveExit} testID="resume-btn-save-exit" />
+            <Button label="Resume" icon="play" size="lg" fullWidth onPress={() => onResume(single.vm.id)} testID="resume-btn-resume" />
+            <Button label="Save & exit" variant="secondary" size="lg" fullWidth onPress={onSaveExit} testID="resume-btn-save-exit" />
             {single.vm.tournamentId === null ? (
-              <Button label="DISCARD" caps variant="destructive" size="lg" fullWidth onPress={() => onDiscard(single.vm.id)} testID="resume-btn-discard" />
+              <Button label="Discard" variant="destructive" size="lg" fullWidth onPress={() => onDiscard(single.vm.id)} testID="resume-btn-discard" />
             ) : (
               <Text variant="footnote" tone="secondary" testID="resume-text-tournament">
-                {"Tournament matches can't be discarded. End or abandon it in Match settings."}
+                {"Tournament matches can't be discarded"}
               </Text>
             )}
           </View>
         ) : (
-          <Button label="SAVE & EXIT" caps variant="secondary" size="lg" fullWidth onPress={onSaveExit} testID="resume-btn-save-exit" />
+          <Button label="Save & exit" variant="secondary" size="lg" fullWidth onPress={onSaveExit} testID="resume-btn-save-exit" />
         )
       }
     >
@@ -46,20 +46,28 @@ export function ResumePromptSheet({ visible, items, onResume, onSaveExit, onDisc
         {items.map((item) => (
           <View key={item.vm.id} style={styles.item} testID={`resume-item-${item.vm.id}`}>
             <View style={styles.line}>
-              <Text variant="headline">{item.vm.battingTeam}</Text>
-              <Text variant="scoreMedium" tone="score">
+              <Text variant="body" style={styles.flex}>
+                {item.vm.battingTeam}
+              </Text>
+              <Text variant="scoreLarge" tone="score">
                 {item.vm.score}
               </Text>
-              {item.needsRepair ? <Badge label="Needs repair" tone="repair" /> : null}
             </View>
+            {item.needsRepair ? (
+              <View style={styles.badge}>
+                <Badge label="Needs repair" tone="repair" />
+              </View>
+            ) : null}
             <Text variant="subhead" tone="secondary">
-              {`${item.vm.oversText} · ${item.vm.title}`}
+              {`v ${item.vm.opponent} · ${item.vm.oversOf}`}
             </Text>
             {item.savedAt ? (
-              <Text variant="footnote" tone="muted">{`Last ball saved ${item.savedAt}`}</Text>
+              <Text variant="footnote" tone="secondary">{`Last ball saved at ${item.savedAt}`}</Text>
             ) : null}
             {single === null ? (
-              <Button label="Resume" variant="secondary" size="sm" onPress={() => onResume(item.vm.id)} testID={`resume-item-${item.vm.id}-resume`} />
+              <View style={styles.badge}>
+                <Button label="Resume" icon="play" variant="secondary" size="sm" onPress={() => onResume(item.vm.id)} testID={`resume-item-${item.vm.id}-resume`} />
+              </View>
             ) : null}
           </View>
         ))}
@@ -72,5 +80,7 @@ const styles = StyleSheet.create({
   list: { gap: space.md },
   item: { gap: space.xxs },
   line: { flexDirection: 'row', alignItems: 'baseline', gap: space.sm },
+  flex: { flex: 1 },
+  badge: { alignItems: 'flex-start' },
   actions: { gap: space.xs },
 });

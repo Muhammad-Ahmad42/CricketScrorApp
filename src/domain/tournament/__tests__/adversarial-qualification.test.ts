@@ -1442,6 +1442,7 @@ describe('top N overall', () => {
       separatedBy: 'nrr',
       aboveTeamId: 'TIG',
       detail: 'Ahead of Tigers on net run rate (+2.000 vs +1.667)',
+      headline: 'Ahead of Tigers on NRR',
     });
     expect(targetOf(qualOf(ev, 'grp', 'ROY'), 'ko')).toMatchObject({ state: 'qualified', certainty: 'mathematical' });
     expect(targetOf(qualOf(ev, 'grp', 'EAG'), 'ko')).toMatchObject({ state: 'eliminated', certainty: 'mathematical' });

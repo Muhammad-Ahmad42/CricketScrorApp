@@ -86,7 +86,7 @@ export function createBackupService(ctx: ServiceContext): BackupService {
       throw failure('IMPORT_INVALID', MESSAGES.importRead, { detail: error instanceof Error ? error.message : String(error) });
     }
     if (text.length > MAX_IMPORT_CHARACTERS) {
-      throw failure('IMPORT_INVALID', 'This backup is larger than 100 MB, which Scorebook cannot import on this device.');
+      throw failure('IMPORT_INVALID', 'This backup is too large. Scorebook imports up to 100 MB.');
     }
     return text;
   }
@@ -188,7 +188,7 @@ export function createBackupService(ctx: ServiceContext): BackupService {
             }
             const violations = await foreignKeyCheck(tx);
             if (violations.length > 0) {
-              throw failure('IMPORT_INVALID', "The backup's records don't fit together, so nothing was imported.", {
+              throw failure('IMPORT_INVALID', "This backup's records don't match. Nothing was imported.", {
                 detail: violations.map((violation) => `${violation.table} → ${violation.parent}`).join(', '),
               });
             }

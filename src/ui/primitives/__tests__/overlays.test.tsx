@@ -4,7 +4,7 @@ import { act, fireEvent, screen, userEvent, waitFor } from '@testing-library/rea
 import { renderWithTheme } from '../../testing';
 import { darkColors, lightColors } from '../../theme';
 import { Screen, ToastAnchorProvider, latestToastAnchor, useToastAnchor, type ToastAnchor } from '../../layout';
-import { TabChrome, floatingTabBarMetrics } from '../../navigation';
+import { TabChrome, tabBarMetrics } from '../../navigation';
 import {
   Dialog,
   Sheet,
@@ -273,7 +273,7 @@ describe('Toast', () => {
     expect(toastHostEdge(undefined, undefined, { edge: 'top', offset: 200 }, 34)).toEqual({ top: 200 });
   });
 
-  it('clears the floating glass tab bar and a glass footer, and the newest anchor wins (§6.10, §106)', async () => {
+  it('clears the glass tab bar and a glass footer, and the newest anchor wins (§6.10, §106)', async () => {
     function Pinned({ anchor }: { readonly anchor: ToastAnchor | null }) {
       useToastAnchor(anchor);
       return null;
@@ -291,7 +291,7 @@ describe('Toast', () => {
         <ToastHost toasts={[info]} onDismiss={jest.fn()} />
       </ToastAnchorProvider>
     );
-    const tabTop = floatingTabBarMetrics(34).footprint;
+    const tabTop = tabBarMetrics(34).footprint;
     const view = await renderWithTheme(tree(null, false));
     expect(screen.getByTestId('toast-host')).toHaveStyle({ bottom: tabTop + 16 });
     await view.rerender(tree({ edge: 'top', offset: 180 }, false));

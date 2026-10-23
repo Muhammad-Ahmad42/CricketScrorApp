@@ -1,4 +1,5 @@
-import type { AuditAction, AuditEvent, JsonValue } from '@/domain/types';
+import type { AuditAction, AuditEvent, ImpactSummary, JsonValue } from '@/domain/types';
+import { plural } from '@/features/shared';
 import { formatDate } from './dates';
 
 export type AuditFilter = 'all' | 'results' | 'teams' | 'fixtures' | 'overrides' | 'rules';
@@ -11,14 +12,28 @@ const FILTER_ACTIONS: { readonly [K in Exclude<AuditFilter, 'all'>]: readonly Au
   rules: ['rules_changed', 'stage_created', 'stage_changed', 'stage_deleted', 'slot_changed', 'tournament_info_changed', 'tournament_status_changed'],
 };
 
-export const AUDIT_FILTERS: readonly { readonly value: AuditFilter; readonly label: string }[] = [
-  { value: 'all', label: 'All changes' },
-  { value: 'results', label: 'Results' },
-  { value: 'teams', label: 'Teams & pools' },
-  { value: 'fixtures', label: 'Fixtures' },
-  { value: 'overrides', label: 'Overrides' },
-  { value: 'rules', label: 'Rules & stages' },
+export const AUDIT_FILTERS: readonly { readonly value: AuditFilter; readonly label: string; readonly accessibilityLabel: string }[] = [
+  { value: 'all', label: 'All', accessibilityLabel: 'All changes' },
+  { value: 'results', label: 'Results', accessibilityLabel: 'Results' },
+  { value: 'teams', label: 'Teams', accessibilityLabel: 'Teams and pools' },
+  { value: 'fixtures', label: 'Fixtures', accessibilityLabel: 'Fixtures' },
+  { value: 'overrides', label: 'Overrides', accessibilityLabel: 'Overrides' },
+  { value: 'rules', label: 'Rules', accessibilityLabel: 'Rules and stages' },
 ];
+
+export function impactLabel(impact: ImpactSummary): string {
+  if (impact.fixtures.length > 0) {
+    return `Impact · ${plural(impact.fixtures.length, 'fixture')}`;
+  }
+  const teams = new Set(impact.standings.map((line) => line.teamId)).size;
+  if (teams > 0) {
+    return `Impact · ${plural(teams, 'team')}`;
+  }
+  if (impact.qualification.length > 0) {
+    return 'Impact · qualification';
+  }
+  return 'No impact on results';
+}
 
 export interface AuditRowVM {
   readonly key: string;

@@ -1,4 +1,4 @@
-import { StyleSheet, type ViewStyle } from 'react-native';
+import type { ViewStyle } from 'react-native';
 import { bandCoverage, compositeLayers, contrastOnLayers, discCoverage, mixColors, parseColor, type MixSpace, type Rgba } from './contrast';
 import type { ColorToken, ColorTokens } from './tokens';
 
@@ -8,18 +8,20 @@ export type GlassLevel = (typeof GLASS_LEVELS)[number];
 
 export type GlassBlurTint = 'light' | 'dark';
 
+export interface GlassRimTokens {
+  readonly color: string;
+  readonly top: string;
+  readonly left: string;
+  readonly width: number;
+}
+
 export interface GlassLevelTokens {
   readonly tint: string;
   readonly unblurred: string;
   readonly opaque: string;
   readonly blur: number;
   readonly sheen: boolean;
-}
-
-export interface GlassRimTokens {
-  readonly color: string;
-  readonly top: string;
-  readonly width: number;
+  readonly rim?: GlassRimTokens;
 }
 
 export interface GlassEdgeTokens {
@@ -40,9 +42,29 @@ export interface GlassAmbientTokens {
   readonly secondaryClear: string;
 }
 
+export interface GlassInkTokens {
+  readonly secondary: string;
+  readonly accent: string;
+}
+
 export interface GlassScrimTokens {
   readonly color: string;
   readonly reduced: string;
+}
+
+export interface GlassLiquidTokens {
+  readonly fill: string;
+  readonly fillTop: number;
+  readonly fillBottom: number;
+  readonly edge: string;
+  readonly edgeOpacity: number;
+  readonly glow: string;
+  readonly glowOpacity: number;
+  readonly rim: string;
+  readonly rimOpacity: number;
+  readonly line: string;
+  readonly lineOpacity: number;
+  readonly ink: ColorToken;
 }
 
 export interface GlassPalette {
@@ -51,11 +73,16 @@ export interface GlassPalette {
   readonly rim: GlassRimTokens;
   readonly edge: GlassEdgeTokens;
   readonly sheen: GlassSheenTokens;
+  readonly ink: GlassInkTokens;
+  readonly rest: number;
+  readonly saturation: number;
   readonly selection: string;
   readonly selectionRim: string;
   readonly pressed: string;
   readonly scrim: GlassScrimTokens;
   readonly ambient: GlassAmbientTokens;
+  readonly liquid: GlassLiquidTokens;
+  readonly fade: number;
   readonly shadow: ViewStyle;
 }
 
@@ -70,6 +97,8 @@ export const glassRadius = {
 
 export type GlassRadiusToken = keyof typeof glassRadius;
 
+export const GLASS_INK_LEVELS: readonly GlassLevel[] = ['bar', 'dock', 'control'];
+
 export const GLASS_INKS: { readonly [K in GlassLevel]: readonly ColorToken[] } = {
   bar: ['textPrimary', 'textSecondary', 'accent', 'score'],
   dock: ['textPrimary', 'textSecondary', 'accent', 'score'],
@@ -81,27 +110,52 @@ export const GLASS_INKS: { readonly [K in GlassLevel]: readonly ColorToken[] } =
 export const lightGlass: GlassPalette = {
   blurTint: 'light',
   level: {
-    bar: { tint: 'rgba(251,251,248,0.72)', unblurred: 'rgba(251,251,248,0.80)', opaque: '#FBFBF8', blur: 70, sheen: true },
-    dock: { tint: 'rgba(251,251,248,0.72)', unblurred: 'rgba(251,251,248,0.80)', opaque: '#FBFBF8', blur: 70, sheen: true },
-    control: { tint: 'rgba(238,236,229,0.78)', unblurred: 'rgba(238,236,229,0.85)', opaque: '#EEECE5', blur: 60, sheen: true },
-    popover: { tint: 'rgba(251,251,248,0.84)', unblurred: 'rgba(251,251,248,0.89)', opaque: '#FBFBF8', blur: 70, sheen: true },
-    sheet: { tint: 'rgba(251,251,248,0.92)', unblurred: 'rgba(251,251,248,0.94)', opaque: '#FBFBF8', blur: 80, sheen: true },
+    bar: { tint: 'rgba(252,254,255,0.60)', unblurred: 'rgba(252,254,255,0.98)', opaque: '#FCFEFF', blur: 100, sheen: true },
+    dock: {
+      tint: 'rgba(252,254,255,0.66)',
+      unblurred: 'rgba(252,254,255,0.985)',
+      opaque: '#FCFEFF',
+      blur: 100,
+      sheen: true,
+      rim: { color: 'rgba(255,255,255,0.80)', top: 'rgba(255,255,255,0.94)', left: 'rgba(255,255,255,0.88)', width: 1 },
+    },
+    control: { tint: 'rgba(232,240,244,0.64)', unblurred: 'rgba(232,240,244,0.98)', opaque: '#E8F0F4', blur: 90, sheen: true },
+    popover: { tint: 'rgba(252,254,255,0.86)', unblurred: 'rgba(252,254,255,0.985)', opaque: '#FCFEFF', blur: 100, sheen: true },
+    sheet: { tint: 'rgba(252,254,255,0.88)', unblurred: 'rgba(252,254,255,0.99)', opaque: '#FCFEFF', blur: 100, sheen: true },
   },
-  rim: { color: 'rgba(255,255,255,0.60)', top: 'rgba(255,255,255,0.90)', width: 1 },
-  edge: { color: 'rgba(26,28,25,0.10)', width: StyleSheet.hairlineWidth },
-  sheen: { from: 'rgba(255,255,255,0.45)', to: 'rgba(255,255,255,0)', extent: 0.6 },
-  selection: 'rgba(226,236,228,0.72)',
-  selectionRim: 'rgba(31,92,58,0.40)',
-  pressed: 'rgba(224,227,221,0.60)',
-  scrim: { color: 'rgba(17,19,16,0.32)', reduced: 'rgba(17,19,16,0.48)' },
+  rim: { color: 'rgba(255,255,255,0.70)', top: 'rgba(255,255,255,0.92)', left: 'rgba(255,255,255,0.84)', width: 1 },
+  edge: { color: 'rgba(0,139,163,0.30)', width: 1 },
+  sheen: { from: 'rgba(255,255,255,0.65)', to: 'rgba(255,255,255,0)', extent: 0.45 },
+  ink: { secondary: '#2F4954', accent: '#004D5A' },
+  rest: 0.6,
+  saturation: 1.7,
+  selection: 'rgba(214,239,245,0.78)',
+  selectionRim: 'rgba(0,96,111,0.55)',
+  pressed: 'rgba(10,34,41,0.06)',
+  scrim: { color: 'rgba(6,26,32,0.40)', reduced: 'rgba(6,26,32,0.52)' },
   ambient: {
-    primary: 'rgba(31,92,58,0.04)',
-    primaryClear: 'rgba(31,92,58,0)',
-    secondary: 'rgba(74,111,192,0.025)',
-    secondaryClear: 'rgba(74,111,192,0)',
+    primary: 'rgba(0,194,224,0.07)',
+    primaryClear: 'rgba(0,194,224,0)',
+    secondary: 'rgba(255,255,255,0.60)',
+    secondaryClear: 'rgba(255,255,255,0)',
   },
+  liquid: {
+    fill: '#0AA6C2',
+    fillTop: 0.1,
+    fillBottom: 0.26,
+    edge: '#00606F',
+    edgeOpacity: 0.3,
+    glow: '#00C2E0',
+    glowOpacity: 0.14,
+    rim: '#00A9C7',
+    rimOpacity: 0.75,
+    line: '#008BA3',
+    lineOpacity: 0.24,
+    ink: 'accent',
+  },
+  fade: 0.5,
   shadow: {
-    shadowColor: '#0E1A13',
+    shadowColor: '#06222B',
     shadowOpacity: 0.1,
     shadowRadius: 24,
     shadowOffset: { width: 0, height: 8 },
@@ -111,27 +165,69 @@ export const lightGlass: GlassPalette = {
 export const darkGlass: GlassPalette = {
   blurTint: 'dark',
   level: {
-    bar: { tint: 'rgba(16,24,29,0.79)', unblurred: 'rgba(16,24,29,0.87)', opaque: '#10181D', blur: 70, sheen: true },
-    dock: { tint: 'rgba(16,24,29,0.79)', unblurred: 'rgba(16,24,29,0.87)', opaque: '#10181D', blur: 70, sheen: true },
-    control: { tint: 'rgba(10,15,18,0.78)', unblurred: 'rgba(10,15,18,0.84)', opaque: '#0A0F12', blur: 60, sheen: true },
-    popover: { tint: 'rgba(19,27,32,0.80)', unblurred: 'rgba(19,27,32,0.88)', opaque: '#131B20', blur: 70, sheen: false },
-    sheet: { tint: 'rgba(19,26,31,0.72)', unblurred: 'rgba(19,26,31,0.82)', opaque: '#131A1F', blur: 80, sheen: false },
+    bar: { tint: 'rgba(15,27,34,0.70)', unblurred: 'rgba(15,27,34,0.98)', opaque: '#0F1B22', blur: 100, sheen: true },
+    dock: {
+      tint: 'rgba(15,27,34,0.76)',
+      unblurred: 'rgba(15,27,34,0.985)',
+      opaque: '#0F1B22',
+      blur: 100,
+      sheen: true,
+      rim: { color: 'rgba(0,194,224,0.30)', top: 'rgba(40,217,242,0.50)', left: 'rgba(40,217,242,0.38)', width: 1 },
+    },
+    control: { tint: 'rgba(11,20,25,0.70)', unblurred: 'rgba(11,20,25,0.98)', opaque: '#0B1419', blur: 90, sheen: true },
+    popover: { tint: 'rgba(17,30,37,0.90)', unblurred: 'rgba(17,30,37,0.985)', opaque: '#111E25', blur: 100, sheen: false },
+    sheet: { tint: 'rgba(9,17,22,0.82)', unblurred: 'rgba(9,17,22,0.99)', opaque: '#091116', blur: 100, sheen: false },
   },
-  rim: { color: 'rgba(120,196,200,0.24)', top: 'rgba(140,214,214,0.46)', width: 1 },
-  edge: { color: 'rgba(2,6,7,0.60)', width: StyleSheet.hairlineWidth },
-  sheen: { from: 'rgba(150,214,214,0.05)', to: 'rgba(150,214,214,0)', extent: 0.6 },
-  selection: 'rgba(6,20,13,0.36)',
-  selectionRim: 'rgba(114,190,144,0.50)',
-  pressed: 'rgba(4,10,11,0.30)',
-  scrim: { color: 'rgba(3,8,9,0.56)', reduced: 'rgba(3,8,9,0.72)' },
+  rim: { color: 'rgba(0,194,224,0.20)', top: 'rgba(40,217,242,0.40)', left: 'rgba(40,217,242,0.30)', width: 1 },
+  edge: { color: 'rgba(1,5,7,0.60)', width: 1 },
+  sheen: { from: 'rgba(40,217,242,0.07)', to: 'rgba(40,217,242,0)', extent: 0.45 },
+  ink: { secondary: '#ABBDC7', accent: '#26CCE6' },
+  rest: 0.6,
+  saturation: 1.6,
+  selection: 'rgba(0,72,86,0.55)',
+  selectionRim: 'rgba(0,194,224,0.50)',
+  pressed: 'rgba(1,6,8,0.30)',
+  scrim: { color: 'rgba(2,7,9,0.60)', reduced: 'rgba(2,7,9,0.76)' },
   ambient: {
-    primary: 'rgba(70,160,150,0.08)',
-    primaryClear: 'rgba(70,160,150,0)',
-    secondary: 'rgba(104,108,190,0.06)',
-    secondaryClear: 'rgba(104,108,190,0)',
+    primary: 'rgba(13,56,67,0.18)',
+    primaryClear: 'rgba(13,56,67,0)',
+    secondary: 'rgba(8,49,58,0.10)',
+    secondaryClear: 'rgba(8,49,58,0)',
   },
+  liquid: {
+    fill: '#00C2E0',
+    fillTop: 0.12,
+    fillBottom: 0.3,
+    edge: '#28D9F2',
+    edgeOpacity: 0.45,
+    glow: '#00C2E0',
+    glowOpacity: 0.16,
+    rim: '#28D9F2',
+    rimOpacity: 0.8,
+    line: '#28D9F2',
+    lineOpacity: 0.18,
+    ink: 'textPrimary',
+  },
+  fade: 0.6,
   shadow: {},
 };
+
+export function glassRimFor(palette: GlassPalette, level: GlassLevel): GlassRimTokens {
+  return palette.level[level].rim ?? palette.rim;
+}
+
+export function isGlassInkLevel(level: GlassLevel): boolean {
+  return GLASS_INK_LEVELS.includes(level);
+}
+
+export function glassInkColors(palette: GlassPalette, color: ColorTokens, highContrast = false): ColorTokens {
+  const secondary = highContrast ? color.textPrimary : palette.ink.secondary;
+  return { ...color, textSecondary: secondary, textMuted: secondary, accent: palette.ink.accent };
+}
+
+export function glassInkFor(palette: GlassPalette, color: ColorTokens, level: GlassLevel, token: ColorToken): string {
+  return isGlassInkLevel(level) ? glassInkColors(palette, color)[token] : color[token];
+}
 
 export interface GlassTokens extends GlassPalette {
   readonly reduced: boolean;
@@ -153,7 +249,7 @@ export function glassPaletteFor(scheme: 'light' | 'dark'): GlassPalette {
   return scheme === 'dark' ? darkGlass : lightGlass;
 }
 
-export const GLASS_BLUR_SIGMA_PER_UNIT = 0.2;
+export const GLASS_BLUR_SIGMA_PER_UNIT = 0.24;
 
 export function glassBlurSigma(blur: number): number {
   return Math.round(blur * GLASS_BLUR_SIGMA_PER_UNIT * 100) / 100;
@@ -175,7 +271,7 @@ export interface GlassBackdropModel {
 
 export const GLASS_BACKDROP: GlassBackdropModel = {
   fields: ['background', 'surface', 'surfaceElevated', 'surfaceSunken', 'accentSubtle', 'successSubtle', 'warningSubtle', 'dangerSubtle', 'border', 'chartGrid'],
-  blocks: ['accent', 'accentPressed', 'danger', 'chartSeries1', 'chartSeries2'],
+  blocks: ['accent', 'accentPressed', 'accentDeep', 'danger', 'chartSeries1', 'chartSeries2'],
   details: [
     'textPrimary',
     'score',
@@ -187,6 +283,7 @@ export const GLASS_BACKDROP: GlassBackdropModel = {
     'danger',
     'borderStrong',
     'focusRing',
+    'highlight',
     'onAccent',
     'onDanger',
     'chartSeries1',

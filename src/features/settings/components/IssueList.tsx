@@ -1,34 +1,43 @@
 import { StyleSheet, View } from 'react-native';
-import { Icon, Separator, Text, space, useTheme } from '@/ui';
+import { Icon, Text, space } from '@/ui';
 import type { IssueVM } from '../selectors/importPreview';
+import { Block } from './Block';
 
 export interface IssueListProps {
   readonly issues: readonly IssueVM[];
+  readonly offset?: number;
 }
 
-export function IssueList({ issues }: IssueListProps) {
-  const theme = useTheme();
+export function IssueList({ issues, offset = 0 }: IssueListProps) {
   return (
-    <View style={{ backgroundColor: theme.color.surface }}>
+    <>
       {issues.map((issue, index) => (
-        <View key={issue.key}>
-          <View style={styles.row} accessible accessibilityLabel={`${issue.severityLabel}: ${issue.message}`} testID={`import-row-issue-${index + 1}`}>
-            <Icon name={issue.severity === 'error' ? 'circle-alert' : 'triangle-alert'} size={20} color={issue.severity === 'error' ? 'danger' : 'warning'} />
-            <View style={styles.text}>
-              <Text variant="label" tone={issue.severity === 'error' ? 'danger' : 'warning'}>
-                {issue.severityLabel}
+        <Block
+          key={issue.key}
+          direction="row"
+          align="start"
+          gap="sm"
+          compact
+          separator={index < issues.length - 1}
+          accessible
+          accessibilityLabel={`${issue.severityLabel}: ${issue.message}`}
+          testID={`import-row-issue-${offset + index + 1}`}
+        >
+          <Icon name={issue.severity === 'error' ? 'circle-alert' : 'triangle-alert'} size={20} color={issue.severity === 'error' ? 'danger' : 'warning'} />
+          <View style={styles.text}>
+            <Text variant="body">{issue.headline}</Text>
+            {issue.supporting ? (
+              <Text variant="footnote" tone="secondary">
+                {issue.supporting}
               </Text>
-              <Text variant="body">{issue.message}</Text>
-            </View>
+            ) : null}
           </View>
-          <Separator inset={space.md} />
-        </View>
+        </Block>
       ))}
-    </View>
+    </>
   );
 }
 
 const styles = StyleSheet.create({
-  row: { flexDirection: 'row', alignItems: 'flex-start', gap: space.sm, paddingHorizontal: space.md, paddingVertical: space.sm, minHeight: 48 },
-  text: { flex: 1, gap: space.xxs },
+  text: { flex: 1, minWidth: 0, gap: space.xxs },
 });

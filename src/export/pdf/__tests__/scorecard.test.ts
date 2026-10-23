@@ -49,7 +49,7 @@ describe('buildScorecardHtml', () => {
     expect(html).toContain('Tigers &quot;XI&quot; won by 10 wickets (4 balls left)');
     expect(html).toContain('Lions &amp; &lt;Co&gt; won the toss and chose to bat');
     expect(html).toContain('<b>Venue</b> Gaddafi Stadium, Lahore');
-    expect(html).toContain('<b>Date</b> 29 Sep 2026');
+    expect(html).toContain('<b>Date</b> 30 Sep 2026');
     expect(html).toContain('<b>Format</b> 2 overs a side');
     expect(html).toContain('<title>Scorecard - Lions &amp; &lt;Co&gt; v Tigers &quot;XI&quot;</title>');
   });
@@ -167,7 +167,7 @@ describe('scorecard edge cases', () => {
     expect(text(html)).toContain('Pos Team P W L T NR Pts NRR');
     expect(html).toContain('<td class="num">1</td><td class="name"><b>Tigers &quot;XI&quot;</b></td>');
     expect(html).toContain('<td class="num">+1.500</td>');
-    expect(html).toContain('<td class="num">-2.000</td>');
+    expect(html).toContain('<td class="num">−2.000</td>');
     expect(html).toContain('<td class="num">3=</td><td class="name">A4</td>');
     expect(html).toContain('<li>Lions &amp; &lt;Co&gt;: -1 point adjustment.</li>');
     expect(html).toContain('<li>Tigers &quot;XI&quot;: Ahead on net run rate (+1.500 vs +0.250)</li>');
@@ -188,12 +188,14 @@ describe('scorecard edge cases', () => {
 
   it('renders a match that has not started', () => {
     const state: MatchState = handState({ innings: [], resultText: null, lifecycle: 'not_started', currentInningsIndex: null });
-    const html = buildScorecardHtml(source({ match: { ...handMatch(), status: 'scheduled', result: null, scheduledDate: null, startedAt: null }, state, venue: null }), OPTIONS);
+    const html = buildScorecardHtml(source({ match: { ...handMatch(), status: 'scheduled', result: null, scheduledDate: null, startedAt: null, completedAt: null }, state, venue: null }), OPTIONS);
     expect(html).toContain('No innings has started yet.');
     expect(html).toContain('Match not started');
     expect(html).not.toContain('<b>Date</b>');
     const adHoc = scorecardDocument(source({ match: { ...handMatch(), scheduledDate: null } }));
     expect(adHoc.date).toBe('30 Sep 2026');
+    const unplayed = scorecardDocument(source({ match: { ...handMatch(), status: 'scheduled', result: null, startedAt: null, completedAt: null }, state }));
+    expect(unplayed.date).toBe('29 Sep 2026');
     expect(html).not.toContain('<b>Venue</b>');
   });
 

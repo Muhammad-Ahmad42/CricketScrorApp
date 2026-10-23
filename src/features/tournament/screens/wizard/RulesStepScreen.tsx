@@ -2,13 +2,18 @@ import { useEffect, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { BUILTIN_FORMAT_PRESETS, OVERS_QUICK_PICKS, rulesForOvers, validateRules } from '@/domain/scoring/presets';
 import type { MatchRules, TournamentRules } from '@/domain/types';
-import { Button, SectionHeader, Separator, Text, TextField, space } from '@/ui';
+import { ChipGroup, Inset, SectionHeader, Separator, Text, TextField, space, useFormChain, useLayoutClass } from '@/ui';
 import { useTournamentWizardStore } from '@/stores';
+import { plural } from '@/features/shared';
 import { RulesEditor } from '../../components/RulesEditor';
 import { nowIso } from '../../ids';
 import { defaultRules } from '../../wizard/structure';
 import { rulesErrors } from '../../wizard/validation';
 import { WizardFrame } from './WizardFrame';
+
+type RulesField = 'overs' | 'players';
+
+export const RULES_FIELDS: readonly RulesField[] = ['overs', 'players'];
 
 function formatIdFor(rules: MatchRules): string {
   const preset = BUILTIN_FORMAT_PRESETS.find((candidate) => candidate.rules.oversPerInnings === rules.oversPerInnings);
@@ -19,10 +24,16 @@ function setRules(rules: TournamentRules): void {
   useTournamentWizardStore.getState().update({ rules });
 }
 
+export function playersError(text: string): string | null {
+  return /^\d+$/.test(text) && Number(text) >= 2 && Number(text) <= 15 ? null : 'From 2 to 15.';
+}
+
 export function RulesStepScreen() {
   const draftRules = useTournamentWizardStore((state) => state.draft.rules);
   const tournamentId = useTournamentWizardStore((state) => state.draft.tournamentId);
   const rules = draftRules ?? defaultRules(tournamentId ?? '', nowIso());
+  const layout = useLayoutClass();
+  const chain = useFormChain(RULES_FIELDS);
   const [customOvers, setCustomOvers] = useState('');
   const [players, setPlayers] = useState(String(rules.defaultMatchRules.playersPerSide));
 
@@ -35,6 +46,7 @@ export function RulesStepScreen() {
   const errors = rulesErrors(rules);
   const warnings = validateRules(rules.defaultMatchRules).filter((issue) => issue.severity === 'warning');
   const overs = rules.defaultMatchRules.oversPerInnings;
+  const side = layout.width === 'medium' || layout.width === 'expanded';
 
   const setMatchRules = (matchRules: MatchRules) =>
     setRules({ ...rules, defaultMatchRules: matchRules, defaultFormatId: formatIdFor(matchRules) });
@@ -48,23 +60,23 @@ export function RulesStepScreen() {
         onChange={(value) => setRules({ ...rules, pointsSystem: value.pointsSystem, nrr: { ...rules.nrr, mode: value.nrrMode }, tieBreakers: value.tieBreakers })}
       />
       <Separator />
-      <SectionHeader title={`Match format · ${rules.defaultFormatId === 'custom' ? 'Custom' : rules.defaultFormatId} · ${overs} overs`} />
-      <View style={styles.padded}>
-        <View style={styles.chips}>
-          {OVERS_QUICK_PICKS.map((value) => (
-            <Button
-              key={value}
-              label={String(value)}
-              variant={value === overs ? 'primary' : 'secondary'}
-              size="sm"
-              accessibilityLabel={`${value} overs${value === overs ? ', selected' : ''}`}
-              onPress={() => setOvers(value)}
-              testID={`twiz-chip-overs-${value}`}
-            />
-          ))}
-        </View>
-        <View style={styles.pair}>
-          <View style={styles.flex}>
+      <SectionHeader title="Match format" />
+      <Inset gap="sm" bottom="md">
+        <Text variant="label" tone="secondary" accessibilityRole="header">
+          Overs per innings
+        </Text>
+        <ChipGroup
+          options={OVERS_QUICK_PICKS.map((value) => ({ value: String(value), label: String(value), accessibilityLabel: plural(value, 'over'), testID: `twiz-chip-overs-${value}` }))}
+          value={OVERS_QUICK_PICKS.includes(overs) ? String(overs) : null}
+          onChange={(value) => {
+            setCustomOvers('');
+            setOvers(Number(value));
+          }}
+          columns={5}
+          accessibilityLabel="Overs per innings"
+        />
+        <View style={side ? styles.pair : styles.stack}>
+          <View style={side ? styles.flex : null}>
             <TextField
               label="Other overs"
               value={customOvers}
@@ -76,22 +88,25 @@ export function RulesStepScreen() {
                 }
               }}
               numeric
+              placeholder={OVERS_QUICK_PICKS.includes(overs) ? undefined : String(overs)}
+              {...chain.field('overs')}
               testID="twiz-input-overs-custom"
             />
           </View>
-          <View style={styles.flex}>
+          <View style={side ? styles.flex : null}>
             <TextField
               label="Players per side"
               value={players}
               onChangeText={(text) => {
                 setPlayers(text);
                 const value = Number(text);
-                if (/^\d+$/.test(text) && value >= 2 && value <= 15) {
+                if (playersError(text) === null) {
                   setMatchRules({ ...rules.defaultMatchRules, playersPerSide: value });
                 }
               }}
               numeric
-              error={/^\d+$/.test(players) && Number(players) >= 2 && Number(players) <= 15 ? null : 'From 2 to 15.'}
+              error={playersError(players)}
+              {...chain.field('players')}
               testID="twiz-input-players-per-side"
             />
           </View>
@@ -101,19 +116,18 @@ export function RulesStepScreen() {
             {warning.message}
           </Text>
         ))}
-        {errors.map((error) => (
+        {errors.slice(1).map((error) => (
           <Text key={error} variant="footnote" tone="danger">
             {error}
           </Text>
         ))}
-      </View>
+      </Inset>
     </WizardFrame>
   );
 }
 
 const styles = StyleSheet.create({
-  padded: { paddingHorizontal: space.md, gap: space.sm },
-  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: space.xs },
   pair: { flexDirection: 'row', gap: space.sm },
-  flex: { flex: 1 },
+  stack: { gap: space.md },
+  flex: { flex: 1, minWidth: 0 },
 });

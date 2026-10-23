@@ -1,5 +1,6 @@
 import '@/ui/testing';
-import { fireEvent, screen, waitFor } from '@testing-library/react-native';
+import { StyleSheet, type ViewStyle } from 'react-native';
+import { fireEvent, screen, waitFor, within } from '@testing-library/react-native';
 import type { FixtureDraft, TournamentSnapshot } from '@/domain/types';
 import type { FixturePlan } from '@/services/contracts';
 import type { TournamentWizardDraft } from '@/stores/contracts';
@@ -12,6 +13,7 @@ import { RulesStepScreen } from '../screens/wizard/RulesStepScreen';
 import { StructureStepScreen } from '../screens/wizard/StructureStepScreen';
 import { TeamsStepScreen } from '../screens/wizard/TeamsStepScreen';
 import { libraryTeams, liveWizard, resetAll } from './support/harness';
+import { pickDate, pickTime } from './support/pickers';
 import { useTeamLibraryStore, useToastStore, useTournamentStore, useTournamentWizardStore } from './support/mockStores';
 import { mockRouter } from './support/router';
 import { POOL_A_IDS, POOL_B_IDS, cupSnapshot } from './support/tournament';
@@ -96,10 +98,12 @@ describe('Wizard · Information (§26)', () => {
   it('validates the date window', async () => {
     liveWizard({ info: { ...useTournamentWizardStore.getState().draft.info, name: 'City Cup' } });
     await renderWithTheme(<InfoStepScreen />);
-    await fireEvent.changeText(screen.getByTestId('twiz-input-start-date'), '2026-10-04');
-    await fireEvent.changeText(screen.getByTestId('twiz-input-end-date'), '2026-09-12');
+    await pickDate('twiz-input-start-date', '2026-10-04');
+    await pickDate('twiz-input-end-date', '2026-09-12');
+    expect(useTournamentWizardStore.getState().draft.info).toMatchObject({ startDate: '2026-10-04', endDate: '2026-09-12' });
+    expect(screen.queryByDisplayValue('2026-10-04')).not.toBeOnTheScreen();
     await fireEvent.press(screen.getByTestId('twiz-btn-next'));
-    expect(screen.getByText('The end date is before the start date.', { includeHiddenElements: true })).toBeOnTheScreen();
+    expect(screen.getByText('Ends before it starts.', { includeHiddenElements: true })).toBeOnTheScreen();
     expect(useTournamentWizardStore.getState().saveStep).not.toHaveBeenCalled();
   });
 
@@ -107,7 +111,7 @@ describe('Wizard · Information (§26)', () => {
     liveWizard({ tournamentId: 't1', info: { ...useTournamentWizardStore.getState().draft.info, name: 'City Cup' } });
     await renderWithTheme(<InfoStepScreen />);
     await fireEvent.press(screen.getByTestId('nav-btn-close'));
-    expect(useToastStore.getState().show).toHaveBeenCalledWith(expect.objectContaining({ message: 'Your draft is saved. Continue it from Tournaments.' }));
+    expect(useToastStore.getState().show).toHaveBeenCalledWith(expect.objectContaining({ message: 'Draft saved' }));
     expect(mockRouter.dismissTo).toHaveBeenCalledWith('/tournaments');
   });
 });
@@ -171,13 +175,19 @@ describe('Wizard · Rules (§40–§43)', () => {
     const snapshot = cupSnapshot({ withFixtures: false });
     liveWizard({ tournamentId: 't1', rules: snapshot.rules }, 'rules');
     await renderWithTheme(<RulesStepScreen />);
-    expect(screen.getByTestId('twiz-text-tiebreak-chain')).toHaveTextContent('Points → NRR → Head-to-Head → Most wins → Organizer decision');
+    const order = () => [1, 2, 3, 4, 5].map((position) => screen.getByTestId(`twiz-text-tiebreaker-${position}`).props.children);
+    expect(order()).toEqual(['Points', 'NRR', 'Head-to-Head', 'Most wins', 'Organizer decision']);
+    expect(screen.queryByTestId('twiz-text-tiebreak-chain')).not.toBeOnTheScreen();
     await fireEvent.press(screen.getByTestId('twiz-btn-tiebreaker-down-2'));
-    expect(screen.getByTestId('twiz-text-tiebreak-chain')).toHaveTextContent('Points → Head-to-Head → NRR → Most wins → Organizer decision');
+    expect(order()).toEqual(['Points', 'Head-to-Head', 'NRR', 'Most wins', 'Organizer decision']);
     await fireEvent.press(screen.getByTestId('twiz-chip-nrr-actual-overs'));
     expect(useTournamentWizardStore.getState().draft.rules?.nrr.mode).toBe('actual_overs');
     await fireEvent.press(screen.getByTestId('twiz-chip-overs-1'));
     expect(useTournamentWizardStore.getState().draft.rules?.defaultMatchRules.oversPerInnings).toBe(1);
+    expect(screen.getByTestId('twiz-chip-overs-1')).toHaveProp('accessibilityState', expect.objectContaining({ checked: true }));
+    expect(screen.getByTestId('twiz-chip-overs-20')).toHaveProp('accessibilityState', expect.objectContaining({ checked: false }));
+    expect(screen.getByTestId('twiz-chip-overs-1')).toHaveProp('accessibilityLabel', '1 over');
+    expect(screen.getByTestId('twiz-chip-overs-20')).toHaveProp('accessibilityLabel', '20 overs');
     await fireEvent.changeText(screen.getByTestId('twiz-input-players-per-side'), '3');
     expect(useTournamentWizardStore.getState().draft.rules?.defaultMatchRules.playersPerSide).toBe(3);
   });
@@ -188,9 +198,10 @@ describe('Wizard · Pools (§30–§32)', () => {
     liveWizard(draftFromCup(cupSnapshot({ withFixtures: false }), false), 'pools');
     useTeamLibraryStore.setState({ teams: libraryTeams(EIGHT) });
     await renderWithTheme(<PoolsStepScreen />);
+    await fireEvent.press(screen.getByTestId('twiz-btn-repeat-draw'));
     await fireEvent.changeText(screen.getByTestId('twiz-input-pool-seed'), '847291');
-    await fireEvent.press(screen.getByTestId('twiz-btn-pools-random'));
-    expect(screen.getByTestId('twiz-text-pool-seed')).toHaveTextContent('Random draw · seed 847291');
+    await fireEvent.press(screen.getByTestId('twiz-btn-repeat-draw-confirm'));
+    expect(screen.getByTestId('twiz-text-pool-seed')).toHaveTextContent('Random draw · no. 847291');
     const first = useTournamentWizardStore.getState().draft.poolAssignment;
     expect(first?.seed).toBe(847291);
     expect(first?.pools.map((pool) => pool.members.length)).toEqual([4, 4]);
@@ -201,15 +212,18 @@ describe('Wizard · Pools (§30–§32)', () => {
     liveWizard(draftFromCup(cupSnapshot({ withFixtures: false }), false), 'pools');
     useTeamLibraryStore.setState({ teams: libraryTeams(EIGHT) });
     await renderWithTheme(<PoolsStepScreen />);
+    await fireEvent.press(screen.getByTestId('twiz-btn-repeat-draw'));
     await fireEvent.changeText(screen.getByTestId('twiz-input-pool-seed'), '847291');
-    await fireEvent.press(screen.getByTestId('twiz-btn-pools-random'));
+    await fireEvent.press(screen.getByTestId('twiz-btn-repeat-draw-confirm'));
     const first = useTournamentWizardStore.getState().draft.poolAssignment;
     await fireEvent.press(screen.getByTestId('twiz-btn-pools-manual'));
     expect(screen.getByTestId('twiz-text-replace-warning')).toHaveTextContent('Current pool arrangement will be replaced.');
     expect(useTournamentWizardStore.getState().draft.poolAssignment).toBe(first);
     await fireEvent.press(screen.getByTestId('dialog-btn-cancel'));
     expect(useTournamentWizardStore.getState().draft.poolAssignment).toBe(first);
-    await fireEvent.press(screen.getByTestId('twiz-btn-pools-random'));
+    await fireEvent.press(screen.getByTestId('twiz-btn-repeat-draw'));
+    expect(screen.getByTestId('twiz-input-pool-seed')).toHaveProp('value', '847291');
+    await fireEvent.press(screen.getByTestId('twiz-btn-repeat-draw-confirm'));
     await fireEvent.press(screen.getByTestId('dialog-btn-confirm'));
     expect(useTournamentWizardStore.getState().draft.poolAssignment).toEqual(first);
     await fireEvent.press(screen.getByTestId('twiz-btn-pools-manual'));
@@ -242,7 +256,8 @@ describe('Wizard · Pools (§30–§32)', () => {
     await fireEvent(stepper, 'accessibilityAction', { nativeEvent: { actionName: 'increment' } });
     expect(screen.getByTestId('twiz-text-pool-sizes')).toHaveTextContent('4 · 3 · 3');
     await fireEvent.press(screen.getByTestId('twiz-btn-pools-random'));
-    expect(screen.getByTestId('twiz-text-uneven-warning')).toHaveTextContent('Teams in different pools may play different numbers of matches.');
+    expect(screen.getByTestId('twiz-text-uneven-warning-text-headline')).toHaveTextContent('Uneven pools');
+    expect(screen.getByTestId('twiz-text-uneven-warning-text-supporting')).toHaveTextContent('Some teams play more matches than others.');
     expect(screen.getByTestId('twiz-btn-next')).toBeEnabled();
   });
 });
@@ -271,8 +286,8 @@ describe('Wizard · Fixtures (§35, §36)', () => {
     expect(useTournamentWizardStore.getState().saveStep).not.toHaveBeenCalled();
     expect(confirmFixtures).not.toHaveBeenCalled();
     await fireEvent.press(screen.getByTestId('twiz-btn-edit-fixture-1'));
-    await fireEvent.changeText(screen.getByTestId('schedule-input-date'), '2026-09-12');
-    await fireEvent.changeText(screen.getByTestId('schedule-input-time'), '10:00');
+    await pickDate('schedule-input-date', '2026-09-12');
+    await pickTime('schedule-input-time', '10:00');
     await fireEvent.press(screen.getByTestId('schedule-btn-save'));
     const edited = useTournamentWizardStore.getState().draft.fixturePlan?.fixtures.find((fixture) => fixture.matchNumber === 1);
     expect(edited).toMatchObject({ scheduledDate: '2026-09-12', scheduledTime: '10:00' });
@@ -307,6 +322,50 @@ describe('Wizard · Fixtures (§35, §36)', () => {
   });
 });
 
+describe('Wizard · glass chrome and dock (review: tournament-2)', () => {
+  it('puts the §107 ambient atmosphere behind the wizard so its glass header and dock read as glass', async () => {
+    liveWizard({}, 'info');
+    await renderWithTheme(<InfoStepScreen />);
+    expect(screen.getByTestId('screen-tournament-new-ambient', { includeHiddenElements: true })).toBeOnTheScreen();
+  });
+
+  it('gives the primary dock button the room left by a compact Back button so "Confirm tournament" is never cut (#17)', async () => {
+    const snapshot = cupSnapshot();
+    liveWizard(draftFromCup(snapshot, true), 'review');
+    useTeamLibraryStore.setState({ teams: libraryTeams(EIGHT) });
+    useTournamentStore.setState({ tournamentId: 't1', snapshot });
+    await renderWithTheme(<ReviewStepScreen />);
+    const confirm = screen.getByTestId('twiz-btn-confirm-tournament');
+    expect(confirm).toHaveTextContent('Confirm tournament');
+    let node = screen.getByTestId('twiz-btn-back').parent;
+    let backBox: ViewStyle | undefined;
+    while (node && backBox === undefined) {
+      const style = StyleSheet.flatten(node.props.style as ViewStyle | undefined);
+      if (style && style.flexGrow !== undefined) {
+        backBox = style;
+      }
+      node = node.parent;
+    }
+    expect(backBox?.flex).toBeUndefined();
+    expect(backBox?.flexGrow).toBe(0);
+  });
+
+  it('offers Confirm fixtures in the dock while the preview is unsaved, then turns it into Next', async () => {
+    const snapshot = cupSnapshot();
+    liveWizard({ ...draftFromCup(snapshot, true), fixturePlan: planOf(snapshot, 0) }, 'fixtures');
+    useTeamLibraryStore.setState({ teams: libraryTeams(EIGHT) });
+    useTournamentStore.setState({ tournamentId: 't1', snapshot: { ...snapshot, fixtures: [] } });
+    await renderWithTheme(<FixturesStepScreen />);
+    const footer = screen.getByTestId('screen-tournament-new-footer');
+    expect(within(footer).getByTestId('twiz-btn-confirm-fixtures')).toHaveTextContent('Confirm fixtures');
+    expect(screen.getByTestId('twiz-text-next-hint')).toHaveTextContent(/^Review the \d+ fixtures, then confirm\.$/);
+    await fireEvent.press(screen.getByTestId('twiz-btn-confirm-fixtures'));
+    await waitFor(() => expect(within(screen.getByTestId('screen-tournament-new-footer')).getByTestId('twiz-btn-next')).toBeEnabled());
+    expect(screen.queryByTestId('twiz-btn-confirm-fixtures')).not.toBeOnTheScreen();
+    expect(useToastStore.getState().show).not.toHaveBeenCalledWith(expect.objectContaining({ message: 'Fixtures confirmed' }));
+  });
+});
+
 describe('Wizard · Review', () => {
   it('summarises every step and confirms the tournament', async () => {
     const snapshot = cupSnapshot();
@@ -316,7 +375,8 @@ describe('Wizard · Review', () => {
     await renderWithTheme(<ReviewStepScreen />);
     expect(screen.getByTestId('twiz-review-teams')).toHaveTextContent('Lions, Tigers, Eagles, Hawks, +4');
     expect(screen.getByTestId('twiz-review-rules')).toHaveTextContent(/Win 2 · Tie 1 · NR 1 · Loss 0/);
-    expect(screen.getByTestId('twiz-review-fixtures')).toHaveTextContent('15 matches scheduled');
+    expect(screen.getByTestId('twiz-review-fixtures')).toHaveTextContent(/^15 matches · /);
+    expect(screen.getByTestId('twiz-review-fixtures')).not.toHaveTextContent(/scheduled/);
     await fireEvent.press(screen.getByTestId('twiz-btn-confirm-tournament'));
     await waitFor(() => expect(useTournamentWizardStore.getState().commit).toHaveBeenCalled());
     expect(useTournamentWizardStore.getState().reset).toHaveBeenCalled();

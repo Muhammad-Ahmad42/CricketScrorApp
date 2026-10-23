@@ -1,15 +1,18 @@
 import { useEffect, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { View } from 'react-native';
 import { router } from 'expo-router';
 import type { Team } from '@/domain/types';
-import { Button, ListRow, SectionHeader, Stepper, Text, space } from '@/ui';
+import { Inset, ListRow, SectionHeader, Stepper } from '@/ui';
 import { useMatchSetupStore, useTeamLibraryStore, useToastStore, type MatchSetupDraft } from '@/stores';
 import { TeamSheet, type TeamValues } from '@/features/teams/sheets/TeamSheet';
+import { playerCountText } from '@/features/teams/selectors';
+import { TextAction } from '@/features/scoring/components/common/TextAction';
 import { useSingleFlight } from '@/features/scoring/hooks/useSingleFlight';
 import { useSetupPlayers } from '../context/SetupPlayersContext';
 import { canLeaveTeams, type Side } from '../selectors/wizard';
 import { TeamPickerSheet } from '../sheets/TeamPickerSheet';
 import { WizardScreen } from './WizardScreen';
+import { errorHeadline } from '@/features/scoring/selectors/scannable';
 
 function teamPatch(side: Side, teamId: string): Partial<MatchSetupDraft> {
   return side === 'A' ? { teamAId: teamId, squadA: [], substitutesA: [] } : { teamBId: teamId, squadB: [], substitutesB: [] };
@@ -18,6 +21,7 @@ function teamPatch(side: Side, teamId: string): Partial<MatchSetupDraft> {
 export function TeamsStep() {
   const draft = useMatchSetupStore((s) => s.draft);
   const teams = useTeamLibraryStore((s) => s.teams);
+  const playerCounts = useTeamLibraryStore((s) => s.playerCounts);
   const players = useSetupPlayers();
   const [picking, setPicking] = useState<Side | null>(null);
   const [creating, setCreating] = useState<Side | null>(null);
@@ -45,7 +49,7 @@ export function TeamsStep() {
     const team = await useTeamLibraryStore.getState().createTeam({ name: values.name, shortName: values.shortName, players: [] });
     setBusy(false);
     if (team === null) {
-      useToastStore.getState().show({ kind: 'error', message: useTeamLibraryStore.getState().error?.message ?? "Couldn't create the team.", action: null });
+      useToastStore.getState().show({ kind: 'error', message: errorHeadline(useTeamLibraryStore.getState().error, "Couldn't create the team."), action: null });
       useTeamLibraryStore.getState().clearError();
       return;
     }
@@ -61,7 +65,7 @@ export function TeamsStep() {
         <SectionHeader title={`Team ${side}`} />
         <ListRow
           title={team?.name ?? (teamId === null ? 'Choose team' : 'Team')}
-          subtitle={locked ? 'Set by the tournament' : count === null ? undefined : `${count} players`}
+          subtitle={locked ? 'Set by the tournament' : count === null ? undefined : playerCountText(count)}
           leading={team === null ? { icon: 'plus' } : { monogram: team.shortName }}
           trailing={locked ? undefined : { kind: 'chevron' }}
           onPress={locked ? undefined : () => setPicking(side)}
@@ -73,18 +77,17 @@ export function TeamsStep() {
   const nameOf = (teamId: string | null) => teams.find((team) => team.id === teamId)?.name ?? 'This team';
 
   return (
-    <WizardScreen step="teams" nextDisabled={!canLeaveTeams(draft)}>
+    <WizardScreen
+      step="teams"
+      nextDisabled={!canLeaveTeams(draft)}
+      nextReason={draft.teamAId === null || draft.teamBId === null ? 'Choose both teams' : draft.teamAId === draft.teamBId ? 'Choose two different teams' : null}
+    >
       {row('A')}
       {row('B')}
-      {locked ? null : (
-        <View style={styles.link}>
-          <Button label="Manage teams" variant="tertiary" size="sm" onPress={() => router.push('/teams')} testID="setup-manage-teams" />
-        </View>
-      )}
+      {locked ? null : <TextAction label="Manage teams" onPress={() => router.push('/teams')} testID="setup-manage-teams" />}
       <SectionHeader title="Advanced" />
       <ListRow
         title="Different side sizes"
-        subtitle="When a side plays short or long by agreement"
         trailing={{
           kind: 'switch',
           value: uneven,
@@ -93,19 +96,17 @@ export function TeamsStep() {
         testID="setup-uneven"
       />
       {uneven ? (
-        <View style={styles.block}>
+        <Inset top="sm" gap="sm">
           <Stepper label={`${nameOf(draft.teamAId)} plays with`} value={draft.teamAPlayers ?? draft.rules.playersPerSide} min={2} max={15} onChange={(teamAPlayers) => update({ teamAPlayers })} testID="setup-size-a" />
           <Stepper label={`${nameOf(draft.teamBId)} plays with`} value={draft.teamBPlayers ?? draft.rules.playersPerSide} min={2} max={15} onChange={(teamBPlayers) => update({ teamBPlayers })} testID="setup-size-b" />
-          <Text variant="footnote" tone="secondary">
-            A side is all out when only one batter is left, unless last man stands is on.
-          </Text>
-        </View>
+        </Inset>
       ) : null}
       {picking !== null ? (
         <TeamPickerSheet
           visible
           title={`Team ${picking}`}
           teams={teams}
+          playerCounts={playerCounts}
           excludeId={picking === 'A' ? draft.teamBId : draft.teamAId}
           onPick={(team) => pick(picking, team)}
           onNewTeam={() => {
@@ -129,8 +130,3 @@ export function TeamsStep() {
     </WizardScreen>
   );
 }
-
-const styles = StyleSheet.create({
-  link: { alignItems: 'flex-start', paddingHorizontal: space.xs, paddingTop: space.xs },
-  block: { paddingHorizontal: space.md, gap: space.sm, paddingTop: space.sm },
-});

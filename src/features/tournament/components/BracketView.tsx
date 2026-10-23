@@ -1,87 +1,136 @@
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
-import { Icon, Text, space, useTheme } from '@/ui';
+import type { ReactNode } from 'react';
+import { ScrollView, StyleSheet, View } from 'react-native';
+import { Badge, Icon, Inset, PressableCard, Text, space, useGutter, useLayoutClass, useTheme } from '@/ui';
 import type { BracketMatchVM, BracketSideVM, BracketVM } from '../selectors/bracket';
 
-const COLUMN_WIDTH = 188;
-const BOX_HEIGHT = 112;
+export const BRACKET_COLUMN_WIDTH = 232;
+const BOX_HEIGHT = 136;
+const CONNECTOR = space.md;
+export const CHAMPION_MIN_WIDTH = 160;
 
-function sideDetail(side: BracketSideVM): string | null {
-  const label = side.slotLabel && side.slotLabel !== side.text ? side.slotLabel : null;
-  const parts = [label, side.score].filter((part): part is string => part !== null);
-  return parts.length > 0 ? parts.join(' ') : null;
-}
-
-function detailLine(match: BracketMatchVM): string | null {
-  if (match.kind === 'bye') {
-    return 'Bye: straight through to the next round';
-  }
-  const parts = [sideDetail(match.a), sideDetail(match.b)];
-  if (parts.every((part) => part === null)) {
-    return null;
-  }
-  return parts.map((part) => part ?? '–').join(' · ');
+function SideLine({ side, testID }: { readonly side: BracketSideVM; readonly testID: string }) {
+  const theme = useTheme();
+  return (
+    <View style={styles.side} testID={testID}>
+      {side.chip ? (
+        <View style={[styles.chip, { borderColor: theme.color.borderStrong, borderWidth: theme.borderWidth.control, borderRadius: theme.radius.xs }]}>
+          <Text variant="label" tone="secondary">
+            {side.chip}
+          </Text>
+        </View>
+      ) : null}
+      <View style={styles.sideText}>
+        <Text variant={side.pending ? 'subhead' : 'body'} tone={side.pending ? 'secondary' : 'primary'} weight={side.winner ? 'bold' : side.pending ? undefined : 'medium'}>
+          {side.name}
+        </Text>
+        {side.provisional ? <Badge label="Provisional" tone="provisional" /> : null}
+      </View>
+      {side.winner ? <Icon name="check" size={16} color="success" /> : null}
+      {side.score ? (
+        <Text variant="figureSmall" tone={side.winner ? 'primary' : 'secondary'}>
+          {side.score}
+        </Text>
+      ) : null}
+    </View>
+  );
 }
 
 interface MatchBoxProps {
   readonly match: BracketMatchVM;
+  readonly showLabel?: boolean;
+  readonly fill?: boolean;
   readonly onPress?: (fixtureId: string) => void;
 }
 
-function MatchBox({ match, onPress }: MatchBoxProps) {
+function ByeBox({ testID, label, children }: { readonly testID: string; readonly label: string; readonly children: ReactNode }) {
   const theme = useTheme();
-  const id = `${match.round}-${match.position}`;
-  const bye = match.kind === 'bye';
-  const pressable = !bye && match.fixtureId !== null && onPress !== undefined;
-  const detail = detailLine(match);
   return (
-    <Pressable
-      testID={`bracket-row-${id}`}
-      accessibilityRole={pressable ? 'button' : 'text'}
-      accessibilityLabel={match.accessibilityLabel}
-      disabled={!pressable}
-      onPress={() => {
-        if (match.fixtureId && onPress) {
-          onPress(match.fixtureId);
-        }
-      }}
-      style={({ pressed }) => [
+    <View
+      testID={testID}
+      accessible
+      accessibilityRole="text"
+      accessibilityLabel={label}
+      style={[
         styles.box,
         {
-          backgroundColor: pressed ? theme.color.surfaceSunken : theme.color.surface,
-          borderColor: bye ? theme.color.border : theme.color.borderStrong,
+          backgroundColor: theme.color.surface,
+          borderColor: theme.color.border,
           borderWidth: theme.borderWidth.control,
-          borderStyle: bye ? 'dashed' : 'solid',
+          borderStyle: 'dashed',
           borderRadius: theme.radius.md,
         },
       ]}
     >
-      <View style={styles.boxHeader}>
-        <Text variant="label" tone="secondary" numberOfLines={1}>
-          {match.label}
-        </Text>
-        {match.when ? (
-          <Text variant="footnote" tone="secondary" numberOfLines={1}>
-            {match.when}
-          </Text>
-        ) : null}
-      </View>
-      <Text variant={bye ? 'subhead' : 'bodyStrong'} testID={`bracket-text-sides-${id}`} numberOfLines={2}>
-        {bye ? match.a.text : match.sidesText}
-      </Text>
-      {detail ? (
-        <Text variant="footnote" tone="secondary" numberOfLines={1}>
-          {detail}
-        </Text>
-      ) : null}
-      {match.winnerText ? (
-        <View style={styles.winnerLine}>
-          <Icon name="check" size={16} color="success" />
-          <Text variant="footnote" tone="success" testID={`bracket-text-winner-${id}`} numberOfLines={1}>
-            {`${match.winnerText} won`}
-          </Text>
+      {children}
+    </View>
+  );
+}
+
+function MatchBox({ match, showLabel = true, fill = false, onPress }: MatchBoxProps) {
+  const theme = useTheme();
+  const id = `${match.round}-${match.position}`;
+  const bye = match.kind === 'bye';
+  const fixtureId = match.fixtureId;
+  const open = !bye && fixtureId !== null && onPress !== undefined ? () => onPress(fixtureId) : undefined;
+  const content = (
+    <>
+      {showLabel || match.when ? (
+        <View style={styles.boxHeader}>
+          {showLabel ? (
+            <Text variant="label" tone="secondary" numberOfLines={1}>
+              {match.label}
+            </Text>
+          ) : (
+            <View />
+          )}
+          {match.when ? (
+            <Text variant="footnote" tone="secondary" numberOfLines={1}>
+              {match.when}
+            </Text>
+          ) : null}
         </View>
       ) : null}
-    </Pressable>
+      {bye ? (
+        <View testID={`bracket-text-sides-${id}`}>
+          <SideLine side={match.a} testID={`bracket-text-side-${id}-a`} />
+          <Text variant="footnote" tone="secondary">
+            Bye: straight through
+          </Text>
+        </View>
+      ) : (
+        <View style={styles.sides} testID={`bracket-text-sides-${id}`}>
+          <SideLine side={match.a} testID={`bracket-text-side-${id}-a`} />
+          <View style={[styles.divider, { backgroundColor: theme.color.border }]} />
+          <SideLine side={match.b} testID={`bracket-text-side-${id}-b`} />
+        </View>
+      )}
+    </>
+  );
+  const box = bye ? (
+    <ByeBox testID={`bracket-row-${id}`} label={match.accessibilityLabel}>
+      {content}
+    </ByeBox>
+  ) : (
+    <PressableCard testID={`bracket-row-${id}`} accessibilityLabel={match.accessibilityLabel} onPress={open} radius="md" gap="xs" padding="sm">
+      {content}
+    </PressableCard>
+  );
+  return <View style={fill ? styles.boxFill : styles.boxFixed}>{box}</View>;
+}
+
+function ChampionBlock({ champion, fill }: { readonly champion: string; readonly fill: boolean }) {
+  const theme = useTheme();
+  return (
+    <View
+      style={[styles.championBox, fill ? styles.championFill : null, fill ? { borderColor: theme.color.borderStrong, borderWidth: theme.borderWidth.control, borderRadius: theme.radius.md } : null]}
+      accessible
+      accessibilityLabel={`Champion: ${champion}`}
+    >
+      <Icon name="trophy" size={24} color="accent" />
+      <Text variant="headline" testID="bracket-text-champion">
+        {champion}
+      </Text>
+    </View>
   );
 }
 
@@ -90,14 +139,50 @@ export interface BracketViewProps {
   readonly onOpenFixture?: (fixtureId: string) => void;
 }
 
-export function BracketView({ bracket, onOpenFixture }: BracketViewProps) {
+function StackedBracket({ bracket, onOpenFixture }: BracketViewProps) {
+  const gutter = useGutter();
+  return (
+    <View style={[styles.stack, { paddingHorizontal: gutter }]} testID="bracket-stack">
+      {bracket.rounds.map((round) => (
+        <View key={round.round} style={styles.stackRound}>
+          <Text variant="label" tone="secondary" accessibilityRole="header">
+            {round.name}
+          </Text>
+          {round.matches.map((match) => (
+            <MatchBox key={match.key} match={match} fill showLabel={match.label !== round.name} onPress={onOpenFixture} />
+          ))}
+        </View>
+      ))}
+      {bracket.champion !== null ? (
+        <View style={styles.stackRound}>
+          <Text variant="label" tone="secondary" accessibilityRole="header">
+            Champion
+          </Text>
+          <ChampionBlock champion={bracket.champion} fill />
+        </View>
+      ) : null}
+      {bracket.thirdPlace ? (
+        <View style={styles.stackRound}>
+          <Text variant="label" tone="secondary" accessibilityRole="header">
+            Third place
+          </Text>
+          <MatchBox match={bracket.thirdPlace} fill showLabel={!/third/i.test(bracket.thirdPlace.label)} onPress={onOpenFixture} />
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+function WideBracket({ bracket, onOpenFixture }: BracketViewProps) {
   const theme = useTheme();
+  const gutter = useGutter();
   const firstCount = Math.max(1, bracket.rounds[0]?.matches.length ?? 1);
   const height = firstCount * (BOX_HEIGHT + space.sm);
+  const lastRound = bracket.rounds.length - 1;
   return (
     <View>
-      <ScrollView horizontal showsHorizontalScrollIndicator contentContainerStyle={styles.scroll} testID="bracket-scroll">
-        {bracket.rounds.map((round) => (
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={[styles.scroll, { paddingHorizontal: gutter }]} testID="bracket-scroll">
+        {bracket.rounds.map((round, roundIndex) => (
           <View key={round.round} style={styles.column}>
             <Text variant="label" tone="secondary" accessibilityRole="header" style={styles.roundTitle}>
               {round.name}
@@ -105,52 +190,66 @@ export function BracketView({ bracket, onOpenFixture }: BracketViewProps) {
             <View style={[styles.columnBody, { height }]}>
               {round.matches.map((match) => (
                 <View key={match.key} style={styles.slot}>
-                  <MatchBox match={match} onPress={onOpenFixture} />
-                  <View style={[styles.connector, { backgroundColor: theme.color.border }]} />
+                  <MatchBox match={match} showLabel={match.label !== round.name} onPress={onOpenFixture} />
+                  {roundIndex < lastRound || bracket.champion !== null ? (
+                    <View style={[styles.connector, { height: theme.borderWidth.emphasis, backgroundColor: theme.color.borderStrong }]} />
+                  ) : null}
                 </View>
               ))}
             </View>
           </View>
         ))}
         {bracket.champion !== null ? (
-          <View style={[styles.column, styles.championColumn]}>
+          <View style={styles.championColumn}>
             <Text variant="label" tone="secondary" accessibilityRole="header" style={styles.roundTitle}>
               Champion
             </Text>
             <View style={[styles.columnBody, { height }]}>
-              <View style={styles.championBox} accessible accessibilityLabel={`Champion: ${bracket.champion}`}>
-                <Icon name="trophy" size={24} color="accent" />
-                <Text variant="headline" testID="bracket-text-champion">
-                  {bracket.champion}
-                </Text>
-              </View>
+              <ChampionBlock champion={bracket.champion} fill={false} />
             </View>
           </View>
         ) : null}
       </ScrollView>
       {bracket.thirdPlace ? (
-        <View style={styles.third}>
+        <Inset top="md" gap="xs">
           <Text variant="label" tone="secondary" accessibilityRole="header">
             Third place
           </Text>
-          <MatchBox match={bracket.thirdPlace} onPress={onOpenFixture} />
-        </View>
+          <MatchBox match={bracket.thirdPlace} showLabel={!/third/i.test(bracket.thirdPlace.label)} onPress={onOpenFixture} />
+        </Inset>
       ) : null}
     </View>
   );
 }
 
+export function BracketView({ bracket, onOpenFixture }: BracketViewProps) {
+  const layout = useLayoutClass();
+  return layout.width === 'compact' || layout.width === 'compact-s' ? (
+    <StackedBracket bracket={bracket} onOpenFixture={onOpenFixture} />
+  ) : (
+    <WideBracket bracket={bracket} onOpenFixture={onOpenFixture} />
+  );
+}
+
 const styles = StyleSheet.create({
-  scroll: { paddingHorizontal: space.md, gap: space.md },
-  column: { width: COLUMN_WIDTH },
-  championColumn: { width: 140 },
+  stack: { gap: space.lg },
+  stackRound: { gap: space.xs },
+  scroll: { gap: space.xs },
+  column: { width: BRACKET_COLUMN_WIDTH + CONNECTOR },
+  championColumn: { minWidth: CHAMPION_MIN_WIDTH },
   roundTitle: { paddingVertical: space.xs },
   columnBody: { justifyContent: 'space-around' },
   slot: { flexDirection: 'row', alignItems: 'center' },
-  box: { width: COLUMN_WIDTH - space.sm, minHeight: BOX_HEIGHT - space.xs, padding: space.xs, gap: 2 },
-  boxHeader: { flexDirection: 'row', justifyContent: 'space-between', gap: space.xxs },
-  winnerLine: { flexDirection: 'row', alignItems: 'center', gap: space.xxs },
-  connector: { width: space.sm, height: 1 },
-  championBox: { alignItems: 'center', justifyContent: 'center', gap: space.xs, flex: 1 },
-  third: { paddingHorizontal: space.md, paddingTop: space.md, gap: space.xs },
+  box: { padding: space.sm, gap: space.xs },
+  boxFixed: { width: BRACKET_COLUMN_WIDTH },
+  boxFill: { alignSelf: 'stretch' },
+  boxHeader: { flexDirection: 'row', justifyContent: 'space-between', flexWrap: 'wrap', gap: space.xs },
+  sides: { gap: space.xxs },
+  divider: { height: StyleSheet.hairlineWidth },
+  side: { flexDirection: 'row', alignItems: 'center', gap: space.xs, minHeight: 28 },
+  chip: { minWidth: 32, paddingHorizontal: space.xxs, alignItems: 'center' },
+  sideText: { flex: 1, minWidth: 0, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', columnGap: space.xs, rowGap: space.xxs },
+  connector: { width: CONNECTOR },
+  championBox: { alignItems: 'center', justifyContent: 'center', gap: space.xs, flex: 1, padding: space.md },
+  championFill: { flex: 0 },
 });

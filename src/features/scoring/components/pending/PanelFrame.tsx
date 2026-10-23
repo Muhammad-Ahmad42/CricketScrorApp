@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
-import { Button, Icon, Reveal, Text, space, useInsets, useTheme } from '@/ui';
+import { Button, Icon, Reveal, Text, space, useGutter, useTheme } from '@/ui';
 
 export type PanelTone = 'neutral' | 'danger';
 
@@ -16,24 +16,13 @@ export interface PanelFrameProps {
 
 export function PanelFrame({ heading, subheading, children, onUndo, undoLabel = 'Undo last ball', tone = 'neutral', testID }: PanelFrameProps) {
   const theme = useTheme();
-  const insets = useInsets();
+  const gutter = useGutter();
   const danger = tone === 'danger';
   return (
     <Reveal enter="base" translateY={24} replayKey={testID} style={styles.fill}>
-      <View
-        testID={testID}
-        style={[
-          styles.panel,
-          {
-            backgroundColor: danger ? theme.color.dangerSubtle : theme.color.surface,
-            borderTopWidth: theme.borderWidth.hairline,
-            borderTopColor: theme.color.border,
-            paddingBottom: space.sm + insets.bottom,
-          },
-        ]}
-      >
+      <View testID={testID} style={[styles.panel, danger ? { backgroundColor: theme.color.dangerSubtle, borderTopLeftRadius: theme.glass.radius.dock, borderTopRightRadius: theme.glass.radius.dock } : null]}>
         {danger ? <View testID={`${testID}-bar`} style={[styles.bar, { width: theme.borderWidth.bar, backgroundColor: theme.color.danger }]} /> : null}
-        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+        <ScrollView style={styles.scroll} contentContainerStyle={[styles.content, { paddingHorizontal: gutter }]} keyboardShouldPersistTaps="handled" testID={`${testID}-scroll`}>
           <View style={styles.headingLine}>
             {danger ? <Icon name="circle-alert" size={20} color="danger" /> : null}
             <Text variant="label" tone={danger ? 'danger' : 'secondary'} accessibilityRole="header" style={styles.heading}>
@@ -46,7 +35,11 @@ export function PanelFrame({ heading, subheading, children, onUndo, undoLabel = 
             </Text>
           ) : null}
           {children}
-          {onUndo ? <Button label={undoLabel} variant="tertiary" size="sm" onPress={onUndo} testID={`${testID}-undo`} /> : null}
+          {onUndo ? (
+            <View style={styles.undo}>
+              <Button label={undoLabel} icon="undo-2" variant="tertiary" size="sm" onPress={onUndo} testID={`${testID}-undo`} />
+            </View>
+          ) : null}
         </ScrollView>
       </View>
     </Reveal>
@@ -54,10 +47,12 @@ export function PanelFrame({ heading, subheading, children, onUndo, undoLabel = 
 }
 
 const styles = StyleSheet.create({
-  fill: { flexGrow: 1 },
-  panel: { minHeight: 224, flexGrow: 1 },
-  bar: { position: 'absolute', left: 0, top: 0, bottom: 0 },
+  fill: { flexShrink: 1 },
+  panel: { flexShrink: 1 },
+  scroll: { flexGrow: 0, flexShrink: 1 },
+  bar: { position: 'absolute', left: 0, top: space.md, bottom: 0 },
   headingLine: { flexDirection: 'row', alignItems: 'center', gap: space.xs },
   heading: { flexShrink: 1 },
-  content: { padding: space.md, gap: space.sm },
+  undo: { alignItems: 'flex-start', marginLeft: -space.sm },
+  content: { paddingTop: space.md, paddingBottom: space.sm, gap: space.sm },
 });

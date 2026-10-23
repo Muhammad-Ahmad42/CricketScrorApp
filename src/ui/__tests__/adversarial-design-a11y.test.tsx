@@ -42,6 +42,7 @@ import {
   Tabs,
   TextField,
   Toast,
+  switchColors,
 } from '../primitives';
 import {
   COLUMN_WIDTH,
@@ -149,38 +150,42 @@ const EXTENDED_TOKENS = [
   'chartSeries1',
   'chartSeries2',
   'chartGrid',
+  'accentDeep',
+  'highlight',
 ] as const;
 
 const DOCUMENTED_PALETTE: Readonly<Record<string, readonly [string, string]>> = {
-  background: ['#F5F3EC', '#111412'],
-  surface: ['#FFFFFF', '#181C19'],
-  surfaceElevated: ['#FFFFFF', '#212622'],
-  textPrimary: ['#1A1C19', '#ECEEE9'],
-  textSecondary: ['#474E49', '#B4BBB4'],
-  textMuted: ['#646A65', '#8E968F'],
-  border: ['#DDD9CE', '#2B312D'],
-  accent: ['#1F5C3A', '#72BE90'],
-  success: ['#276A3E', '#7CC49A'],
-  warning: ['#8A5300', '#E3B55E'],
-  danger: ['#B3261E', '#EE8A7F'],
-  score: ['#111310', '#F6F7F3'],
-  surfaceSunken: ['#ECE9E0', '#0B0D0C'],
-  borderStrong: ['#8A877C', '#646E66'],
-  accentPressed: ['#174A2D', '#5FA87C'],
-  accentSubtle: ['#E2ECE4', '#1C3326'],
-  onAccent: ['#FFFFFF', '#0A1A10'],
-  successSubtle: ['#E3EFE6', '#1A3023'],
-  warningSubtle: ['#FAEFD9', '#33291A'],
-  dangerSubtle: ['#FBE8E6', '#3A1E1B'],
-  onDanger: ['#FFFFFF', '#240907'],
-  focusRing: ['#1F5C3A', '#9AD3AF'],
-  scrim: ['rgba(17,19,16,0.40)', 'rgba(0,0,0,0.60)'],
-  inverseSurface: ['#1A1C19', '#ECEEE9'],
-  inverseText: ['#F5F3EC', '#111412'],
-  inverseAccent: ['#9AD3AF', '#72BE90'],
-  chartSeries1: ['#2A7F50', '#55A877'],
-  chartSeries2: ['#4A6FC0', '#7792DA'],
-  chartGrid: ['#E7E4DA', '#252A26'],
+  background: ['#F0F5F8', '#070E12'],
+  surface: ['#FFFFFF', '#0D171C'],
+  surfaceElevated: ['#FFFFFF', '#132129'],
+  textPrimary: ['#0B232B', '#F2F7F9'],
+  textSecondary: ['#3D5864', '#8FA7B3'],
+  textMuted: ['#526B77', '#7F97A3'],
+  border: ['#D5E0E6', '#1A2A33'],
+  accent: ['#00606F', '#00C2E0'],
+  success: ['#0C7552', '#35D49A'],
+  warning: ['#8A5000', '#FFB74D'],
+  danger: ['#C42B2B', '#FF5252'],
+  score: ['#061A20', '#F8FCFD'],
+  surfaceSunken: ['#E2EBF0', '#04090C'],
+  borderStrong: ['#6E848E', '#5A7482'],
+  accentPressed: ['#004A56', '#00A5BF'],
+  accentSubtle: ['#DCEFF3', '#0A2C36'],
+  onAccent: ['#FFFFFF', '#010B0E'],
+  successSubtle: ['#DDF2E9', '#0B2A22'],
+  warningSubtle: ['#FBEFDA', '#2A2014'],
+  dangerSubtle: ['#FCE8E8', '#2D1316'],
+  onDanger: ['#FFFFFF', '#1C0506'],
+  focusRing: ['#008BA3', '#28D9F2'],
+  scrim: ['rgba(6,26,32,0.40)', 'rgba(2,7,9,0.64)'],
+  inverseSurface: ['#0B232B', '#E3ECF0'],
+  inverseText: ['#F0F5F8', '#070E12'],
+  inverseAccent: ['#5ED3E8', '#00C2E0'],
+  chartSeries1: ['#0A96B2', '#19A2BE'],
+  chartSeries2: ['#6650B8', '#7A64D6'],
+  chartGrid: ['#E1E9ED', '#16242B'],
+  accentDeep: ['#007385', '#008BA3'],
+  highlight: ['#008BA3', '#28D9F2'],
 };
 
 interface Rgba {
@@ -234,6 +239,18 @@ function wcag(foreground: string, background: string): number {
   const a = luminance(fg);
   const b = luminance(bg);
   return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
+}
+
+function hueOf(colour: string): number {
+  const c = parse(colour);
+  const max = Math.max(c.r, c.g, c.b);
+  const min = Math.min(c.r, c.g, c.b);
+  const d = max - min;
+  if (d === 0) {
+    return 0;
+  }
+  const raw = max === c.r ? ((c.g - c.b) / d) % 6 : max === c.g ? (c.b - c.r) / d + 2 : (c.r - c.g) / d + 4;
+  return (raw * 60 + 360) % 360;
 }
 
 function chroma(colour: string): number {
@@ -496,16 +513,36 @@ describe('§71 tokens: both themes, identical keys, documented values', () => {
     expect(luminance(parse(darkColors.surface))).toBeGreaterThan(luminance(parse(darkColors.background)));
   });
 
-  it('has no neon: every opaque token keeps channel chroma well below saturated neon (§1, §69)', () => {
+  it('has no neon: nothing is a fully saturated colour at full brightness, and only the §107 cyan identity runs above 0.7 chroma (§1, §107)', () => {
+    const neon = (value: string) => {
+      const c = parse(value);
+      const max = Math.max(c.r, c.g, c.b);
+      const min = Math.min(c.r, c.g, c.b);
+      return max / 255 >= 0.98 && (max - min) / max >= 0.9;
+    };
+    expect(neon('#00E5FF')).toBe(true);
+    expect(neon('#00FF00')).toBe(true);
     const loud: string[] = [];
     for (const [scheme, palette] of THEMES) {
       for (const [token, value] of Object.entries(palette)) {
-        if (parse(value).a === 1 && chroma(value) > 0.7) {
+        if (parse(value).a !== 1) {
+          continue;
+        }
+        if (neon(value)) {
+          loud.push(`${scheme}.${token} ${value} is neon`);
+        }
+        const h = hueOf(value);
+        if (chroma(value) > 0.7 && !(h >= 180 && h <= 200)) {
+          loud.push(`${scheme}.${token} ${value} chroma ${chroma(value).toFixed(2)} outside the cyan identity`);
+        }
+        if (chroma(value) > 0.9) {
           loud.push(`${scheme}.${token} ${value} chroma ${chroma(value).toFixed(2)}`);
         }
       }
     }
     expect(loud).toEqual([]);
+    const bright = THEMES.flatMap(([, palette]) => Object.entries(palette).filter(([, value]) => parse(value).a === 1 && chroma(value) > 0.7).map(([token]) => token));
+    expect([...new Set(bright)].sort()).toEqual(['accent', 'accentPressed', 'focusRing', 'highlight', 'inverseAccent']);
   });
 
   it('keeps the spacing scale exactly 4…48 with the documented names (§67, AC-E1-07)', () => {
@@ -564,45 +601,49 @@ describe('WCAG contrast recomputed independently (DESIGN_SYSTEM §1.3, AC-E11-08
   });
 
   const TABLE: readonly (readonly [string, string, number | null, number | null, number])[] = [
-    ['textPrimary', 'background', 15.45, 15.87, 4.5],
-    ['textPrimary', 'surface', 17.16, 14.74, 4.5],
-    ['textPrimary', 'surfaceElevated', 17.16, 13.17, 4.5],
-    ['textPrimary', 'surfaceSunken', 14.13, 16.69, 4.5],
-    ['textSecondary', 'background', 7.71, 9.45, 4.5],
-    ['textSecondary', 'surface', 8.56, 8.78, 4.5],
-    ['textSecondary', 'surfaceElevated', 8.56, 7.84, 4.5],
-    ['textMuted', 'background', 4.99, 6.1, 4.5],
-    ['textMuted', 'surface', 5.54, 5.67, 4.5],
-    ['textMuted', 'surfaceElevated', 5.54, 5.06, 4.5],
-    ['textMuted', 'surfaceSunken', 4.56, 6.41, 4.5],
-    ['score', 'background', 16.82, 17.23, 3],
-    ['score', 'surface', 18.68, 16.01, 3],
-    ['accent', 'background', 7.14, 8.37, 4.5],
-    ['accent', 'surface', 7.92, 7.78, 4.5],
-    ['accent', 'surfaceElevated', 7.92, 6.95, 4.5],
-    ['accent', 'accentSubtle', 6.55, 6.11, 4.5],
-    ['onAccent', 'accent', 7.92, 8.12, 4.5],
-    ['onAccent', 'accentPressed', 10.22, 6.32, 4.5],
-    ['textPrimary', 'accentSubtle', 14.18, 11.59, 4.5],
-    ['success', 'surface', 6.53, 8.38, 4.5],
-    ['success', 'successSubtle', 5.52, 6.85, 4.5],
-    ['warning', 'surface', 6.33, 9.05, 4.5],
-    ['warning', 'warningSubtle', 5.55, 7.49, 4.5],
-    ['danger', 'surface', 6.54, 7.04, 4.5],
-    ['danger', 'background', 5.89, 7.57, 4.5],
-    ['danger', 'dangerSubtle', 5.54, 6.21, 4.5],
-    ['onDanger', 'danger', 6.54, 7.68, 4.5],
-    ['textPrimary', 'warningSubtle', 15.04, 12.2, 4.5],
-    ['textPrimary', 'dangerSubtle', 14.53, 13.01, 4.5],
-    ['borderStrong', 'surface', 3.6, 3.25, 3],
-    ['borderStrong', 'background', 3.24, 3.5, 3],
-    ['focusRing', 'background', 7.14, 10.87, 3],
-    ['focusRing', 'surface', 7.92, 10.1, 3],
-    ['inverseText', 'inverseSurface', 15.45, null, 4.5],
-    ['chartSeries1', 'surface', 4.94, 5.95, 3],
-    ['chartSeries2', 'surface', 4.85, 5.67, 3],
-    ['chartSeries1', 'background', 4.45, 6.4, 3],
-    ['chartSeries2', 'background', 4.37, 6.1, 3],
+    ['textPrimary', 'background', 14.83, 18, 4.5],
+    ['textPrimary', 'surface', 16.29, 16.82, 4.5],
+    ['textPrimary', 'surfaceElevated', 16.29, 15.23, 4.5],
+    ['textPrimary', 'surfaceSunken', 13.47, 18.53, 4.5],
+    ['textSecondary', 'background', 6.88, 7.72, 4.5],
+    ['textSecondary', 'surface', 7.56, 7.22, 4.5],
+    ['textSecondary', 'surfaceElevated', 7.56, 6.53, 4.5],
+    ['textSecondary', 'surfaceSunken', 6.25, 7.95, 4.5],
+    ['textMuted', 'background', 5.13, 6.35, 4.5],
+    ['textMuted', 'surface', 5.63, 5.93, 4.5],
+    ['textMuted', 'surfaceElevated', 5.63, 5.37, 4.5],
+    ['textMuted', 'surfaceSunken', 4.66, 6.53, 4.5],
+    ['score', 'background', 16.25, 18.82, 3],
+    ['score', 'surface', 17.85, 17.58, 3],
+    ['accent', 'background', 6.59, 9.06, 4.5],
+    ['accent', 'surface', 7.23, 8.47, 4.5],
+    ['accent', 'surfaceElevated', 7.23, 7.67, 4.5],
+    ['accent', 'accentSubtle', 6.09, 6.87, 4.5],
+    ['onAccent', 'accent', 7.23, 9.28, 4.5],
+    ['onAccent', 'accentPressed', 9.93, 6.76, 4.5],
+    ['onAccent', 'accentDeep', 5.54, 4.95, 4.5],
+    ['textPrimary', 'accentSubtle', 13.71, 13.63, 4.5],
+    ['success', 'surface', 5.7, 9.54, 4.5],
+    ['success', 'successSubtle', 4.88, 8.06, 4.5],
+    ['warning', 'surface', 6.51, 10.49, 4.5],
+    ['warning', 'warningSubtle', 5.72, 9.23, 4.5],
+    ['danger', 'surface', 5.63, 5.69, 4.5],
+    ['danger', 'background', 5.13, 6.09, 4.5],
+    ['danger', 'dangerSubtle', 4.79, 5.41, 4.5],
+    ['onDanger', 'danger', 5.63, 6.13, 4.5],
+    ['textPrimary', 'warningSubtle', 14.32, 14.79, 4.5],
+    ['textPrimary', 'dangerSubtle', 13.84, 15.99, 4.5],
+    ['borderStrong', 'surface', 3.92, 3.68, 3],
+    ['borderStrong', 'background', 3.57, 3.94, 3],
+    ['focusRing', 'background', 3.66, 11.38, 3],
+    ['focusRing', 'surface', 4.02, 10.63, 3],
+    ['highlight', 'background', 3.66, 11.38, 3],
+    ['highlight', 'surface', 4.02, 10.63, 3],
+    ['inverseText', 'inverseSurface', 14.83, null, 4.5],
+    ['chartSeries1', 'surface', 3.49, 6.01, 3],
+    ['chartSeries2', 'surface', 6.17, 4.0, 3],
+    ['chartSeries1', 'background', 3.18, 6.43, 3],
+    ['chartSeries2', 'background', 5.62, 4.28, 3],
   ];
 
   it.each(TABLE)('%s on %s meets its requirement and the documented ratio in both themes', (fg, bg, lightRatio, darkRatio, requirement) => {
@@ -746,7 +787,7 @@ describe('BallChip: meaning by label and shape, colour only reinforces (§6.3, �
     expect(failures).toEqual([]);
   });
 
-  it('maps the dark W chip to the coral fill with dark ink and the six chip to accent with onAccent (THEMES §3.3)', async () => {
+  it('maps the dark W chip to the wicket red fill with dark ink and the six chip to the deep teal with onAccent (THEMES §3.3)', async () => {
     const view = await renderWithTheme(<BallChip kind="wicket" text="W" accessibilityLabel="Wicket, bowled" testID="w" />, { mode: 'dark' });
     const w = screen.getByTestId('w') as unknown as Node;
     expect(String(flat(chipBody(w, 32)).backgroundColor).toUpperCase()).toBe(darkColors.danger.toUpperCase());
@@ -754,7 +795,7 @@ describe('BallChip: meaning by label and shape, colour only reinforces (§6.3, �
     await view.unmount();
     await renderWithTheme(<BallChip kind="six" text="6" accessibilityLabel="Six runs" testID="six" />, { mode: 'dark' });
     const six = screen.getByTestId('six') as unknown as Node;
-    expect(String(flat(chipBody(six, 32)).backgroundColor).toUpperCase()).toBe(darkColors.accent.toUpperCase());
+    expect(String(flat(chipBody(six, 32)).backgroundColor).toUpperCase()).toBe(darkColors.accentDeep.toUpperCase());
     expect(chipInk(six).toUpperCase()).toBe(darkColors.onAccent.toUpperCase());
   });
 
@@ -914,7 +955,7 @@ describe('every interactive element: role, label, ≥ 44 × 44 (§72, ACCESSIBIL
     expect(small).toEqual([]);
   });
 
-  it('makes a small button 36 visible and 44 with hit slop, and an icon button 44 × 44', async () => {
+  it('makes a small button 44 tall without relying on hit slop (web ignores it), and an icon button 44 × 44', async () => {
     await renderWithTheme(
       <View>
         <Button label="Change" size="sm" variant="tertiary" onPress={noop} />
@@ -923,7 +964,7 @@ describe('every interactive element: role, label, ≥ 44 × 44 (§72, ACCESSIBIL
     );
     const sm = screen.getByRole('button', { name: 'Change' }) as unknown as Node;
     const visible = Math.max(num(flat(sm).height) ?? 0, num(flat(sm).minHeight) ?? 0);
-    expect(visible).toBe(36);
+    expect(visible).toBe(44);
     expect(target(sm).height).toBeGreaterThanOrEqual(44);
     const icon = screen.getByRole('button', { name: 'Close' }) as unknown as Node;
     expect(target(icon)).toEqual({ width: expect.any(Number), height: expect.any(Number) });
@@ -1540,9 +1581,10 @@ describe('source rules across src/ (G-06, G-07, DESIGN_SYSTEM §1 anti-patterns,
     expect(hits).toEqual([]);
   });
 
-  it('uses no spring (overshoot) animations and loops only in loading placeholders (§8 rules)', () => {
+  it('uses no spring (overshoot) animation anywhere, the liquid tab bar included, and loops only in loading placeholders (§8 rules, cleanup brief: no bounce)', () => {
     const files = walk('src/ui');
-    expect(scan(files, [/\bwithSpring\s*\(/, /\bAnimated\.spring\s*\(/])).toEqual([]);
+    const springs = scan(files, [/\bwithSpring\s*\(/, /\bAnimated\.spring\s*\(/]);
+    expect(springs).toEqual([]);
     const loops = scan(files, [/\bwithRepeat\s*\(/, /\bAnimated\.loop\s*\(/]);
     const outsideLoading = loops.filter((hit) => !/src\/ui\/(primitives\/Skeleton|shell\/LoadingView)\.tsx/.test(hit));
     expect(outsideLoading).toEqual([]);
@@ -1809,7 +1851,7 @@ describe('rendered-tree audits of a full gallery, both themes (§71, §72, §78,
     expect(shadows).toEqual([]);
   });
 
-  it('puts the soft glass lift only on floating glass in light (tab bar, dialog, toasts), never on content (§4.3, §106)', async () => {
+  it('puts the soft glass lift only on floating glass in light (tab bar, scrolled header, dialog, toasts), never on content (§4.3, §106)', async () => {
     const view = await renderWithTheme(<AuditGallery />, { mode: 'light' });
     const shadowed = (view.container as unknown as Node).queryAll((n) => isHost(n) && Number(flat(n).shadowOpacity ?? 0) > 0);
     expect(shadowed.length).toBeGreaterThan(0);
@@ -1819,7 +1861,7 @@ describe('rendered-tree audits of a full gallery, both themes (§71, §72, §78,
       expect(insideGlass(n)).toBe(true);
       expect(flat(n).backgroundColor === undefined || flat(n).backgroundColor === 'transparent').toBe(true);
     }
-    expect(shadowed.length).toBeLessThanOrEqual(4);
+    expect(shadowed.length).toBeLessThanOrEqual(5);
   });
 
   it('caps and honours font scaling on every rendered text node, never below 12 pt, never italic, only bundled faces', async () => {
@@ -2374,18 +2416,36 @@ describe('THEMES §3 component-to-token mapping, checked in dark where every tok
     }
   });
 
-  it('a disabled Button is surfaceSunken with a textMuted label and no border (§6.1 states)', async () => {
-    await renderWithTheme(<Button label="Start match" variant="secondary" disabled onPress={noop} />, { mode: 'dark' });
+  it('a disabled filled Button sits on a raised charcoal, never a near-black hole, with a textMuted label and no border (§6.1 states, §107)', async () => {
+    await renderWithTheme(<Button label="Start match" disabled onPress={noop} />, { mode: 'dark' });
     const button = screen.getByRole('button', { name: 'Start match' }) as unknown as Node;
-    expect(up(flat(button).backgroundColor)).toBe(up(darkColors.surfaceSunken));
+    expect(up(flat(button).backgroundColor)).toBe(up(darkColors.surfaceElevated));
+    expect(up(flat(button).backgroundColor)).not.toBe(up(darkColors.surfaceSunken));
     expect(inkFor(button, 'Start match')).toBe(up(darkColors.textMuted));
     expect(Number(flat(button).borderWidth ?? 0) === 0 || flat(button).borderColor === 'transparent').toBe(true);
+  });
+
+  it('a disabled outlined Button keeps a quiet outline and a disabled text Button stays text, so neither looks more pressable than when enabled (§6.1)', async () => {
+    await renderWithTheme(
+      <View>
+        <Button label="Skip" variant="secondary" disabled onPress={noop} />
+        <Button label="Move down" variant="tertiary" size="sm" disabled onPress={noop} />
+      </View>,
+      { mode: 'dark' },
+    );
+    const outlined = screen.getByRole('button', { name: 'Skip' }) as unknown as Node;
+    expect(flat(outlined).backgroundColor).toBe('transparent');
+    expect(up(flat(outlined).borderColor)).toBe(up(darkColors.border));
+    const text = screen.getByRole('button', { name: 'Move down' }) as unknown as Node;
+    expect(flat(text).backgroundColor).toBe('transparent');
+    expect(Number(flat(text).borderWidth ?? 0)).toBe(0);
+    expect(inkFor(text, 'Move down')).toBe(up(darkColors.textMuted));
   });
 
   it.each([
     ['lg', 56],
     ['md', 48],
-    ['sm', 36],
+    ['sm', 44],
   ] as const)('a %s Button is %d tall and uses the 6 pt radius', async (size, height) => {
     await renderWithTheme(<Button label="Go" size={size} onPress={noop} />);
     const s = flat(screen.getByRole('button', { name: 'Go' }) as unknown as Node);
@@ -2469,20 +2529,20 @@ describe('THEMES §3 component-to-token mapping, checked in dark where every tok
     expect(inkFor(root, 'Undo')).toBe(up(palette.accent));
   });
 
-  it('marks the selected tab with a 2 pt accent underline and heavier weight, not colour alone (§6.6)', async () => {
+  it('marks the selected tab with a 3 pt accent underline and heavier weight, not colour alone (§6.6)', async () => {
     await renderWithTheme(<Tabs accessibilityLabel="Pools" selectedKey="a" onSelect={noop} tabs={[{ key: 'a', label: 'Pool A' }, { key: 'b', label: 'Pool B' }]} />, { mode: 'dark' });
     const [selected, other] = screen.getAllByRole('tab') as unknown as Node[];
-    const underline = (n: Node) => selfAndDescendants(n).some((c) => Number(flat(c).height) === 2 && up(flat(c).backgroundColor) === up(darkColors.accent));
+    const underline = (n: Node) => selfAndDescendants(n).some((c) => Number(flat(c).height) === 3 && up(flat(c).backgroundColor) === up(darkGlass.ink.accent));
     expect(underline(selected)).toBe(true);
     expect(underline(other)).toBe(false);
     const face = (n: Node, label: string) => String(flat(n.queryAll((c) => isHost(c) && String(c.type) === 'Text' && textContent(c) === label)[0]).fontFamily);
     expect(face(selected, 'Pool A')).toMatch(/600SemiBold$/);
     expect(face(other, 'Pool B')).toMatch(/500Medium$/);
     expect(inkFor(selected, 'Pool A')).toBe(up(darkColors.textPrimary));
-    expect(inkFor(other, 'Pool B')).toBe(up(darkColors.textSecondary));
+    expect(inkFor(other, 'Pool B')).toBe(up(darkGlass.ink.secondary));
   });
 
-  it('draws the selected segment as a solid raised lens (surface + borderStrong) on a glass control track, 44 tall (§6.7, §106)', async () => {
+  it('draws the selected segment as a glass selection lens with a 1.5 pt accent outline and a check, on a glass control track, 44 tall (§6.7, §78, §106)', async () => {
     const view = await renderWithTheme(
       <SegmentedControl
         accessibilityLabel="Dot style"
@@ -2502,43 +2562,66 @@ describe('THEMES §3 component-to-token mapping, checked in dark where every tok
     expect(Math.max(Number(flat(track).height ?? 0), Number(flat(track).minHeight ?? 0))).toBe(44);
     expect(flat(track).borderRadius).toBe(glassRadius.control);
     const [selected, other] = screen.getAllByRole('radio') as unknown as Node[];
-    expect(up(flat(selected).backgroundColor)).toBe(up(darkColors.surface));
-    expect(Number(flat(selected).borderWidth)).toBe(1);
-    expect(up(flat(selected).borderColor)).toBe(up(darkColors.borderStrong));
+    expect(up(flat(selected).backgroundColor)).toBe(up(darkGlass.selection));
+    expect(Number(flat(selected).borderWidth)).toBe(1.5);
+    expect(up(flat(selected).borderColor)).toBe(up(darkGlass.ink.accent));
+    expect(selected.queryAll((c) => String(c.props.testID ?? '') === 'lucide-check')).toHaveLength(1);
     expect(flat(other).backgroundColor === undefined || flat(other).backgroundColor === 'transparent').toBe(true);
+    expect(flat(other).borderColor).toBe('transparent');
+    expect(other.queryAll((c) => String(c.props.testID ?? '') === 'lucide-check')).toHaveLength(0);
   });
 
-  it('shows the selected bottom tab as an outlined glass lens with an accent icon and heavier accent caption; others textSecondary (§6.6, §106)', async () => {
+  it('shows the selected bottom tab in the liquid with the liquid ink, an accent heavier caption; others textSecondary, never onAccent (§6.6, §106, §108, cleanup brief)', async () => {
     await renderWithTheme(<TabBar items={TAB_ITEMS.map((t, i) => ({ key: t.route, label: t.label, icon: t.icon, selected: i === 0, onPress: noop }))} />, { mode: 'dark' });
     const [home, tournaments] = screen.getAllByRole('tab') as unknown as Node[];
-    expect(inkFor(home, 'Home')).toBe(up(darkColors.accent));
-    expect(inkFor(tournaments, 'Tournaments')).toBe(up(darkColors.textSecondary));
-    const lens = (n: Node) =>
-      up(flat(n).backgroundColor) === up(darkGlass.selection) && up(flat(n).borderColor) === up(darkGlass.selectionRim) && Number(flat(n).borderWidth) >= 1;
-    expect(lens(home)).toBe(true);
+    const captions = (n: Node, label: string) => n.queryAll((c) => isHost(c) && String(c.type) === 'Text' && textContent(c) === label);
+    const shown = (text: Node) => {
+      let cursor: Node | null = text;
+      while (cursor && !(isHost(cursor) && cursor.props.jestAnimatedStyle !== undefined)) {
+        cursor = cursor.parent;
+      }
+      expect(cursor).not.toBeNull();
+      return Number((getAnimatedStyle(cursor as never) as { opacity?: number }).opacity ?? 1);
+    };
+    const visibleCaption = (n: Node, label: string) => {
+      const layers = captions(n, label);
+      expect(layers).toHaveLength(2);
+      const visible = layers.filter((layer) => shown(layer) === 1);
+      expect(visible).toHaveLength(1);
+      return visible[0];
+    };
+    expect(inkFor(home, 'Home')).toBe(up(darkGlass.ink.accent));
+    expect(up(inkOf(visibleCaption(home, 'Home')))).toBe(up(darkGlass.ink.accent));
+    expect(up(inkOf(visibleCaption(tournaments, 'Tournaments')))).toBe(up(darkGlass.ink.secondary));
+    const lens = (n: Node) => up(flat(n).backgroundColor) === up(darkGlass.selection);
+    expect(lens(home)).toBe(false);
     expect(lens(tournaments)).toBe(false);
-    const face = (n: Node, label: string) => String(flat(n.queryAll((c) => isHost(c) && String(c.type) === 'Text' && textContent(c) === label)[0]).fontFamily);
-    expect(face(home, 'Home')).toMatch(/600SemiBold$/);
-    expect(face(tournaments, 'Tournaments')).toMatch(/500Medium$/);
-    const icon = (n: Node) => n.queryAll((c) => /^lucide-/.test(String(c.props.testID ?? '')))[0];
-    expect(up(flat(icon(home)).borderColor)).toBe(up(darkColors.accent));
-    expect(Number(flat(icon(home)).width)).toBe(24);
+    expect(String(flat(visibleCaption(home, 'Home')).fontFamily)).toMatch(/600SemiBold$/);
+    expect(String(flat(visibleCaption(tournaments, 'Tournaments')).fontFamily)).toMatch(/500Medium$/);
+    const glyphs = (n: Node) => n.queryAll((c) => /^lucide-|-lit-icon$/.test(String(c.props.testID ?? '')));
+    const inks = glyphs(home).map((g) => up(flat(g).borderColor));
+    expect(inks).toEqual(expect.arrayContaining([up(darkColors[darkGlass.liquid.ink]), up(darkGlass.ink.secondary)]));
+    expect(inks).not.toContain(up(darkColors.onAccent));
+    for (const glyph of glyphs(home)) {
+      expect(Number(flat(glyph).width)).toBe(24);
+    }
   });
 
-  it('floats the 56 pt tab row in a glass capsule above the home indicator, with a coloured rim in dark (§106)', async () => {
+  it('docks the 56 pt tab row on one edge-to-edge glass surface that runs into the home indicator area (§106, cleanup brief)', async () => {
     const view = await renderWithTheme(
       <TabBar bottomInset={34} items={TAB_ITEMS.map((t, i) => ({ key: t.route, label: t.label, icon: t.icon, selected: i === 0, onPress: noop }))} />,
       { mode: 'dark' },
     );
     const root = view.container as unknown as Node;
-    const capsule = root.queryAll((n) => isHost(n) && n.props.accessibilityRole === 'tablist')[0];
-    expect(flat(capsule).height).toBe(TAB_BAR_HEIGHT + 8);
-    expect(flat(capsule).borderRadius).toBe(glassRadius.pill);
-    expect(capsule.queryAll((n) => isHost(n) && up(flat(n).backgroundColor) === up(darkGlass.level.bar.tint))).toHaveLength(1);
-    expect(capsule.queryAll((n) => isHost(n) && up(flat(n).borderTopColor) === up(darkGlass.rim.top))).toHaveLength(1);
-    const dock = flat(capsule.parent as Node);
+    const row = root.queryAll((n) => isHost(n) && n.props.accessibilityRole === 'tablist')[0];
+    expect(flat(row).height).toBe(TAB_BAR_HEIGHT);
+    const surface = row.parent as Node;
+    expect(flat(surface).borderRadius ?? 0).toBe(0);
+    expect(Number(flat(surface).paddingBottom)).toBe(34);
+    expect(surface.queryAll((n) => isHost(n) && up(flat(n).backgroundColor) === up(darkGlass.level.bar.tint))).toHaveLength(1);
+    const dock = flat(surface.parent as Node);
     expect(dock.position).toBe('absolute');
-    expect(Number(dock.paddingBottom)).toBe(34 - 12);
+    expect([Number(dock.left), Number(dock.right), Number(dock.bottom)]).toEqual([0, 0, 0]);
     for (const tab of screen.getAllByRole('tab') as unknown as Node[]) {
       expect(Math.max(Number(flat(tab).height ?? 0), Number(flat(tab).minHeight ?? 0))).toBe(TAB_BAR_HEIGHT);
     }
@@ -2584,10 +2667,14 @@ describe('THEMES §3 component-to-token mapping, checked in dark where every tok
     expect(inkOf(screen.getByText('Gone for good.', { includeHiddenElements: true }) as unknown as Node)?.toUpperCase()).toBe(up(darkColors.textSecondary));
   });
 
-  it('draws the boundary rule as 2 pt textPrimary, 2 pt gap, 1 pt border, hidden from the reader (§4.2)', async () => {
-    const view = await renderWithTheme(<BoundaryRule testID="rule" />, { mode: 'dark' });
+  it('draws the band rule as 2 pt deep teal, 2 pt gap, 1 pt border and the section rule as a single border hairline, hidden from the reader (§4.2)', async () => {
+    const section = await renderWithTheme(<BoundaryRule testID="section" />, { mode: 'dark' });
+    const sectionNodes = (section.container as unknown as Node).queryAll(isHost);
+    expect(sectionNodes.filter((n) => Number(flat(n).height) === 2)).toHaveLength(0);
+    expect(sectionNodes.filter((n) => up(flat(n).backgroundColor) === up(darkColors.textPrimary))).toHaveLength(0);
+    const view = await renderWithTheme(<BoundaryRule tone="band" testID="rule" />, { mode: 'dark' });
     const nodes = (view.container as unknown as Node).queryAll(isHost);
-    const heavy = nodes.filter((n) => flat(n).height === 2 && up(flat(n).backgroundColor) === up(darkColors.textPrimary));
+    const heavy = nodes.filter((n) => flat(n).height === 2 && up(flat(n).backgroundColor) === up(darkColors.accentDeep));
     const light = nodes.filter((n) => flat(n).height === 1 && up(flat(n).backgroundColor) === up(darkColors.border));
     expect(heavy).toHaveLength(1);
     expect(light).toHaveLength(1);
@@ -2767,7 +2854,8 @@ describe('adversarial extras: per-component caps, target spacing, compile-time l
   it('caps the bottom tab captions at ≤ 1.5 (RESPONSIVE §5: tab bar labels stay at 12 × 1.5 max)', async () => {
     await renderWithTheme(<TabBar items={TAB_ITEMS.map((t, i) => ({ key: t.route, label: t.label, icon: t.icon, selected: i === 0, onPress: noop }))} />);
     const captions = screen.getAllByText(/^(Home|Tournaments|History|Settings)$/, { includeHiddenElements: true }) as unknown as Node[];
-    expect(captions.length).toBe(4);
+    expect(captions.length).toBe(8);
+    expect(screen.getAllByText(/^(Home|Tournaments|History|Settings)$/)).toHaveLength(4);
     for (const caption of captions) {
       const cap = caption.props.maxFontSizeMultiplier;
       expect(typeof cap === 'number' && cap >= 1 && cap <= 1.5).toBe(true);
@@ -2820,7 +2908,7 @@ describe('adversarial extras: per-component caps, target spacing, compile-time l
     expect(onPress).not.toHaveBeenCalled();
   });
 
-  it.each(THEMES)('tints a settings switch accent when on and borderStrong when off (%s, DESIGN_SYSTEM §6.19, THEMES §3.4)', async (scheme, palette) => {
+  it.each(THEMES)('tints a settings switch with the token switch colours, the knob at 3:1 or more against its track (%s, DESIGN_SYSTEM §6.19, THEMES §3.4)', async (scheme, palette) => {
     const view = await renderWithTheme(
       <View>
         <ListRow title="Vibration" trailing={{ kind: 'switch', value: true, onValueChange: noop }} />
@@ -2834,8 +2922,16 @@ describe('adversarial extras: per-component caps, target spacing, compile-time l
       const track = (sw.props.trackColor ?? {}) as { true?: unknown; false?: unknown };
       const on = track.true ?? sw.props.onTintColor;
       const off = track.false ?? sw.props.tintColor;
-      expect(up(on)).toBe(up(palette.accent));
+      const colors = switchColors(createTheme(scheme));
+      expect(up(on)).toBe(up(colors.trackOn));
       expect(up(off)).toBe(up(palette.borderStrong));
+      expect(up(on)).toBe(up(scheme === 'dark' ? palette.accentDeep : palette.accent));
+      const thumb = String(sw.props.thumbTintColor ?? sw.props.thumbColor ?? '');
+      expect([up(colors.thumbOn), up(colors.thumbOff)]).toContain(up(thumb));
+      expect(up(thumb)).not.toBe('#009688');
+      expect(wcag(colors.thumbOn, colors.trackOn)).toBeGreaterThanOrEqual(3);
+      expect(wcag(colors.thumbOff, colors.trackOff)).toBeGreaterThanOrEqual(3);
+      expect(wcag(colors.trackOn, palette.surface)).toBeGreaterThanOrEqual(3);
     }
   });
 

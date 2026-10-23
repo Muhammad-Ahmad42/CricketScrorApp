@@ -2,17 +2,19 @@ import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import type { MatchEndOutcome, TeamId } from '@/domain/types';
 import type { ScoringIntent } from '@/domain/scoring/commands';
-import { Button, Sheet, Text, space } from '@/ui';
-import { OptionButton } from '../components/common/OptionButton';
+import { Button, RadioList, Sheet, Text, space } from '@/ui';
 import { isReasonValid, ReasonField } from '../components/common/ReasonField';
+import { useDiscardGuard } from '../hooks/useDiscardGuard';
 
 type Kind = 'abandoned' | 'no_result' | 'awarded';
 
-const KINDS: readonly { readonly value: Kind; readonly label: string; readonly detail: string }[] = [
-  { value: 'abandoned', label: 'Abandoned', detail: 'Play stopped and the match will not finish.' },
-  { value: 'no_result', label: 'No result', detail: 'Play happened but no result is possible.' },
-  { value: 'awarded', label: 'Awarded', detail: 'The organizer awards the match.' },
+const KINDS: readonly { readonly value: Kind; readonly label: string; readonly detail?: string }[] = [
+  { value: 'abandoned', label: 'Abandoned', detail: "Play stopped and won't resume" },
+  { value: 'no_result', label: 'No result', detail: 'Too little play for a result' },
+  { value: 'awarded', label: 'Awarded' },
 ];
+
+const NO_WINNER = '__none__';
 
 export interface EndMatchSheetProps {
   readonly visible: boolean;
@@ -44,61 +46,64 @@ export function EndMatchSheet({ visible, teams, inTournament, onSubmit, onClose 
   const [reason, setReason] = useState('');
   const reasonRequired = kind === 'awarded' || inTournament;
   const valid = !reasonRequired || isReasonValid(reason);
+  const guard = useDiscardGuard(reason.trim() !== '', onClose);
+  const submit = () => {
+    if (valid) {
+      onSubmit({ type: 'end_match', outcome: endOutcome(kind, reason, winner) });
+    }
+  };
   return (
-    <Sheet
-      visible={visible}
-      title="End match"
-      onClose={onClose}
-      testID="sheet-end-match"
-      footer={
-        <Button
-          label="End match"
-          variant="destructiveConfirm"
-          size="lg"
-          fullWidth
-          disabled={!valid}
-          onPress={() => onSubmit({ type: 'end_match', outcome: endOutcome(kind, reason, winner) })}
-          testID="end-match-submit"
-        />
-      }
-    >
-      <View style={styles.body}>
-        {KINDS.map((entry) => (
-          <OptionButton
-            key={entry.value}
-            label={entry.label}
-            detail={entry.detail}
-            selected={kind === entry.value}
-            onPress={() => setKind(entry.value)}
-            testID={`end-match-kind-${entry.value}`}
+    <>
+      <Sheet
+        visible={visible && !guard.asking}
+        title="End match"
+        onClose={guard.requestClose}
+        testID="sheet-end-match"
+        footer={
+          <Button
+            label="End match"
+            variant="destructiveConfirm"
+            size="lg"
+            fullWidth
+            disabled={!valid}
+            onPress={submit}
+            testID="end-match-submit"
           />
-        ))}
-        {kind === 'awarded' ? (
-          <>
-            <Text variant="subhead" tone="secondary">
-              Awarded to
-            </Text>
-            {teams.map((team) => (
-              <OptionButton
-                key={team.id}
-                label={team.name}
-                compact
-                selected={winner === team.id}
-                onPress={() => setWinner(team.id)}
-                testID={`end-match-winner-${team.id}`}
+        }
+      >
+        <View style={styles.body}>
+          <RadioList
+            accessibilityLabel="How the match ends"
+            value={kind}
+            onChange={setKind}
+            choices={KINDS.map((entry) => ({ value: entry.value, label: entry.label, description: entry.detail, testID: `end-match-kind-${entry.value}` }))}
+          />
+          {kind === 'awarded' ? (
+            <>
+              <Text variant="subhead" tone="secondary">
+                Awarded to
+              </Text>
+              <RadioList
+                accessibilityLabel="Awarded to"
+                value={winner ?? NO_WINNER}
+                onChange={(value) => setWinner(value === NO_WINNER ? null : value)}
+                choices={[
+                  ...teams.map((team) => ({ value: team.id, label: team.name, testID: `end-match-winner-${team.id}` })),
+                  { value: NO_WINNER, label: 'No winner', testID: 'end-match-winner-none' },
+                ]}
               />
-            ))}
-            <OptionButton label="No winner" compact selected={winner === null} onPress={() => setWinner(null)} testID="end-match-winner-none" />
-          </>
-        ) : null}
-        <ReasonField value={reason} onChange={setReason} required={reasonRequired} testID="end-match-reason" />
-        {inTournament ? (
-          <Text variant="footnote" tone="secondary">
-            The result counts in the tournament standings as soon as it is recorded.
-          </Text>
-        ) : null}
-      </View>
-    </Sheet>
+            </>
+          ) : null}
+          <ReasonField value={reason} onChange={setReason} required={reasonRequired} returnKeyType="done" submitBehavior="blurAndSubmit" testID="end-match-reason" />
+          {inTournament ? (
+            <Text variant="footnote" tone="secondary">
+              Counts in the standings straight away
+            </Text>
+          ) : null}
+        </View>
+      </Sheet>
+      {guard.dialog}
+    </>
   );
 }
 

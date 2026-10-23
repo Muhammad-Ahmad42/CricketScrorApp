@@ -1,5 +1,5 @@
 import type { MatchListItem, MatchListQuery, MatchStatus } from '@/domain/types';
-import { monthHeading } from '@/features/scoring/selectors/dates';
+import { matchMonthHeading } from '@/features/scoring/selectors/dates';
 import { selectMatchCard, type MatchCardVM } from './matchCard';
 
 export type StatusFilter = 'all' | 'live' | 'completed' | 'scheduled' | 'abandoned' | 'cancelled';
@@ -54,7 +54,7 @@ export function historyRows(items: readonly MatchListItem[]): readonly HistoryRo
   const rows: HistoryRow[] = [];
   let current: string | null = null;
   for (const item of items) {
-    const heading = monthHeading(item.scheduledDate ?? item.updatedAt);
+    const heading = matchMonthHeading(item);
     if (heading !== current) {
       current = heading;
       rows.push({ type: 'header', key: `header-${heading}-${rows.length}`, title: heading });

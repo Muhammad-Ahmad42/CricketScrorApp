@@ -15,18 +15,18 @@ export const MESSAGES = {
   createMatch: "Couldn't create the match. Nothing was saved.",
   loadMatch: "Couldn't open this match. Your match data is still safe.",
   matchList: "Couldn't load your matches. Your data is still safe.",
-  conflict: 'This match changed on another screen. It has been reloaded, so check it and try again.',
-  tournamentConflict: 'The tournament changed since this preview. Review the changes again before continuing.',
-  tournament: "Couldn't save this tournament change. Your previous tournament data is still safe.",
+  conflict: 'This match changed on another screen. Check it and try again.',
+  tournamentConflict: 'The tournament changed since this preview. Review the changes again.',
+  tournament: "Couldn't save this tournament change. Your tournament data is still safe.",
   tournamentLoad: "Couldn't open this tournament. Your data is still safe.",
-  team: "Couldn't save the team library. Your previous data is still safe.",
+  team: "Couldn't save this change. Your teams are still safe.",
   settings: "Couldn't save your settings. Your previous settings are still in place.",
   bootstrap: "Couldn't open your scorebook data. Nothing has been changed.",
-  integrity: "Couldn't finish the database check. Nothing has been changed.",
+  integrity: "Couldn't finish the data check. Nothing has been changed.",
   exportPdf: "Couldn't create the PDF. Your data is safe.",
   exportBackup: "Couldn't save the backup. Your data is safe.",
   share: "Couldn't open the share sheet. The file is saved in the app's files.",
-  importRead: "Couldn't read this file. Check that it is a Scorebook backup and try again.",
+  importRead: "Couldn't read this file. Choose a Scorebook backup and try again.",
   importApply: "Couldn't import this backup. Nothing has been changed.",
   needsRepair: 'This match needs repair. Edit or undo the damaged ball before scoring again.',
 } as const;
@@ -59,10 +59,10 @@ export function toServiceError(error: unknown, message: string): ServiceError {
     return serviceError('STORAGE', error.message, { detail });
   }
   if (error instanceof MigrationError) {
-    return serviceError('STORAGE', "Scorebook couldn't upgrade your data, so nothing was changed. Try again.", { detail });
+    return serviceError('STORAGE', "Couldn't upgrade your data. Nothing was changed. Try again.", { detail });
   }
   if (error instanceof SquadPlayerInUseError) {
-    return serviceError('FORBIDDEN_STATE', 'This player has already taken part in the match, so they stay in the squad.', { detail });
+    return serviceError('FORBIDDEN_STATE', 'This player has already played. They stay in the squad.', { detail });
   }
   if (error instanceof NotFoundError) {
     return serviceError('NOT_FOUND', 'This item no longer exists. It may have been deleted.', { detail });

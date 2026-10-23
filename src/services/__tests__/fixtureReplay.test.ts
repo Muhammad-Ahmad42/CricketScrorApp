@@ -100,7 +100,8 @@ describe('replaying an abandoned tournament fixture (§39, §59, §99)', () => {
       previousValue: expect.objectContaining({ status: 'abandoned', matchId: abandonedId }),
     });
     expect(audit.summary).toMatch(/will be replayed/);
-    expect(audit.impact?.lines.join(' ')).toMatch(/stops counting/);
+    expect(audit.impact?.lines.join(' ')).toMatch(/stays on record but no longer counts/);
+    expect(audit.impact?.keyItems).toContainEqual({ headline: 'Match 6 will be replayed', detail: 'The abandoned match stays on record but no longer counts.' });
   });
 
   it('stops counting the superseded no result: standings, NRR, progress, list and stats all agree', async () => {

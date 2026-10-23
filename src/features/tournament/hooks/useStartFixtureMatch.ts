@@ -8,6 +8,8 @@ import type { FixtureRowVM } from '../selectors/fixtures';
 import type { TournamentIndex } from '../selectors/names';
 import { showError } from './toast';
 
+export const PROVISIONAL_START_TITLE = 'Stage not finished';
+
 export interface ProvisionalPrompt {
   readonly fixtureId: FixtureId;
   readonly message: string;
@@ -15,9 +17,8 @@ export interface ProvisionalPrompt {
 
 export function provisionalStartMessage(index: TournamentIndex, row: FixtureRowVM): string {
   const sides = [row.a, row.b].filter((side) => side.provisional);
-  const lines = sides.map((side) => `${index.teamName(side.teamId)} ${side.slotLabel ? `are provisionally ${side.slotLabel}` : 'are provisional'}`);
   const teams = joinList(sides.map((side) => index.teamName(side.teamId)));
-  return `The earlier stage isn't finished. ${lines.join('. ')}. Starting now fixes ${teams} in this match even if the table changes.`;
+  return `Starting now locks in ${teams}, even if the table changes.`;
 }
 
 export interface StartFixtureMatch {

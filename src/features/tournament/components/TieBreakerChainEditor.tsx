@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
-import { describeTieBreakerChain, tieBreakerLabel } from '@/domain/tournament/tiebreakers';
+import { tieBreakerLabel } from '@/domain/tournament/tiebreakers';
 import { TIE_BREAKER_KINDS, type TieBreakerKind } from '@/domain/types';
-import { Button, IconButton, Separator, Text, space } from '@/ui';
+import { Button, IconButton, Inset, Separator, Text, space, useGutter } from '@/ui';
 import { moveInList } from '../selectors/overrides';
 import { PickerSheet } from '../sheets/PickerSheet';
 
@@ -13,6 +13,7 @@ export interface TieBreakerChainEditorProps {
 }
 
 export function TieBreakerChainEditor({ chain, onChange, testIDPrefix = 'twiz' }: TieBreakerChainEditorProps) {
+  const gutter = useGutter();
   const [adding, setAdding] = useState(false);
   const available = TIE_BREAKER_KINDS.filter((kind) => !chain.includes(kind));
   return (
@@ -22,11 +23,15 @@ export function TieBreakerChainEditor({ chain, onChange, testIDPrefix = 'twiz' }
         const label = tieBreakerLabel(kind);
         return (
           <View key={kind}>
-            <View style={styles.row} testID={`${testIDPrefix}-row-tiebreaker-${position + 1}`} accessible={false}>
-              <Text variant="tableNumeric" style={styles.position}>
+            <View
+              style={[styles.row, { paddingLeft: gutter, paddingRight: fixed ? gutter : Math.max(space.xxs, gutter - space.sm) }]}
+              testID={`${testIDPrefix}-row-tiebreaker-${position + 1}`}
+              accessible={false}
+            >
+              <Text variant="tableNumeric" tone="secondary" style={styles.position}>
                 {String(position + 1)}
               </Text>
-              <Text variant="body" style={styles.label}>
+              <Text variant="body" style={styles.label} testID={`${testIDPrefix}-text-tiebreaker-${position + 1}`}>
                 {label}
               </Text>
               {fixed ? (
@@ -35,19 +40,15 @@ export function TieBreakerChainEditor({ chain, onChange, testIDPrefix = 'twiz' }
                 </Text>
               ) : (
                 <>
-                  <Button
-                    label="Up"
-                    variant="tertiary"
-                    size="sm"
+                  <IconButton
+                    icon="chevron-up"
                     disabled={position <= 1}
                     accessibilityLabel={`Move ${label} up`}
                     onPress={() => onChange(moveInList(chain, position, position - 1))}
                     testID={`${testIDPrefix}-btn-tiebreaker-up-${position + 1}`}
                   />
-                  <Button
-                    label="Down"
-                    variant="tertiary"
-                    size="sm"
+                  <IconButton
+                    icon="chevron-down"
                     disabled={position === chain.length - 1}
                     accessibilityLabel={`Move ${label} down`}
                     onPress={() => onChange(moveInList(chain, position, position + 1))}
@@ -62,24 +63,23 @@ export function TieBreakerChainEditor({ chain, onChange, testIDPrefix = 'twiz' }
                 </>
               )}
             </View>
-            <Separator inset={space.md} />
+            <Separator inset={gutter} />
           </View>
         );
       })}
-      <View style={styles.footer}>
-        <Button
-          label="Add tie-breaker"
-          icon="plus"
-          variant="tertiary"
-          size="sm"
-          disabled={available.length === 0}
-          onPress={() => setAdding(true)}
-          testID={`${testIDPrefix}-btn-tiebreaker-add`}
-        />
-        <Text variant="callout" testID={`${testIDPrefix}-text-tiebreak-chain`}>
-          {describeTieBreakerChain(chain)}
-        </Text>
-      </View>
+      <Inset top="xs">
+        <View style={styles.start}>
+          <Button
+            label="Add tie-breaker"
+            icon="plus"
+            variant="tertiary"
+            size="sm"
+            disabled={available.length === 0}
+            onPress={() => setAdding(true)}
+            testID={`${testIDPrefix}-btn-tiebreaker-add`}
+          />
+        </View>
+      </Inset>
       <PickerSheet
         visible={adding}
         title="Add tie-breaker"
@@ -99,8 +99,8 @@ export function TieBreakerChainEditor({ chain, onChange, testIDPrefix = 'twiz' }
 }
 
 const styles = StyleSheet.create({
-  row: { flexDirection: 'row', alignItems: 'center', gap: space.xs, paddingHorizontal: space.md, minHeight: 48 },
-  position: { width: 20 },
-  label: { flex: 1 },
-  footer: { paddingHorizontal: space.md, paddingTop: space.xs, gap: space.xs, alignItems: 'flex-start' },
+  row: { flexDirection: 'row', alignItems: 'center', gap: space.xs, minHeight: 48 },
+  position: { minWidth: space.lg },
+  label: { flex: 1, minWidth: 0 },
+  start: { alignSelf: 'flex-start' },
 });

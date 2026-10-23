@@ -1,14 +1,19 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { FlatList, StyleSheet, View } from 'react-native';
+import { FlatList, View } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
-import { Button, EmptyState, ListRow, Screen, Skeleton, TextField, space, useScreenList } from '@/ui';
+import { EmptyState, IconButton, Inset, ListRow, Screen, Skeleton, useScreenList } from '@/ui';
 import type { Team } from '@/domain/types';
 import { useTeamLibraryStore, useToastStore } from '@/stores';
 import { TopBar } from '@/features/scoring/components/common/TopBar';
 import { useSingleFlight } from '@/features/scoring/hooks/useSingleFlight';
 import { TeamSheet, type TeamValues } from '../sheets/TeamSheet';
+import { SearchField } from '@/features/history/components/SearchField';
+import { teamRowSubtitle } from '../selectors';
+import { errorHeadline } from '@/features/scoring/selectors/scannable';
 
 export const TEAM_SEARCH_DEBOUNCE_MS = 250;
+
+const NO_COUNTS: Readonly<Record<string, number>> = {};
 
 function goBack(): void {
   if (router.canGoBack()) {
@@ -20,13 +25,14 @@ function goBack(): void {
 
 interface TeamListProps {
   readonly teams: readonly Team[];
+  readonly counts: Readonly<Record<string, number>>;
   readonly loading: boolean;
   readonly archived: boolean;
   readonly onArchived: (value: boolean) => void;
   readonly onCreate: () => void;
 }
 
-function TeamList({ teams, loading, archived, onArchived, onCreate }: TeamListProps) {
+function TeamList({ teams, counts, loading, archived, onArchived, onCreate }: TeamListProps) {
   const list = useScreenList();
   return (
     <FlatList
@@ -35,7 +41,7 @@ function TeamList({ teams, loading, archived, onArchived, onCreate }: TeamListPr
       renderItem={({ item }) => (
         <ListRow
           title={item.name}
-          subtitle={item.archivedAt !== null ? 'Archived' : undefined}
+          subtitle={teamRowSubtitle(item, counts[item.id])}
           leading={{ monogram: item.shortName }}
           trailing={{ kind: 'chevron' }}
           onPress={() => router.push({ pathname: '/teams/[teamId]', params: { teamId: item.id } })}
@@ -48,9 +54,8 @@ function TeamList({ teams, loading, archived, onArchived, onCreate }: TeamListPr
         ) : (
           <EmptyState
             title="No teams yet"
-            body="Add a team once and reuse it in matches and tournaments."
-            action={{ label: 'ADD TEAM', onPress: onCreate, testID: 'teams-btn-empty-add' }}
-            caps
+            icon="plus"
+            action={{ label: 'Add team', onPress: onCreate, testID: 'teams-btn-empty-add' }}
             testID="teams-empty"
           />
         )
@@ -68,6 +73,7 @@ function TeamList({ teams, loading, archived, onArchived, onCreate }: TeamListPr
 
 export function TeamsScreen() {
   const teams = useTeamLibraryStore((s) => s.teams);
+  const counts = useTeamLibraryStore((s) => s.playerCounts ?? NO_COUNTS);
   const status = useTeamLibraryStore((s) => s.status);
   const [search, setSearch] = useState('');
   const [archived, setArchived] = useState(false);
@@ -102,7 +108,7 @@ export function TeamsScreen() {
     if (team === null) {
       const error = useTeamLibraryStore.getState().error;
       useTeamLibraryStore.getState().clearError();
-      useToastStore.getState().show({ kind: 'error', message: error?.message ?? "Couldn't create the team.", action: null });
+      useToastStore.getState().show({ kind: 'error', message: errorHeadline(error, "Couldn't create the team."), action: null });
       return;
     }
     setCreating(false);
@@ -115,14 +121,18 @@ export function TeamsScreen() {
       scroll={false}
       header={
         <View>
-          <TopBar title="Teams" onBack={goBack} trailing={<Button label="New" icon="plus" variant="secondary" size="sm" onPress={() => setCreating(true)} testID="teams-btn-new" />} />
-          <View style={styles.search}>
-            <TextField label="Search" value={search} onChangeText={setSearch} placeholder="Search teams" leadingIcon="search" testID="teams-search" />
-          </View>
+          <TopBar
+            title="Teams"
+            onBack={goBack}
+            trailing={<IconButton icon="plus" label="New team" tone="accent" accessibilityLabel="New team" onPress={() => setCreating(true)} testID="teams-btn-new" />}
+          />
+          <Inset bottom="sm">
+            <SearchField value={search} onChangeText={setSearch} accessibilityLabel="Search teams" placeholder="Search teams" testID="teams-search" />
+          </Inset>
         </View>
       }
     >
-      <TeamList teams={teams} loading={status === 'loading'} archived={archived} onArchived={setArchived} onCreate={() => setCreating(true)} />
+      <TeamList teams={teams} counts={counts} loading={status === 'loading'} archived={archived} onArchived={setArchived} onCreate={() => setCreating(true)} />
       {creating ? (
         <TeamSheet
           visible
@@ -137,7 +147,3 @@ export function TeamsScreen() {
     </Screen>
   );
 }
-
-const styles = StyleSheet.create({
-  search: { paddingHorizontal: space.md, paddingBottom: space.sm },
-});

@@ -61,7 +61,7 @@ const TOURNAMENT_EDGES: ReadonlyMap<string, Rule<TournamentGuardContext>> = new 
   [edgeKey('archived', 'completed'), () => OK],
   [
     edgeKey('completed', 'active'),
-    () => ({ ok: true, warnings: ['The tournament is reopened for corrections. This is recorded in the audit log.'] }),
+    () => ({ ok: true, warnings: ['The tournament reopens for corrections.'] }),
   ],
   [edgeKey('structure_configured', 'registration'), NO_MATCHES_STARTED],
   [edgeKey('pools_configured', 'structure_configured'), NO_MATCHES_STARTED],
@@ -169,8 +169,8 @@ export function canTransitionFixture(
   if (from === 'abandoned' && to === 'rescheduled') {
     return allowIf(
       ctx.replayAllowed,
-      "This stage doesn't allow abandoned matches to be replayed, so the match stays a no result.",
-      ['The abandoned match stays in the history; the replay will be a new match.'],
+      "This stage doesn't allow replays. The match stays a no result.",
+      ['The replay is a new match. The abandoned one stays in history.'],
     );
   }
   if (MIRROR_STATUSES.has(to)) {
@@ -207,7 +207,7 @@ export function canTransitionMatch(from: MatchStatus, to: MatchStatus, ctx: { re
     return refuse(`${withArticle(MATCH_STATUS_LABELS[from].toLowerCase())} match can't become ${MATCH_STATUS_LABELS[to].toLowerCase()}.`);
   }
   if ((from === 'scheduled' || from === 'postponed') && to === 'completed') {
-    return allowIf(!ctx.hasDeliveries, 'A walkover or an award without play is only possible before the first ball.');
+    return allowIf(!ctx.hasDeliveries, 'Too late for a walkover or award. Play has started.');
   }
   return OK;
 }

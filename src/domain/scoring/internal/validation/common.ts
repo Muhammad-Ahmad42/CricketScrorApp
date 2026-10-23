@@ -87,13 +87,13 @@ export function squadFailure(
 export function pendingMessage(state: MatchState): string {
   const pending = state.pendingAction;
   if (pending === null) {
-    return 'Finish the current step before recording the next ball.';
+    return 'Finish the current step first.';
   }
   switch (pending.type) {
     case 'select_next_batter':
-      return 'Choose the next batter before recording the next ball.';
+      return 'Choose the next batter first.';
     case 'select_next_bowler':
-      return 'Choose the bowler for the next over before recording the next ball.';
+      return 'Choose the next bowler first.';
     case 'start_next_innings':
       return 'This innings is over. Start the next innings first.';
     case 'confirm_result':

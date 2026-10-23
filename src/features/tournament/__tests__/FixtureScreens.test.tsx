@@ -6,6 +6,7 @@ import { AddFixtureScreen } from '../screens/AddFixtureScreen';
 import { FixtureDetailScreen } from '../screens/FixtureDetailScreen';
 import { FixturesScreen } from '../screens/FixturesScreen';
 import { loadTournament, resetAll } from './support/harness';
+import { pickDate, pickTime } from './support/pickers';
 import { useMatchSetupStore, useTournamentStore } from './support/mockStores';
 import { mockRouter } from './support/router';
 import { GROUP_RESULTS, cupSnapshot, playPair } from './support/tournament';
@@ -45,7 +46,7 @@ describe('FixturesScreen (§35–§39)', () => {
     await fireEvent.press(screen.getByTestId('fixtures-tab-completed'));
     expect(screen.getByTestId(`fixtures-text-status-${played.matchNumber}`)).toHaveTextContent('Completed');
     expect(screen.getByText('Lions won by 6 runs')).toBeOnTheScreen();
-    await fireEvent.press(screen.getByTestId('fixtures-tab-cancelled'));
+    await fireEvent.press(screen.getByTestId('fixtures-tab-off'));
     expect(screen.getByTestId('fixtures-text-none')).toBeOnTheScreen();
   });
 
@@ -80,7 +81,8 @@ describe('FixtureDetailScreen (§38, §39, §66)', () => {
     await renderWithTheme(<FixtureDetailScreen tournamentId="t1" fixtureId={semi.id} />);
     expect(screen.getByTestId('fixture-text-teams')).toHaveTextContent('A1 v B2');
     expect(screen.getByTestId('fixture-btn-start-match')).toBeDisabled();
-    expect(screen.getByTestId('fixture-text-waiting')).toHaveTextContent(/Waiting for Pool A winner and Pool B runner-up/);
+    expect(screen.getByTestId('fixture-btn-start-match')).toHaveTextContent('Start match');
+    expect(screen.getByTestId('fixture-text-waiting-headline')).toHaveTextContent('Waiting for Pool A winner and Pool B runner-up');
   });
 
   it('asks before starting with provisional sides', async () => {
@@ -91,8 +93,9 @@ describe('FixtureDetailScreen (§38, §39, §66)', () => {
     await renderWithTheme(<FixtureDetailScreen tournamentId="t1" fixtureId={semi.id} />);
     expect(screen.getByTestId('fixture-text-teams')).toHaveTextContent(/Bulls v A2 · .* \(provisional\)/);
     await fireEvent.press(screen.getByTestId('fixture-btn-start-match'));
-    expect(screen.getByText('Start anyway?')).toBeOnTheScreen();
-    expect(screen.getByTestId('dialog-text-message')).toHaveTextContent(/provisionally A2/);
+    expect(screen.getByText('Stage not finished')).toBeOnTheScreen();
+    expect(screen.getByTestId('dialog-text-message')).toHaveTextContent(/^Starting now locks in .*, even if the table changes\.$/);
+    expect(screen.getByTestId('dialog-btn-confirm')).toHaveTextContent('Start anyway');
     expect(useMatchSetupStore.getState().startFromFixture).not.toHaveBeenCalled();
     await fireEvent.press(screen.getByTestId('dialog-btn-confirm'));
     await waitFor(() => expect(useMatchSetupStore.getState().startFromFixture).toHaveBeenCalledWith('t1', semi.id));
@@ -116,10 +119,9 @@ describe('FixtureDetailScreen (§38, §39, §66)', () => {
     await renderWithTheme(<FixtureDetailScreen tournamentId="t1" fixtureId={fixture.id} />);
     await fireEvent.press(screen.getByTestId('fixture-btn-reschedule'));
     expect(screen.getByTestId('schedule-btn-save')).toBeDisabled();
-    await fireEvent.changeText(screen.getByTestId('schedule-input-date'), '2026-13-40');
-    expect(screen.getByTestId('schedule-btn-save')).toBeDisabled();
-    await fireEvent.changeText(screen.getByTestId('schedule-input-date'), '2026-09-20');
-    await fireEvent.changeText(screen.getByTestId('schedule-input-time'), '10:00');
+    expect(screen.queryByTestId('schedule-input-date-clear')).not.toBeOnTheScreen();
+    await pickDate('schedule-input-date', '2026-09-20');
+    await pickTime('schedule-input-time', '10:00');
     await fireEvent.press(screen.getByTestId('schedule-btn-save'));
     await waitFor(() =>
       expect(useTournamentStore.getState().updateFixture).toHaveBeenCalledWith(
@@ -169,7 +171,7 @@ describe('FixtureDetailScreen (§38, §39, §66)', () => {
     const fixture = snapshot.fixtures[0];
     await renderWithTheme(<FixtureDetailScreen tournamentId="t1" fixtureId={fixture.id} />);
     await fireEvent.press(screen.getByTestId('fixture-btn-edit'));
-    await fireEvent.changeText(screen.getByTestId('schedule-input-date'), '2026-09-14');
+    await pickDate('schedule-input-date', '2026-09-14');
     await fireEvent.changeText(screen.getByTestId('schedule-input-label'), 'Opener');
     await fireEvent.press(screen.getByTestId('schedule-btn-save'));
     await waitFor(() =>
@@ -190,7 +192,7 @@ describe('AddFixtureScreen (§37)', () => {
     await fireEvent.press(screen.getByTestId('picker-row-1'));
     await fireEvent.press(screen.getByTestId('addfix-btn-side-b'));
     await fireEvent.press(screen.getByTestId('picker-row-2'));
-    await fireEvent.changeText(screen.getByTestId('addfix-input-date'), '2026-09-26');
+    await pickDate('addfix-input-date', '2026-09-26');
     await fireEvent.changeText(screen.getByTestId('addfix-input-overs'), '10');
     await fireEvent.changeText(screen.getByTestId('addfix-input-label'), 'Friendly');
     await fireEvent.press(screen.getByTestId('addfix-btn-submit'));

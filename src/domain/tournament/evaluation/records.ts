@@ -1,5 +1,6 @@
-import type { InningsSummary, PlayerTournamentStats, TeamId, TournamentRecordLine } from '../../types';
-import { plural } from './format';
+import type { InningsSummary, PlayerId, PlayerTournamentStats, TeamId, TournamentRecordLine } from '../../types';
+import { formatOvers } from '../../scoring/format';
+import { joinNames, plural } from './format';
 import type { SnapshotIndex } from './snapshotIndex';
 import { teamName } from './snapshotIndex';
 import { opponentOf } from './statsMatches';
@@ -21,18 +22,28 @@ interface Candidate {
 
 type Better = (candidate: Candidate, current: Candidate) => boolean;
 
+function withTies(line: TournamentRecordLine, ties: readonly TournamentRecordLine[]): TournamentRecordLine {
+  return ties.length === 0 ? line : { ...line, tiedWith: ties };
+}
+
 class RecordKeeper {
   private current: Candidate | null = null;
+  private ties: TournamentRecordLine[] = [];
 
   constructor(private readonly better: Better) {}
 
   offer(line: TournamentRecordLine, secondary = 0): void {
     const candidate = { line, secondary };
-    if (this.current === null || this.better(candidate, this.current)) this.current = candidate;
+    if (this.current === null || this.better(candidate, this.current)) {
+      this.current = candidate;
+      this.ties = [];
+    } else if (!this.better(this.current, candidate)) {
+      this.ties.push(line);
+    }
   }
 
   get value(): TournamentRecordLine | null {
-    return this.current?.line ?? null;
+    return this.current === null ? null : withTies(this.current.line, this.ties);
   }
 }
 
@@ -42,7 +53,7 @@ const moreWicketsFewerRuns: Better = (candidate, current) =>
   candidate.line.value !== current.line.value ? candidate.line.value > current.line.value : candidate.secondary < current.secondary;
 
 function oversText(balls: number, ballsPerOver: number): string {
-  return `${Math.floor(balls / ballsPerOver)}.${balls % ballsPerOver}`;
+  return formatOvers(balls, ballsPerOver);
 }
 
 function scoreText(innings: InningsSummary): string {
@@ -63,6 +74,7 @@ export function inningsRecords(index: SnapshotIndex, matches: readonly CountedMa
         playerId: null,
         value: innings.runs,
         detail: `${teamName(index, innings.battingTeamId)} ${scoreText(innings)} (${oversText(innings.legalBalls, innings.ballsPerOver)} ov) v ${against}`,
+        valueText: scoreText(innings),
       });
       for (const line of innings.batting) {
         individual.offer({
@@ -71,6 +83,8 @@ export function inningsRecords(index: SnapshotIndex, matches: readonly CountedMa
           playerId: line.playerId,
           value: line.runs,
           detail: `${line.runs}${line.out ? '' : '*'} (${plural(line.balls, 'ball')}) v ${against}`,
+          playerIds: [line.playerId],
+          valueText: `${line.runs}${line.out ? '' : '*'}`,
         });
       }
       for (const line of innings.bowling) {
@@ -81,6 +95,8 @@ export function inningsRecords(index: SnapshotIndex, matches: readonly CountedMa
             playerId: line.playerId,
             value: line.wickets,
             detail: `${line.wickets}/${line.runsConceded} v ${teamName(index, innings.battingTeamId)}`,
+            playerIds: [line.playerId],
+            valueText: plural(line.wickets, 'wicket'),
           },
           line.runsConceded,
         );
@@ -93,6 +109,8 @@ export function inningsRecords(index: SnapshotIndex, matches: readonly CountedMa
           playerId: best.batterAId,
           value: best.runs,
           detail: `${plural(best.runs, 'run')} (${plural(best.balls, 'ball')}) v ${against}`,
+          playerIds: best.batterBId === null ? [best.batterAId] : [best.batterAId, best.batterBId],
+          valueText: plural(best.runs, 'run'),
         });
       }
     }
@@ -125,23 +143,30 @@ function boundaryRecord(
     }
     return null;
   };
-  let best: TournamentRecordLine | null = null;
+  const lines: TournamentRecordLine[] = [];
   for (const player of players) {
     const total = pick(player);
     if (total <= 0) continue;
     const reached = firstReached(player.playerId, total);
     if (!reached) continue;
-    const line = {
+    lines.push({
       matchId: reached.matchId,
       teamId: player.teamId,
       playerId: player.playerId,
       value: total,
       detail: `${plural(total, noun[0], noun[1])} in ${plural(player.matches, 'match', 'matches')}`,
-    };
-    const earlier = best !== null && (order.get(line.matchId) ?? 0) < (order.get(best.matchId) ?? 0);
-    if (best === null || line.value > best.value || (line.value === best.value && earlier)) best = line;
+      playerIds: [player.playerId],
+      valueText: plural(total, noun[0], noun[1]),
+    });
   }
-  return best;
+  const top = lines.reduce((max, line) => Math.max(max, line.value), 0);
+  const holders = lines
+    .map((line, position) => ({ line, position }))
+    .filter(({ line }) => line.value === top)
+    .sort((a, b) => (order.get(a.line.matchId) ?? 0) - (order.get(b.line.matchId) ?? 0) || a.position - b.position)
+    .map(({ line }) => line);
+  const [first, ...rest] = holders;
+  return first === undefined ? null : withTies(first, rest);
 }
 
 export function boundaryRecords(
@@ -152,4 +177,25 @@ export function boundaryRecords(
     mostSixes: boundaryRecord(matches, players, (player) => player.sixes, (line) => line.sixes, ['six', 'sixes']),
     mostFours: boundaryRecord(matches, players, (player) => player.fours, (line) => line.fours, ['four', 'fours']),
   };
+}
+
+export interface RecordNames {
+  readonly player: (playerId: PlayerId) => string;
+  readonly team: (teamId: TeamId) => string;
+}
+
+export function recordHolderText(line: TournamentRecordLine, names: RecordNames): string {
+  const ids = line.playerIds ?? (line.playerId === null ? [] : [line.playerId]);
+  if (ids.length === 0) return names.team(line.teamId);
+  return `${joinNames(ids.map(names.player), '&')} (${names.team(line.teamId)})`;
+}
+
+export function recordValueText(line: TournamentRecordLine): string {
+  return line.valueText ?? String(line.value);
+}
+
+export function recordHoldersText(line: TournamentRecordLine, names: RecordNames): string {
+  const others = line.tiedWith?.length ?? 0;
+  const lead = recordHolderText(line, names);
+  return others === 0 ? lead : `${lead} +${others} ${others === 1 ? 'other' : 'others'}`;
 }

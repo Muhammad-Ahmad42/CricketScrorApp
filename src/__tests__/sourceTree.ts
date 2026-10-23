@@ -123,3 +123,77 @@ export function layerOf(rel: string): string | null {
   const match = /^src\/([^/]+)(?:\/|$)/.exec(rel);
   return match ? match[1] : null;
 }
+
+function parse(source: SourceFile): ts.SourceFile {
+  const kind = source.rel.endsWith('.tsx') ? ts.ScriptKind.TSX : ts.ScriptKind.TS;
+  return ts.createSourceFile(source.rel, source.text, ts.ScriptTarget.Latest, true, kind);
+}
+
+export interface NamedImport {
+  readonly from: string;
+  readonly spec: string;
+  readonly name: string;
+  readonly typeOnly: boolean;
+}
+
+export function namedImportsOf(source: SourceFile): readonly NamedImport[] {
+  const tree = parse(source);
+  const found: NamedImport[] = [];
+  const visit = (node: ts.Node) => {
+    if (ts.isImportDeclaration(node) && ts.isStringLiteral(node.moduleSpecifier) && node.importClause) {
+      const bindings = node.importClause.namedBindings;
+      if (bindings !== undefined && ts.isNamedImports(bindings)) {
+        for (const element of bindings.elements) {
+          found.push({
+            from: source.rel,
+            spec: node.moduleSpecifier.text,
+            name: (element.propertyName ?? element.name).text,
+            typeOnly: node.importClause.isTypeOnly || element.isTypeOnly,
+          });
+        }
+      }
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(tree);
+  return found;
+}
+
+export interface StyleProperty {
+  readonly at: string;
+  readonly key: string;
+  readonly text: string;
+  readonly number: number | null;
+  readonly string: string | null;
+}
+
+function literalNumber(node: ts.Expression): number | null {
+  if (ts.isNumericLiteral(node)) {
+    return Number(node.text);
+  }
+  if (ts.isPrefixUnaryExpression(node) && node.operator === ts.SyntaxKind.MinusToken && ts.isNumericLiteral(node.operand)) {
+    return -Number(node.operand.text);
+  }
+  return null;
+}
+
+export function propertiesOf(source: SourceFile): readonly StyleProperty[] {
+  const tree = parse(source);
+  const found: StyleProperty[] = [];
+  const visit = (node: ts.Node) => {
+    if (ts.isPropertyAssignment(node) && (ts.isIdentifier(node.name) || ts.isStringLiteral(node.name))) {
+      const line = tree.getLineAndCharacterOfPosition(node.getStart(tree)).line + 1;
+      const value = node.initializer;
+      found.push({
+        at: `${source.rel}:${line}`,
+        key: node.name.text,
+        text: node.getText(tree).replace(/\s+/g, ' '),
+        number: literalNumber(value),
+        string: ts.isStringLiteral(value) || ts.isNoSubstitutionTemplateLiteral(value) ? value.text : null,
+      });
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(tree);
+  return found;
+}

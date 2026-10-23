@@ -1,8 +1,7 @@
 import { useEffect, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
 import { router } from 'expo-router';
 import type { Player } from '@/domain/types';
-import { Button, Dialog, ErrorState, ListRow, Screen, SectionHeader, Skeleton, Text, space } from '@/ui';
+import { Button, Dialog, ErrorState, Inset, ListRow, Screen, SectionHeader, Skeleton, Text } from '@/ui';
 import { useTeamLibraryStore, useToastStore } from '@/stores';
 import { TopBar } from '@/features/scoring/components/common/TopBar';
 import { InsetBody } from '@/features/scoring/components/common/InsetBody';
@@ -10,6 +9,7 @@ import { useSingleFlight } from '@/features/scoring/hooks/useSingleFlight';
 import { selectPlayerRows } from '../selectors';
 import { PlayerSheet, type PlayerValues } from '../sheets/PlayerSheet';
 import { TeamSheet, type TeamValues } from '../sheets/TeamSheet';
+import { errorHeadline } from '@/features/scoring/selectors/scannable';
 
 export interface TeamDetailScreenProps {
   readonly teamId: string;
@@ -30,6 +30,7 @@ export function TeamDetailScreen({ teamId }: TeamDetailScreenProps) {
   const status = useTeamLibraryStore((s) => s.status);
   const [overlay, setOverlay] = useState<Overlay>(null);
   const [busy, setBusy] = useState(false);
+  const [added, setAdded] = useState(0);
   const flight = useSingleFlight();
 
   useEffect(() => {
@@ -55,7 +56,7 @@ export function TeamDetailScreen({ teamId }: TeamDetailScreenProps) {
     }
     const error = useTeamLibraryStore.getState().error;
     useTeamLibraryStore.getState().clearError();
-    toasts.show({ kind: 'error', message: error?.message ?? "Couldn't save the change.", action: null });
+    toasts.show({ kind: 'error', message: errorHeadline(error, "Couldn't save the change."), action: null });
     return false;
   };
 
@@ -83,6 +84,23 @@ export function TeamDetailScreen({ teamId }: TeamDetailScreenProps) {
     void run(() => store().updateTeam({ ...team, name: values.name, shortName: values.shortName, captainId: values.captainId }), 'Team saved');
   const addPlayer = (values: PlayerValues) =>
     void run(async () => (await store().addPlayer(team.id, { name: values.name, jerseyNumber: values.jerseyNumber, role: values.role })) !== null, `${values.name} added`);
+  const addAnother = async (values: PlayerValues): Promise<boolean> => {
+    const created = await store().addPlayer(team.id, { name: values.name, jerseyNumber: values.jerseyNumber, role: values.role });
+    const toasts = useToastStore.getState();
+    if (created === null) {
+      const error = useTeamLibraryStore.getState().error;
+      useTeamLibraryStore.getState().clearError();
+      toasts.show({ kind: 'error', message: errorHeadline(error, "Couldn't add the player."), action: null });
+      return false;
+    }
+    setAdded((count) => count + 1);
+    toasts.show({ kind: 'success', message: `${values.name} added`, action: null });
+    return true;
+  };
+  const openAdd = () => {
+    setAdded(0);
+    setOverlay({ kind: 'add' });
+  };
   const savePlayer = (player: Player, values: PlayerValues) =>
     void run(() => store().updatePlayer({ ...player, name: values.name, jerseyNumber: values.jerseyNumber, role: values.role }), 'Player saved');
   const archiveTeam = async () => {
@@ -98,17 +116,19 @@ export function TeamDetailScreen({ teamId }: TeamDetailScreenProps) {
       header={
         <TopBar
           title={team.name}
-          subtitle={`Short name ${team.shortName}${captain ? ` · Captain ${captain}` : ''}`}
+          subtitle={`${team.shortName}${captain ? ` · Captain ${captain}` : ''}`}
           onBack={goBack}
           trailing={<Button label="Edit" variant="tertiary" size="sm" onPress={() => setOverlay({ kind: 'edit' })} testID="team-btn-edit" />}
         />
       }
     >
-      <SectionHeader title={`Players (${active.length})`} action={{ label: '+ Add player', onPress: () => setOverlay({ kind: 'add' }), testID: 'team-btn-add-player' }} />
+      <SectionHeader title={`Players (${active.length})`} action={{ label: 'Add player', onPress: openAdd, testID: 'team-btn-add-player' }} />
       {rows.length === 0 ? (
-        <Text variant="body" tone="secondary" style={styles.empty}>
-          No players yet. Add the squad once and pick from it for every match.
-        </Text>
+        <Inset top="xs" bottom="sm">
+          <Text variant="body" tone="secondary" testID="team-no-players">
+            No players yet
+          </Text>
+        </Inset>
       ) : null}
       {rows.map((row) => {
         const player = players.find((entry) => entry.id === row.id);
@@ -116,7 +136,7 @@ export function TeamDetailScreen({ teamId }: TeamDetailScreenProps) {
           <ListRow
             key={row.id}
             title={`${row.jersey ? `${row.jersey}  ` : ''}${row.name}`}
-            subtitle={row.archived ? `${row.role} · Archived` : row.role}
+            subtitle={row.subtitle}
             trailing={row.captain ? { kind: 'badge', badge: { label: 'C', tone: 'outline' } } : { kind: 'chevron' }}
             accessibilityLabel={row.accessibilityLabel}
             disabled={row.archived}
@@ -126,9 +146,9 @@ export function TeamDetailScreen({ teamId }: TeamDetailScreenProps) {
         );
       })}
       {team.archivedAt === null ? (
-        <View style={styles.archive}>
+        <Inset top="md" bottom="md">
           <Button label="Archive team" variant="destructive" size="lg" fullWidth onPress={() => setOverlay({ kind: 'archive' })} testID="team-btn-archive" />
-        </View>
+        </Inset>
       ) : null}
       {overlay?.kind === 'edit' ? (
         <TeamSheet
@@ -143,7 +163,16 @@ export function TeamDetailScreen({ teamId }: TeamDetailScreenProps) {
         />
       ) : null}
       {overlay?.kind === 'add' ? (
-        <PlayerSheet visible title="Add player" initial={{ name: '', jerseyNumber: null, role: 'unknown' }} busy={busy} onSubmit={addPlayer} onClose={() => setOverlay(null)} />
+        <PlayerSheet
+          visible
+          title="Add player"
+          initial={{ name: '', jerseyNumber: null, role: 'unknown' }}
+          busy={busy}
+          progress={added > 0 ? `${added} added` : null}
+          onSubmit={addPlayer}
+          onSubmitAnother={addAnother}
+          onClose={() => setOverlay(null)}
+        />
       ) : null}
       {overlay?.kind === 'player' ? (
         <PlayerSheet
@@ -161,7 +190,7 @@ export function TeamDetailScreen({ teamId }: TeamDetailScreenProps) {
         visible={overlay?.kind === 'archive'}
         destructive
         title={`Archive ${team.name}?`}
-        message="Archived teams stay in past scorecards and tournaments but are hidden from pickers."
+        message="Hidden from new matches. Past scorecards keep it."
         confirm={{ label: 'Archive team', onPress: () => void archiveTeam(), testID: 'team-archive-confirm' }}
         cancel={{ label: 'Cancel', onPress: () => setOverlay(null) }}
         onRequestClose={() => setOverlay(null)}
@@ -169,8 +198,3 @@ export function TeamDetailScreen({ teamId }: TeamDetailScreenProps) {
     </Screen>
   );
 }
-
-const styles = StyleSheet.create({
-  empty: { paddingHorizontal: space.md, paddingVertical: space.sm },
-  archive: { padding: space.md },
-});

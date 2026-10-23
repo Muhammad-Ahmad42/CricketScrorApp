@@ -16,16 +16,22 @@ import { certaintyOf } from './certainty';
 import type { VerdictOf } from './certainty';
 import { comparisonKey, targetStages } from './downstream';
 import {
+  contentionCopy,
   contentionText,
+  eliminatedCopy,
   eliminatedText,
+  manualCopy,
   manualText,
+  parallelCopy,
   parallelText,
+  qualifiedCopy,
   qualifiedText,
   ruleContext,
+  ruleLines,
   targetSummary,
   winHint,
 } from './qualificationText';
-import type { TextContext } from './qualificationText';
+import type { QualificationCopy, TextContext } from './qualificationText';
 import { analysePool } from './scenarios';
 import { countedSummaryOf, isSettledStatus } from './sides';
 import { viewLayout } from './slotLayout';
@@ -253,7 +259,7 @@ function remainingOpponents(scope: QualificationScope, view: TargetView, team: S
   return (analysis.remaining.get(team.teamId) ?? []).map((opponent) => teamName(scope.index, opponent));
 }
 
-type AutoState = { readonly state: QualificationTarget['state']; readonly hint: string | null };
+type AutoState = { readonly state: QualificationTarget['state']; readonly hint: string | null; readonly opponents?: readonly string[] };
 
 function poolState(scope: QualificationScope, view: TargetView, team: StageTeam, held: readonly StageSlot[], heldFinal: boolean): AutoState {
   if (team.poolId === null) return { state: 'in_contention', hint: null };
@@ -266,7 +272,9 @@ function poolState(scope: QualificationScope, view: TargetView, team: StageTeam,
     return { state: 'in_contention', hint: null };
   }
   if (verdict && verdict.state !== 'in_contention') return { state: verdict.state, hint: null };
-  return { state: 'in_contention', hint: verdict?.winsGuarantee ? winHint(remainingOpponents(scope, view, team)) : null };
+  if (!verdict?.winsGuarantee) return { state: 'in_contention', hint: null };
+  const opponents = remainingOpponents(scope, view, team);
+  return { state: 'in_contention', hint: winHint(opponents), opponents };
 }
 
 function lostDecided(scope: QualificationScope, teamId: TeamId): boolean {
@@ -301,8 +309,10 @@ function targetFor(scope: QualificationScope, view: TargetView, team: StageTeam)
     heldSlot: firstHeld,
     heldFinal,
     rule: ruleContext(scope.index, scope.stage, view.stage),
+    rules: ruleLines(scope.index, scope.stage, view.stage),
     tieWith: null,
     hint: null,
+    opponents: null,
   };
   const slotIds = held.map((slot) => slot.id);
   const manual = manualOverride(scope.index, team.teamId, view);
@@ -328,7 +338,12 @@ function targetFor(scope: QualificationScope, view: TargetView, team: StageTeam)
       slotIds,
     },
     override: null,
-    text: { ...base, hint: auto.hint, tieWith: group ? group.map((teamId) => teamName(scope.index, teamId)) : null },
+    text: {
+      ...base,
+      hint: auto.hint,
+      opponents: auto.opponents ?? null,
+      tieWith: group ? group.map((teamId) => teamName(scope.index, teamId)) : null,
+    },
   };
 }
 
@@ -347,6 +362,21 @@ function explanation(scope: QualificationScope, outcomes: readonly TargetOutcome
   return eliminatedText(primary.text);
 }
 
+function copyOf(scope: QualificationScope, outcomes: readonly TargetOutcome[], primary: TargetOutcome): QualificationCopy {
+  const target = primary.target;
+  if (target.certainty === 'manual' && primary.override) {
+    return manualCopy(primary.text.target, target.state === 'qualified', primary.override);
+  }
+  if (target.state === 'qualified') {
+    const out = outcomes.find(
+      (outcome) => outcome.target.state === 'eliminated' && outcome.text.target.orderIndex < primary.text.target.orderIndex,
+    );
+    return out ? parallelCopy(scope.index, out.text.target, primary.text) : qualifiedCopy(scope.index, primary.text);
+  }
+  if (target.state === 'in_contention') return contentionCopy(primary.text);
+  return eliminatedCopy(primary.text);
+}
+
 export function qualifyStage(scope: QualificationScope): readonly TeamQualification[] {
   const views = targetViews(scope);
   if (views.length === 0) return [];
@@ -354,6 +384,7 @@ export function qualifyStage(scope: QualificationScope): readonly TeamQualificat
     const outcomes = views.map((view) => targetFor(scope, view, team));
     const primaryTarget = targetSummary(outcomes.map((outcome) => outcome.target));
     const primary = outcomes.find((outcome) => outcome.target === primaryTarget) ?? outcomes[0];
+    const copy = copyOf(scope, outcomes, primary);
     return {
       teamId: team.teamId,
       stageId: scope.stage.id,
@@ -365,6 +396,9 @@ export function qualifyStage(scope: QualificationScope): readonly TeamQualificat
       targets: outcomes.map((outcome) => outcome.target),
       explanation: explanation(scope, outcomes, primary),
       override: primary.override,
+      headline: copy.headline,
+      note: copy.note,
+      detail: copy.detail,
     };
   });
 }

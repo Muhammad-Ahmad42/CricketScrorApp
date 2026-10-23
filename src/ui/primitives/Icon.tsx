@@ -1,48 +1,52 @@
-import {
-  ArrowLeftRight,
-  Check,
-  ChevronDown,
-  ChevronLeft,
-  ChevronRight,
-  CircleAlert,
-  CircleCheck,
-  CircleDot,
-  CloudRain,
-  Ellipsis,
-  FileText,
-  HardDriveDownload,
-  History,
-  House,
-  Info,
-  Minus,
-  Pause,
-  PencilLine,
-  Play,
-  Plus,
-  Redo2,
-  Search,
-  Settings,
-  Share,
-  Trash2,
-  TriangleAlert,
-  Trophy,
-  Undo2,
-  X,
-  type LucideIcon,
-} from 'lucide-react-native';
+import ArrowLeftRight from 'lucide-react-native/icons/arrow-left-right';
+import CalendarDays from 'lucide-react-native/icons/calendar-days';
+import Check from 'lucide-react-native/icons/check';
+import ChevronDown from 'lucide-react-native/icons/chevron-down';
+import ChevronLeft from 'lucide-react-native/icons/chevron-left';
+import ChevronRight from 'lucide-react-native/icons/chevron-right';
+import ChevronUp from 'lucide-react-native/icons/chevron-up';
+import CircleAlert from 'lucide-react-native/icons/circle-alert';
+import CircleCheck from 'lucide-react-native/icons/circle-check';
+import CircleDot from 'lucide-react-native/icons/circle-dot';
+import CloudRain from 'lucide-react-native/icons/cloud-rain';
+import Clock from 'lucide-react-native/icons/clock';
+import Ellipsis from 'lucide-react-native/icons/ellipsis';
+import FileText from 'lucide-react-native/icons/file-text';
+import HardDriveDownload from 'lucide-react-native/icons/hard-drive-download';
+import History from 'lucide-react-native/icons/rotate-ccw-clock';
+import House from 'lucide-react-native/icons/house';
+import Info from 'lucide-react-native/icons/info';
+import Minus from 'lucide-react-native/icons/minus';
+import Pause from 'lucide-react-native/icons/pause';
+import PencilLine from 'lucide-react-native/icons/pencil-line';
+import Play from 'lucide-react-native/icons/play';
+import Plus from 'lucide-react-native/icons/plus';
+import Redo2 from 'lucide-react-native/icons/redo-2';
+import Search from 'lucide-react-native/icons/search';
+import Settings from 'lucide-react-native/icons/settings';
+import Share from 'lucide-react-native/icons/share';
+import Trash2 from 'lucide-react-native/icons/trash';
+import TriangleAlert from 'lucide-react-native/icons/triangle-alert';
+import Trophy from 'lucide-react-native/icons/trophy';
+import Undo2 from 'lucide-react-native/icons/undo-2';
+import X from 'lucide-react-native/icons/x';
+import type { LucideIcon } from 'lucide-react-native';
 import { Platform } from 'react-native';
 import { useTheme, type ColorToken } from '../theme';
 
 export const ICONS = {
   'arrow-left-right': ArrowLeftRight,
+  calendar: CalendarDays,
   check: Check,
   'chevron-down': ChevronDown,
   'chevron-left': ChevronLeft,
   'chevron-right': ChevronRight,
+  'chevron-up': ChevronUp,
   'circle-alert': CircleAlert,
   'circle-check': CircleCheck,
   'circle-dot': CircleDot,
   'cloud-rain': CloudRain,
+  clock: Clock,
   ellipsis: Ellipsis,
   'file-text': FileText,
   'hard-drive-download': HardDriveDownload,

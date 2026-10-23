@@ -1,4 +1,6 @@
 import '@/ui/testing';
+import { Children, isValidElement, type ReactNode } from 'react';
+import { Stack } from 'expo-router';
 import { act, screen, userEvent, waitFor } from '@testing-library/react-native';
 import { createSqlJsDatabase } from '@/db/testing';
 import { createTestApp, type TestApp } from '@/services/testing';
@@ -36,6 +38,13 @@ jest.mock('expo-system-ui', () => ({ setBackgroundColorAsync: jest.fn(() => Prom
 jest.setTimeout(30000);
 
 let app: TestApp;
+
+function declaredRootScreens(): readonly string[] {
+  const props = jest.mocked(Stack).mock.calls.at(-1)?.[0] as { readonly children?: ReactNode } | undefined;
+  return Children.toArray(props?.children)
+    .filter(isValidElement)
+    .map((child) => (child.props as { readonly name: string }).name);
+}
 
 beforeEach(async () => {
   resetStores();
@@ -78,11 +87,19 @@ describe('root layout composition (§70, §86)', () => {
     const user = userEvent.setup();
     await renderWithTheme(<RootLayout />);
     expect(await screen.findByTestId('error-screen')).toBeOnTheScreen();
-    expect(screen.getByTestId('error-text-message')).toHaveTextContent("Couldn't open your scorebook data. Nothing has been changed.");
+    expect(screen.getByText("Scorebook couldn't open your data")).toBeOnTheScreen();
+    expect(screen.getByTestId('error-text-message')).toHaveTextContent('Nothing has been changed.');
+    expect(screen.queryByText(/Couldn't open your scorebook data/)).toBeNull();
     expect(screen.queryByText('SQLITE_CORRUPT')).toBeNull();
     await user.press(screen.getByTestId('error-btn-retry'));
     expect(await screen.findByTestId('root-stack')).toBeOnTheScreen();
     expect(attempts).toBe(2);
+  });
+
+  it('declares the tabs group first, so a launch without a path opens Home', async () => {
+    await renderWithTheme(<RootLayout />);
+    await screen.findByTestId('root-stack');
+    expect(declaredRootScreens()).toEqual(['(tabs)', 'match/new', 'tournament/new']);
   });
 
   it('mounts the toast host', async () => {

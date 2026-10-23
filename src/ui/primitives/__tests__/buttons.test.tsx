@@ -3,9 +3,9 @@ import { createRef } from 'react';
 import type { View } from 'react-native';
 import { fireEvent, screen, userEvent } from '@testing-library/react-native';
 import { renderWithTheme, touchTargetSize } from '../../testing';
-import { createTheme, darkColors, lightColors } from '../../theme';
+import { createTheme, darkColors, lightColors, relativeLuminance } from '../../theme';
 import { Button, IconButton, type ButtonVariant } from '..';
-import { buttonSurfaceStyle } from '../Button';
+import { buttonSurfaceStyle, disabledFill, disabledLookFor } from '../Button';
 
 describe('Button', () => {
   it('exposes the button role, its label and fires once per tap', async () => {
@@ -71,7 +71,26 @@ describe('Button', () => {
       expect(size.width).toBeGreaterThanOrEqual(44);
     }
     expect(screen.getByRole('button', { name: 'Large' })).toHaveStyle({ height: 56 });
-    expect(screen.getByRole('button', { name: 'Small' })).toHaveStyle({ height: 36 });
+    expect(screen.getByRole('button', { name: 'Small' })).toHaveStyle({ height: 44 });
+  });
+
+  it.each(['light', 'dark'] as const)('never makes a disabled button look more pressable than an enabled one (%s)', (scheme) => {
+    const theme = createTheme(scheme);
+    expect(disabledLookFor('tertiary')).toBe('text');
+    expect(disabledLookFor('tertiaryInverse')).toBe('text');
+    expect(disabledLookFor('secondary')).toBe('outlined');
+    expect(disabledLookFor('destructive')).toBe('outlined');
+    expect(disabledLookFor('primary')).toBe('filled');
+    expect(buttonSurfaceStyle(theme, 'tertiary', false, true)).toEqual(expect.objectContaining({ backgroundColor: 'transparent', borderWidth: 0 }));
+    expect(buttonSurfaceStyle(theme, 'secondary', false, true)).toEqual(
+      expect.objectContaining({ backgroundColor: 'transparent', borderWidth: theme.borderWidth.control, borderColor: theme.color.border }),
+    );
+    const fill = buttonSurfaceStyle(theme, 'primary', false, true).backgroundColor;
+    expect(fill).toBe(disabledFill(theme));
+    expect(fill).not.toBe(theme.color.accent);
+    if (scheme === 'dark') {
+      expect(relativeLuminance(String(fill))).toBeGreaterThan(relativeLuminance(theme.color.background));
+    }
   });
 
   it.each(['light', 'dark'] as const)('presses as an instant background swap with no opacity flash, except the destructive confirm at 88%% (§6.1), in %s', (scheme) => {

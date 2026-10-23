@@ -1,13 +1,14 @@
 import '../../testing';
-import { act, screen, userEvent } from '@testing-library/react-native';
+import { act, screen, userEvent, within } from '@testing-library/react-native';
 import { getAnimatedStyle } from 'react-native-reanimated';
 import { renderWithTheme, touchTargetSize } from '../../testing';
-import { darkColors, lightColors } from '../../theme';
+import { contrastRatio, darkColors, lightColors } from '../../theme';
 import {
   BALL_CHIP_KINDS,
   BallChip,
   BallPlaceholder,
   CHIP_DIMENSIONS,
+  FREE_HIT_MARK,
   ballChipLook,
   chipAccessibilityLabel,
   splitShortRun,
@@ -47,7 +48,14 @@ describe('ball chip shape grammar', () => {
 
   it('distinguishes four from six by ring versus fill, not only colour', () => {
     expect(ballChipLook('four')).toMatchObject({ fill: null, border: 'accent', borderWidth: 2, text: 'accent' });
-    expect(ballChipLook('six')).toMatchObject({ fill: 'accent', border: null, text: 'onAccent' });
+    expect(ballChipLook('six')).toMatchObject({ fill: 'accentDeep', border: null, text: 'onAccent' });
+  });
+
+  it('keeps boundaries restrained: no chip is painted in the bright highlight cyan (§107)', () => {
+    for (const kind of BALL_CHIP_KINDS) {
+      const look = ballChipLook(kind);
+      expect([look.fill, look.border, look.text]).not.toContain('highlight');
+    }
   });
 
   it('gives every kind a distinct combination of shape, fill, border and dash', () => {
@@ -86,15 +94,24 @@ describe('<BallChip>', () => {
     expect(chipBody('chip')).toHaveStyle({ borderStyle: 'dashed', borderColor: darkColors.borderStrong, backgroundColor: 'transparent', borderRadius: 2 });
   });
 
-  it('keeps run chips round and six filled with accent', async () => {
+  it('keeps run chips round and six filled with the deep teal', async () => {
     await renderWithTheme(<BallChip kind="six" text="6" testID="chip" />);
-    expect(chipBody('chip')).toHaveStyle({ width: 32, height: 32, borderRadius: 16, backgroundColor: lightColors.accent });
+    expect(chipBody('chip')).toHaveStyle({ width: 32, height: 32, borderRadius: 16, backgroundColor: lightColors.accentDeep });
   });
 
-  it('adds a free-hit bar and says so in the label', async () => {
+  it('fills the dark six with the §107 deep teal and dark ink, not the routine-bright cyan', async () => {
+    await renderWithTheme(<BallChip kind="six" text="6" testID="chip" />, { mode: 'dark' });
+    expect(chipBody('chip')).toHaveStyle({ backgroundColor: darkColors.accentDeep });
+    expect(darkColors.accentDeep).toBe('#008BA3');
+    expect(chipBody('chip')).not.toHaveStyle({ backgroundColor: darkColors.highlight });
+  });
+
+  it('marks a free-hit ball with a visible FH label under a warning bar and says so in the label (§78)', async () => {
     await renderWithTheme(<BallChip kind="runs" text="1" isFreeHit accessibilityLabel="One run" testID="chip" />);
     expect(screen.getByTestId('chip')).toHaveAccessibleName('One run, free hit');
-    expect(screen.getByTestId('chip-free-hit', { includeHiddenElements: true })).toHaveStyle({ backgroundColor: lightColors.warning, height: 2 });
+    const mark = screen.getByTestId('chip-free-hit', { includeHiddenElements: true });
+    expect(within(mark).getByText(FREE_HIT_MARK, { includeHiddenElements: true })).toHaveStyle({ color: lightColors.warning });
+    expect(FREE_HIT_MARK).toBe('FH');
     expect(chipAccessibilityLabel('4', undefined, false)).toBe('4');
   });
 
@@ -119,10 +136,11 @@ describe('<BallChip>', () => {
     expect(onPress).toHaveBeenCalledTimes(1);
   });
 
-  it('hides the placeholder from screen readers', async () => {
+  it('hides the placeholder from screen readers and draws its ring at 3:1 against the surface', async () => {
     await renderWithTheme(<BallPlaceholder testID="slot" />);
     expect(screen.queryByTestId('slot')).not.toBeOnTheScreen();
-    expect(screen.getByTestId('slot', { includeHiddenElements: true })).toHaveStyle({ borderStyle: 'dotted', borderColor: lightColors.border, width: 32 });
+    expect(screen.getByTestId('slot', { includeHiddenElements: true })).toHaveStyle({ borderStyle: 'dotted', borderColor: lightColors.borderStrong, width: 32 });
+    expect(contrastRatio(lightColors.borderStrong, lightColors.surface)).toBeGreaterThanOrEqual(3);
   });
 });
 
@@ -135,6 +153,8 @@ describe('ball chip motion', () => {
         .getByTestId('chip')
         .queryAll((node) => node.type === 'View' && JSON.stringify(node.props.style ?? '').includes('"borderWidth":2') && JSON.stringify(node.props.style ?? '').includes('absolute'));
       expect(ring.length).toBeGreaterThan(0);
+      expect(ring[0]).toHaveStyle({ borderColor: lightColors.accent });
+      expect(Number(getAnimatedStyle(ring[0]).opacity)).toBeLessThanOrEqual(0.6);
       await act(async () => {
         jest.advanceTimersByTime(400);
       });

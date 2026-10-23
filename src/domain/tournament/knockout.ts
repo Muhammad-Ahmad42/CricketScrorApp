@@ -74,11 +74,11 @@ export function seedEntrants(entrants: readonly SeededEntrant[], method: Seeding
 export function knockoutGenerationGuard(method: SeedingMethod, entrySlots: readonly SlotResolution[]): Guard {
   const open = entrySlots.filter((slot) => slot.status !== 'final').length;
   if (method === 'ranking' && open > 0) {
-    return { ok: false, reason: `Seeding by ranking is possible once all ${entrySlots.length} qualifiers are known.` };
+    return { ok: false, reason: `Seeding by ranking needs all ${entrySlots.length} qualifiers.` };
   }
   if (open > 0) {
     const places = open === 1 ? '1 knockout place is' : `${open} knockout places are`;
-    return { ok: true, warnings: [`${places} still to be decided; the draw uses their qualification slots.`] };
+    return { ok: true, warnings: [`${places} still to be decided. The draw uses their slots.`] };
   }
   return { ok: true, warnings: [] };
 }

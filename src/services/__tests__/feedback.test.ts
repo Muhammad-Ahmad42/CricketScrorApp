@@ -72,6 +72,8 @@ describe('haptics and sound honour the settings (§76, §77)', () => {
     expect(hapticSteps('result')).toEqual([{ kind: 'notification', type: 'success', delayMs: 0 }]);
     expect(hapticSteps('error')).toEqual([{ kind: 'notification', type: 'error', delayMs: 0 }]);
     expect(hapticSteps('undo')).toEqual([{ kind: 'selection', delayMs: 0 }]);
+    expect(hapticSteps('tab')).toEqual([{ kind: 'impact', strength: 'light', delayMs: 0 }]);
+    expect(soundFor('tab')).toBeNull();
     expect([soundFor('run'), soundFor('four'), soundFor('six'), soundFor('wicket'), soundFor('result'), soundFor('undo')]).toEqual([
       'run',
       'boundary',

@@ -35,6 +35,15 @@ export function ThemeProvider({ mode, reducedMotion = 'system', reduceTransparen
   return <ThemeContext.Provider value={theme}>{children}</ThemeContext.Provider>;
 }
 
+export interface ThemeScopeProps {
+  readonly theme: Theme;
+  readonly children?: ReactNode;
+}
+
+export function ThemeScope({ theme, children }: ThemeScopeProps) {
+  return <ThemeContext.Provider value={theme}>{children}</ThemeContext.Provider>;
+}
+
 export function useTheme(): Theme {
   return useContext(ThemeContext);
 }

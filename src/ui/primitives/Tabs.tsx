@@ -1,9 +1,9 @@
-import { useEffect, useRef } from 'react';
-import { Pressable, ScrollView, StyleSheet, View, type LayoutChangeEvent } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 import { GlassSurface } from '../glass/GlassSurface';
 import { space, useTheme } from '../theme';
 import { Text } from '../typography';
 import { focusRingStyle, useFocusRing } from './internal/interaction';
+import { ScrollRow } from './ScrollRow';
 
 export interface TabItem<K extends string> {
   readonly key: K;
@@ -21,6 +21,8 @@ export interface TabsProps<K extends string> {
   readonly testID?: string;
 }
 
+export const TAB_INDICATOR_HEIGHT = 3;
+
 interface TabButtonProps {
   readonly label: string;
   readonly accessibilityLabel: string;
@@ -28,10 +30,9 @@ interface TabButtonProps {
   readonly selected: boolean;
   readonly testID?: string;
   readonly onPress: () => void;
-  readonly onLayout: (event: LayoutChangeEvent) => void;
 }
 
-function TabButton({ label, accessibilityLabel, accessibilityHint, selected, testID, onPress, onLayout }: TabButtonProps) {
+function TabButton({ label, accessibilityLabel, accessibilityHint, selected, testID, onPress }: TabButtonProps) {
   const theme = useTheme();
   const focus = useFocusRing();
   return (
@@ -41,11 +42,16 @@ function TabButton({ label, accessibilityLabel, accessibilityHint, selected, tes
       accessibilityLabel={accessibilityLabel}
       accessibilityHint={accessibilityHint}
       accessibilityState={{ selected }}
+      aria-selected={selected}
       onPress={onPress}
-      onLayout={onLayout}
       onFocus={focus.onFocus}
       onBlur={focus.onBlur}
-      style={[styles.tab, focusRingStyle(theme, focus.focused, 'inside')]}
+      style={({ pressed }) => [
+        styles.tab,
+        { borderRadius: theme.radius.md },
+        pressed ? { backgroundColor: theme.glass.pressed } : null,
+        focusRingStyle(theme, focus.focused, 'inside'),
+      ]}
     >
       <Text variant="subhead" weight={selected ? 'semibold' : 'medium'} tone={selected ? 'primary' : 'secondary'} numberOfLines={1}>
         {label}
@@ -53,7 +59,7 @@ function TabButton({ label, accessibilityLabel, accessibilityHint, selected, tes
       <View
         style={[
           styles.indicator,
-          { height: theme.borderWidth.emphasis, backgroundColor: selected ? theme.color.accent : 'transparent' },
+          { height: TAB_INDICATOR_HEIGHT, borderRadius: TAB_INDICATOR_HEIGHT, backgroundColor: selected ? theme.color.accent : 'transparent' },
         ]}
       />
     </Pressable>
@@ -62,52 +68,34 @@ function TabButton({ label, accessibilityLabel, accessibilityHint, selected, tes
 
 export function Tabs<K extends string>({ tabs, selectedKey, onSelect, accessibilityLabel, floating = false, testID }: TabsProps<K>) {
   const theme = useTheme();
-  const scroll = useRef<ScrollView>(null);
-  const offsets = useRef(new Map<string, number>());
-
-  useEffect(() => {
-    const x = offsets.current.get(selectedKey);
-    if (x !== undefined) {
-      scroll.current?.scrollTo({ x: Math.max(0, x - space.md), animated: !theme.motion.reduced });
-    }
-  }, [selectedKey, theme.motion.reduced]);
-
+  const activeIndex = tabs.findIndex((tab) => tab.key === selectedKey);
   return (
     <GlassSurface level="bar" rim="bottom" blur={floating} style={styles.root}>
-      <ScrollView
-        ref={scroll}
-        horizontal
-        showsHorizontalScrollIndicator={false}
+      <ScrollRow
         testID={testID}
         accessibilityRole="tablist"
         accessibilityLabel={accessibilityLabel}
-        contentContainerStyle={styles.content}
+        activeIndex={activeIndex >= 0 ? activeIndex : undefined}
+        fadeColor={theme.glass.level.bar.opaque}
       >
-        {tabs.map((tab, index) => {
-          const selected = tab.key === selectedKey;
-          return (
-            <TabButton
-              key={tab.key}
-              label={tab.label}
-              accessibilityLabel={tab.accessibilityLabel ?? tab.label}
-              accessibilityHint={`${index + 1} of ${tabs.length}`}
-              selected={selected}
-              testID={tab.testID}
-              onPress={() => onSelect(tab.key)}
-              onLayout={(event: LayoutChangeEvent) => {
-                offsets.current.set(tab.key, event.nativeEvent.layout.x);
-              }}
-            />
-          );
-        })}
-      </ScrollView>
+        {tabs.map((tab, index) => (
+          <TabButton
+            key={tab.key}
+            label={tab.label}
+            accessibilityLabel={tab.accessibilityLabel ?? tab.label}
+            accessibilityHint={`${index + 1} of ${tabs.length}`}
+            selected={tab.key === selectedKey}
+            testID={tab.testID}
+            onPress={() => onSelect(tab.key)}
+          />
+        ))}
+      </ScrollRow>
     </GlassSurface>
   );
 }
 
 const styles = StyleSheet.create({
   root: { alignSelf: 'stretch' },
-  content: { paddingHorizontal: space.xs },
   tab: {
     height: 44,
     minHeight: 44,

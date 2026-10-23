@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
-import { IconButton, Text, space } from '@/ui';
+import { IconButton, Text, space, useGutter } from '@/ui';
 
 export interface NavHeaderProps {
   readonly title: string;
@@ -13,6 +13,10 @@ export interface NavHeaderProps {
   readonly testID?: string;
 }
 
+export function navHeaderInset(gutter: number): number {
+  return Math.max(space.xxs, gutter - space.xs);
+}
+
 export function NavHeader({
   title,
   subtitle,
@@ -23,15 +27,17 @@ export function NavHeader({
   titleTestID,
   testID,
 }: NavHeaderProps) {
+  const gutter = useGutter();
+  const inset = navHeaderInset(gutter);
   return (
-    <View testID={testID} style={styles.root}>
+    <View testID={testID} style={[styles.root, { paddingHorizontal: inset }]}>
       {onBack ? (
         <IconButton icon={backIcon} accessibilityLabel={backLabel} onPress={onBack} testID={backIcon === 'x' ? 'nav-btn-close' : 'nav-btn-back'} />
       ) : (
-        <View style={styles.spacer} />
+        <View style={{ width: gutter - inset }} />
       )}
       <View style={styles.titles}>
-        <Text variant="headline" accessibilityRole="header" numberOfLines={2} testID={titleTestID}>
+        <Text variant="headline" accessibilityRole="header" testID={titleTestID}>
           {title}
         </Text>
         {subtitle ? (
@@ -49,12 +55,10 @@ const styles = StyleSheet.create({
   root: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: space.xxs,
     paddingTop: space.xxs,
     paddingBottom: space.xs,
     gap: space.xxs,
   },
-  spacer: { width: space.sm },
-  titles: { flex: 1, gap: 2 },
+  titles: { flex: 1, minWidth: 0, gap: space.xxs },
   trailing: { flexDirection: 'row', alignItems: 'center' },
 });

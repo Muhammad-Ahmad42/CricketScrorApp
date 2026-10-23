@@ -169,7 +169,13 @@ export function validateFixtureDrafts(
 
 export function scheduleSequential(
   drafts: readonly FixtureDraft[],
-  opts: { readonly startDate: IsoDate; readonly matchesPerDay: number; readonly times: readonly LocalTime[]; readonly restDates?: readonly IsoDate[] },
+  opts: {
+    readonly startDate: IsoDate;
+    readonly matchesPerDay: number;
+    readonly times: readonly LocalTime[];
+    readonly restDates?: readonly IsoDate[];
+    readonly venueIds?: readonly VenueId[];
+  },
 ): readonly FixtureDraft[] {
   return scheduleDrafts(drafts, opts);
 }

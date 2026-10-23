@@ -4,9 +4,9 @@ export const PRINT_PALETTE = {
   paper: '#FFFFFF',
   ink: '#1A1C19',
   inkSecondary: '#474E49',
-  hairline: '#BDB9AE',
-  accent: '#1F5C3A',
-  band: '#F2F0E9',
+  hairline: '#B7C2C8',
+  accent: '#00606F',
+  band: '#EEF3F5',
 } as const;
 
 export const TEXT_FONT_STACK = "'Inter', -apple-system, 'Roboto', 'Helvetica Neue', Arial, sans-serif";

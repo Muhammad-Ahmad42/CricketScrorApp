@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { FlatList, View } from 'react-native';
 import { router } from 'expo-router';
-import { EmptyState, Screen, Tabs, useScreenList } from '@/ui';
+import { EmptyState, Inset, Screen, Tabs, Text, useScreenList } from '@/ui';
 import { useLiveMatchStore, useSettingsStore } from '@/stores';
 import { TopBar } from '@/features/scoring/components/common/TopBar';
 import { leaveMatch, MatchGate } from '@/features/scoring/screens/MatchGate';
@@ -30,7 +30,16 @@ function BallList({ groups, onBall }: BallListProps) {
       scrollIndicatorInsets={list.scrollIndicatorInsets}
       onScroll={list.onScroll}
       scrollEventThrottle={list.scrollEventThrottle}
-      ListEmptyComponent={<EmptyState title="No balls yet" body="Deliveries appear here as they are scored." testID="balls-empty" />}
+      ListHeaderComponent={
+        groups.length > 0 ? (
+          <Inset top="xs" bottom="xxs">
+            <Text variant="footnote" tone="secondary" testID="balls-caption">
+              Tap a ball to edit it
+            </Text>
+          </Inset>
+        ) : null
+      }
+      ListEmptyComponent={<EmptyState title="No balls yet" testID="balls-empty" />}
       testID="balls-list"
     />
   );
@@ -55,7 +64,7 @@ function BallLogBody({ initialInnings }: BallLogScreenProps) {
         <Tabs
           tabs={allInnings.map((entry) => ({
             key: `${entry.index}`,
-            label: `${teamShortName(live.setup, entry.battingTeamId)} ${formatScore(entry.runs, entry.wickets)} (${formatOvers(entry.legalBalls, bpo)})`,
+            label: `${teamShortName(live.setup, entry.battingTeamId)} ${formatScore(entry.runs, entry.wickets)} (${formatOvers(entry.legalBalls, bpo)} ov)`,
             testID: `balls-tab-${entry.index}`,
           }))}
           selectedKey={`${innings?.index ?? 0}`}

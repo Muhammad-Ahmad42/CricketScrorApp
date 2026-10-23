@@ -5,12 +5,15 @@ export function joinPath(base: string, ...parts: readonly string[]): string {
 }
 
 export function safeFileName(name: string): string {
-  const cleaned = name
-    .normalize('NFKC')
-    .replace(/[\\/:*?"<>|\u0000-\u001f]+/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-  return cleaned.length === 0 ? 'export' : cleaned.slice(0, 120).trim();
+  const slug = name
+    .normalize('NFKD')
+    .replace(/[̀-ͯ]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 120)
+    .replace(/-+$/g, '');
+  return slug.length === 0 ? 'export' : slug;
 }
 
 export function exportsDirectory(cacheDirectory: string): string {

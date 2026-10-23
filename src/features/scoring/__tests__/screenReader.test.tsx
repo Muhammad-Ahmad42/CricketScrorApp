@@ -4,6 +4,7 @@ import { act, fireEvent, screen, waitFor } from '@testing-library/react-native';
 import type { ScoringIntent } from '@/domain/scoring/commands';
 import { noBall, scoreRuns } from '@/domain/scoring/commands';
 import { m3Setup } from '@/domain/scoring/testing';
+import { showsEconomy } from '../components/CreasePanel';
 import { ScoringScreen } from '../screens/ScoringScreen';
 import { liveMatch, OPEN } from './support/liveMatch';
 import { renderScreen, resetCommonStores, setLive, setWindow } from './support/render';
@@ -191,12 +192,29 @@ describe('sheet state and Law 16.6 follow-ups', () => {
     expect(dispatched(store)).toEqual([{ type: 'retire', playerId: 'L1', retirement: 'retired_hurt', nextBatterId: 'L3' }]);
   });
 
-  it('drops CRR on a 320 pt phone in the first innings but keeps the powerplay line', async () => {
-    const restore = setWindow(320, 568);
+  it('keeps CRR, the THIS OVER label and the powerplay line on a 320 pt phone with room for them', async () => {
+    const restore = setWindow(320, 760);
     setLive(liveMatch([OPEN, '1']));
     await renderScreen(<ScoringScreen />);
-    expect(screen.queryByTestId('score-text-crr')).not.toBeOnTheScreen();
+    expect(screen.getByTestId('score-text-crr')).toBeOnTheScreen();
+    expect(screen.getByText('THIS OVER')).toBeOnTheScreen();
+    expect(screen.getByText('ECON')).toBeOnTheScreen();
     expect(screen.getByTestId('score-text-powerplay')).toBeOnTheScreen();
+    await restore();
+  });
+
+  it('gives the bowler name the room of the economy figure only on a narrow phone with large text', () => {
+    expect(showsEconomy(false, 2)).toBe(true);
+    expect(showsEconomy(true, 1)).toBe(true);
+    expect(showsEconomy(true, 1.15)).toBe(true);
+    expect(showsEconomy(true, 1.3)).toBe(false);
+  });
+
+  it('keeps the partnership line to one line on a 320 pt phone so this over clears the dock', async () => {
+    const restore = setWindow(320, 760);
+    setLive(liveMatch([OPEN, '1', '4']));
+    await renderScreen(<ScoringScreen />);
+    expect(screen.getByTestId('score-text-context')).toHaveProp('numberOfLines', 1);
     await restore();
   });
 });

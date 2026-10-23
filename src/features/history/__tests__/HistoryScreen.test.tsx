@@ -3,10 +3,11 @@ import { act, fireEvent, screen, waitFor, within } from '@testing-library/react-
 import { router } from 'expo-router';
 import type { Team } from '@/domain/types';
 import { fakeExport, fakeHistory, fakeTeamLibrary, fakeTournamentList } from '@/features/scoring/__tests__/support/fakes';
-import { completedItem, listItem, tournamentItem } from '@/features/scoring/__tests__/support/listItems';
+import { completedItem, inningsLine, listItem, tournamentItem } from '@/features/scoring/__tests__/support/listItems';
 import { renderScreen, resetCommonStores } from '@/features/scoring/__tests__/support/render';
 import { HistoryScreen } from '../screens/HistoryScreen';
 import { historyRows, statusFilterOf, withStatus } from '../selectors/query';
+import { selectContinue, selectMatchCard } from '../selectors/matchCard';
 import { mockStores } from '@/features/scoring/__tests__/support/storeModule';
 
 const { useExportStore, useMatchHistoryStore, useTeamLibraryStore, useTournamentListStore } = mockStores();
@@ -33,6 +34,16 @@ describe('history query helpers', () => {
   it('groups rows under month headings', () => {
     const rows = historyRows([completedItem(), listItem({ id: 'm-2', scheduledDate: '2026-08-01' })]);
     expect(rows.map((row) => (row.type === 'header' ? row.title : row.key))).toEqual(['September 2026', 'm-done', 'August 2026', 'm-2']);
+  });
+
+  it('says 1 over, not 1 overs, on a one-over match card and in its spoken label', () => {
+    const card = selectMatchCard(completedItem({ oversPerInnings: 1, tournamentName: null }));
+    expect(card.footer).toBe('1 over');
+    expect(card.accessibilityLabel).toMatch(/, 1 over$/);
+    const resume = selectContinue(listItem({ oversPerInnings: 1, innings: [inningsLine({ legalBalls: 3 })] }));
+    expect(resume.oversOf).toBe('0.3 of 1 over');
+    expect(resume.oversText).toBe('0.3 overs');
+    expect(selectMatchCard(completedItem({ oversPerInnings: 20, tournamentName: null })).footer).toBe('20 overs');
   });
 });
 
@@ -104,16 +115,42 @@ describe('HistoryScreen (§81)', () => {
     expect(screen.getByTestId('sheet-history-row-delete')).toBeDisabled();
   });
 
-  it('keeps the title, segments, search and filters in the glass header over the solid list', async () => {
+  it('keeps only the segments and filters in a sticky glass bar while the title and search scroll away with the list', async () => {
     await renderScreen(<HistoryScreen />);
-    const header = screen.getByTestId('screen-history-header');
-    for (const id of ['history-segment-matches', 'history-search', 'history-filter-status', 'history-filter-team', 'history-filter-sort']) {
-      expect(within(header).getByTestId(id)).toBeOnTheScreen();
+    const list = screen.getByTestId('history-list');
+    expect(list).toHaveProp('stickyHeaderIndices', [1]);
+    expect(list).toHaveProp('scrollEventThrottle', 16);
+    const bar = screen.getByTestId('history-bar');
+    for (const id of ['history-segment-matches', 'history-filter-status', 'history-filter-team', 'history-filter-sort']) {
+      expect(within(bar).getByTestId(id)).toBeOnTheScreen();
     }
-    expect(within(header).queryByTestId('history-row-m-done')).not.toBeOnTheScreen();
-    expect(screen.getByTestId('history-list')).toHaveProp('scrollEventThrottle', 16);
+    expect(within(bar).queryByTestId('history-search')).not.toBeOnTheScreen();
+    expect(within(screen.getByTestId('history-title')).getByTestId('history-search')).toHaveProp('accessibilityLabel', 'Search matches');
+    expect(screen.queryByText('Search')).not.toBeOnTheScreen();
+    expect(screen.getByTestId('screen-history-ambient', { includeHiddenElements: true })).toBeOnTheScreen();
     await fireEvent.press(screen.getByTestId('history-segment-tournaments'));
-    expect(within(screen.getByTestId('screen-history-header')).queryByTestId('history-search')).not.toBeOnTheScreen();
+    expect(screen.queryByTestId('history-search')).not.toBeOnTheScreen();
+    expect(within(screen.getByTestId('history-bar')).queryByTestId('history-filter-status')).not.toBeOnTheScreen();
+  });
+
+  it('shows the played date in the meta line and lets long titles wrap instead of truncating', async () => {
+    useMatchHistoryStore.setState(
+      fakeHistory({ items: [completedItem({ scheduledDate: '2026-10-04', startedAt: '2026-10-01T12:54:00.000Z', completedAt: '2026-10-01T12:55:00.000Z', tournamentName: 'City Cup' })] }),
+      true,
+    );
+    await renderScreen(<HistoryScreen />);
+    expect(screen.getByTestId('history-row-m-done-meta')).toHaveTextContent('Thu 1 Oct · 20 overs · City Cup');
+    expect(screen.getByText('Lions v Tigers')).not.toHaveProp('numberOfLines');
+  });
+
+  it('marks the active filter in the single-choice filter sheets and styles Delete as destructive', async () => {
+    useMatchHistoryStore.setState(fakeHistory({ items: [completedItem()], query: { sort: 'recent', statuses: ['completed'] } }), true);
+    await renderScreen(<HistoryScreen />);
+    await fireEvent.press(screen.getByTestId('history-filter-status'));
+    expect(screen.getByTestId('sheet-history-status-completed')).toHaveProp('accessibilityState', expect.objectContaining({ checked: true }));
+    expect(screen.getByTestId('sheet-history-status-all')).toHaveProp('accessibilityState', expect.objectContaining({ checked: false }));
+    expect(screen.getByTestId('sheet-history-status-completed-mark', { includeHiddenElements: true })).toBeOnTheScreen();
+    expect(screen.getByTestId('sheet-history-status-completed')).toHaveProp('accessibilityRole', 'radio');
   });
 
   it('loads more when the end of the list is reached', async () => {

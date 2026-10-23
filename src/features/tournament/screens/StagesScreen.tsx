@@ -2,14 +2,14 @@ import { StyleSheet, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import type { TournamentId } from '@/domain/types';
 import { ImpactSheet } from '@/features/shared';
-import { Button, ListRow, Text, space } from '@/ui';
+import { Button, Inset, ListRow } from '@/ui';
 import { useChangeFlow } from '../hooks/useChangeFlow';
 import { newId, nowIso } from '../ids';
 import { STAGE_STATUS_LABEL } from '../labels';
 import { routes } from '../routes';
 import type { TournamentIndex } from '../selectors/names';
 import { editPolicy } from '../selectors/policy';
-import { CHAMPION_MARK, stageNameMap, stageSummary } from '../selectors/stages';
+import { CHAMPION_MARK, stageNameMap, stageSubtitle } from '../selectors/stages';
 import { addKnockoutStage } from '../wizard/structure';
 import { TournamentContainer } from './TournamentContainer';
 
@@ -43,7 +43,7 @@ function StagesBody({ tournamentId, index }: { readonly tournamentId: Tournament
         <ListRow
           key={stage.id}
           title={`${position + 1}  ${stage.name}`}
-          subtitle={[stageSummary(stage, snapshot.pools, names), STAGE_STATUS_LABEL[stage.status], stage.config.decidesChampion ? CHAMPION_MARK : null]
+          subtitle={[stageSubtitle(stage, snapshot.pools, names), STAGE_STATUS_LABEL[stage.status], stage.config.decidesChampion ? CHAMPION_MARK : null]
             .filter(Boolean)
             .join(' · ')}
           trailing={{ kind: 'chevron' }}
@@ -51,12 +51,13 @@ function StagesBody({ tournamentId, index }: { readonly tournamentId: Tournament
           testID={`stages-row-${position + 1}`}
         />
       ))}
-      <View style={styles.footer}>
-        {canAdd ? <Button label="Add stage" icon="plus" variant="secondary" onPress={addStage} loading={flow.previewing} testID="stages-btn-add" /> : null}
-        <Text variant="footnote" tone="secondary">
-          Every stage change shows what will change before it is saved.
-        </Text>
-      </View>
+      {canAdd ? (
+        <Inset top="md" bottom="md">
+          <View style={styles.start}>
+            <Button label="Add stage" icon="plus" variant="secondary" onPress={addStage} loading={flow.previewing} testID="stages-btn-add" />
+          </View>
+        </Inset>
+      ) : null}
       <ImpactSheet {...flow.sheet} names={index.impactNames} />
     </View>
   );
@@ -64,12 +65,12 @@ function StagesBody({ tournamentId, index }: { readonly tournamentId: Tournament
 
 export function StagesScreen({ tournamentId }: StagesScreenProps) {
   return (
-    <TournamentContainer tournamentId={tournamentId} testID="screen-stages" title="Stages">
+    <TournamentContainer tournamentId={tournamentId} testID="screen-stages" title="Stages" width="column">
       {(index) => <StagesBody tournamentId={tournamentId} index={index} />}
     </TournamentContainer>
   );
 }
 
 const styles = StyleSheet.create({
-  footer: { padding: space.md, gap: space.sm, alignItems: 'flex-start' },
+  start: { alignSelf: 'flex-start' },
 });

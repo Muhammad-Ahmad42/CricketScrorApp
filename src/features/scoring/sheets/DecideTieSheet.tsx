@@ -2,8 +2,7 @@ import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import type { TeamId, TieDecisionMethod } from '@/domain/types';
 import type { ScoringIntent } from '@/domain/scoring/commands';
-import { Button, Sheet, Text, space } from '@/ui';
-import { OptionButton } from '../components/common/OptionButton';
+import { Button, RadioList, Sheet, Text, space } from '@/ui';
 import { TIE_METHOD_LABEL } from '../selectors/labels';
 
 type Method = Exclude<TieDecisionMethod, 'super_over'>;
@@ -45,25 +44,21 @@ export function DecideTieSheet({ visible, teams, onSubmit, onClose }: DecideTieS
         <Text variant="subhead" tone="secondary">
           Decided by
         </Text>
-        <View style={styles.grid}>
-          {METHODS.map((value) => (
-            <View key={value} style={styles.cell}>
-              <OptionButton
-                label={TIE_METHOD_LABEL[value]}
-                selected={method === value}
-                compact
-                onPress={() => setMethod(value)}
-                testID={`decide-tie-method-${value}`}
-              />
-            </View>
-          ))}
-        </View>
+        <RadioList
+          accessibilityLabel="Decided by"
+          value={method}
+          onChange={setMethod}
+          choices={METHODS.map((value) => ({ value, label: TIE_METHOD_LABEL[value], testID: `decide-tie-method-${value}` }))}
+        />
         <Text variant="subhead" tone="secondary">
           Winner
         </Text>
-        {teams.map((team) => (
-          <OptionButton key={team.id} label={team.name} selected={winner === team.id} onPress={() => setWinner(team.id)} testID={`decide-tie-winner-${team.id}`} />
-        ))}
+        <RadioList
+          accessibilityLabel="Winner"
+          value={winner}
+          onChange={setWinner}
+          choices={teams.map((team) => ({ value: team.id, label: team.name, testID: `decide-tie-winner-${team.id}` }))}
+        />
       </View>
     </Sheet>
   );
@@ -71,6 +66,4 @@ export function DecideTieSheet({ visible, teams, onSubmit, onClose }: DecideTieS
 
 const styles = StyleSheet.create({
   body: { gap: space.sm },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: space.xs },
-  cell: { flexBasis: '48%', flexGrow: 1 },
 });

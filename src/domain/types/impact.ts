@@ -1,4 +1,5 @@
 import type { NrrConfig, PointsSystem, SlotSource, TieBreakerKind, TournamentOverride, TournamentRules } from './competition';
+import type { Explained } from './copy';
 import type { MatchEventInput } from './events';
 import type { NewMatchInput } from './match';
 import type { BallCount, FixtureId, IsoDateTime, MatchId, OverrideId, PoolId, Runs, Seed, SlotId, StageId, TeamId } from './primitives';
@@ -90,6 +91,8 @@ export interface FixtureImpact {
   readonly label: string;
   readonly change: 'created' | 'removed' | 'teams_changed' | 'moved' | 'rescheduled' | 'status_changed' | 'result_changed';
   readonly hasMatchData: boolean;
+  readonly changeText?: string;
+  readonly note?: string | null;
 }
 
 export interface StandingSnapshotLine {
@@ -104,6 +107,13 @@ export interface StandingChange {
   readonly teamId: TeamId;
   readonly before: StandingSnapshotLine | null;
   readonly after: StandingSnapshotLine | null;
+  readonly teamName?: string;
+  readonly stageName?: string;
+  readonly poolName?: string | null;
+  readonly where?: string;
+  readonly text?: string;
+  readonly headline?: string;
+  readonly detail?: string;
 }
 
 export interface QualificationChange {
@@ -111,6 +121,27 @@ export interface QualificationChange {
   readonly teamId: TeamId;
   readonly before: QualificationState | null;
   readonly after: QualificationState | null;
+  readonly teamName?: string;
+  readonly stageName?: string;
+  readonly text?: string;
+  readonly headline?: string;
+  readonly detail?: string;
+}
+
+export interface SlotShortfall {
+  readonly slotId: SlotId;
+  readonly label: string;
+  readonly stageId: StageId;
+  readonly stageName: string;
+  readonly sourceStageId: StageId;
+  readonly poolId: PoolId | null;
+  readonly poolName: string | null;
+  readonly needed: number;
+  readonly available: number;
+  readonly fixtureLabels: readonly string[];
+  readonly message: string;
+  readonly headline?: string;
+  readonly detail?: string;
 }
 
 export interface SlotChange {
@@ -134,6 +165,9 @@ export interface ImpactSummary {
   readonly requiresConfirmation: boolean;
   readonly requiresReason: boolean;
   readonly blocked: { readonly reason: string } | null;
+  readonly slotShortfalls?: readonly SlotShortfall[];
+  readonly keyLines?: readonly string[];
+  readonly keyItems?: readonly Explained[];
 }
 
 export interface ChangePlan {
@@ -176,12 +210,27 @@ export interface HypotheticalScore {
   readonly secondInnings: { readonly runs: Runs; readonly balls: BallCount; readonly allOut: boolean };
 }
 
+export type HypotheticalMargin =
+  | { readonly kind: 'runs'; readonly runs: Runs }
+  | { readonly kind: 'wickets'; readonly wickets: number; readonly ballsRemaining: BallCount };
+
 export interface HypotheticalResult {
   readonly fixtureId: FixtureId;
   readonly outcome: HypotheticalOutcome;
   readonly tieWinner?: 'side_a' | 'side_b' | null;
   readonly bonus?: boolean;
   readonly score: HypotheticalScore | null;
+  readonly margin?: HypotheticalMargin | null;
+}
+
+export interface WhatIfNrrStatus {
+  readonly simulated: boolean;
+  readonly unscoredFixtureIds: readonly FixtureId[];
+  readonly estimatedFixtureIds: readonly FixtureId[];
+  readonly parRunsPerOver: number | null;
+  readonly nrrUncertainTeamIds: readonly TeamId[];
+  readonly notes: readonly string[];
+  readonly noteItems?: readonly Explained[];
 }
 
 export interface WhatIfResult {
@@ -192,4 +241,6 @@ export interface WhatIfResult {
   readonly qualificationChanges: readonly QualificationChange[];
   readonly slotChanges: readonly SlotChange[];
   readonly narrative: readonly string[];
+  readonly nrr?: WhatIfNrrStatus;
+  readonly narrativeItems?: readonly Explained[];
 }

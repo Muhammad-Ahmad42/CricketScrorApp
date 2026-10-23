@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import type { StageId, TournamentId } from '@/domain/types';
-import { EmptyState, SegmentedControl, Text, space } from '@/ui';
+import { EmptyState, Inset, SegmentedControl, space } from '@/ui';
 import { BracketView } from '../components/BracketView';
 import { routes } from '../routes';
 import { bracketVM, knockoutStages } from '../selectors/bracket';
@@ -24,21 +24,21 @@ function BracketStagePicker({ index, stageId, onChange }: { readonly index: Tour
     return null;
   }
   return (
-    <View style={styles.picker}>
+    <Inset bottom="xs">
       <SegmentedControl
         options={stages.map((candidate) => ({ value: candidate, label: index.stageName(candidate), testID: `bracket-chip-stage-${candidate}` }))}
         value={stageId}
         onChange={onChange}
         accessibilityLabel="Knockout stage"
       />
-    </View>
+    </Inset>
   );
 }
 
 function BracketBody({ tournamentId, index, stageId }: { readonly tournamentId: TournamentId; readonly index: TournamentIndex; readonly stageId: StageId | null }) {
   const router = useRouter();
   if (stageId === null) {
-    return <EmptyState icon="trophy" title="No knockout stage" body="This tournament has no knockout rounds." testID="bracket-empty" />;
+    return <EmptyState icon="trophy" title="No knockout stage" testID="bracket-empty" />;
   }
   const vm = bracketVM(index, stageId);
   return (
@@ -46,19 +46,13 @@ function BracketBody({ tournamentId, index, stageId }: { readonly tournamentId: 
       {vm.rounds.length === 0 ? (
         <EmptyState
           icon="trophy"
-          title="Bracket not generated yet"
-          body="Generate the bracket from the stage once its entrants are known."
+          title="No bracket yet"
           action={{ label: 'Open stage', onPress: () => router.push(routes.stage(tournamentId, stageId)), testID: 'bracket-btn-open-stage' }}
           testID="bracket-not-generated"
         />
       ) : (
         <BracketView bracket={vm} onOpenFixture={(fixtureId) => router.push(routes.fixture(tournamentId, fixtureId))} />
       )}
-      {vm.byeNote ? (
-        <Text variant="footnote" tone="secondary" style={styles.note} testID="bracket-text-byes">
-          {vm.byeNote}
-        </Text>
-      ) : null}
     </View>
   );
 }
@@ -79,6 +73,4 @@ export function BracketScreen({ tournamentId }: BracketScreenProps) {
 
 const styles = StyleSheet.create({
   root: { gap: space.sm, paddingTop: space.sm },
-  picker: { paddingHorizontal: space.md, paddingBottom: space.xs },
-  note: { paddingHorizontal: space.md },
 });

@@ -50,6 +50,7 @@ export interface RankedTeam {
   readonly shared: boolean;
   readonly separatedBy: TieBreakerKind | null;
   readonly detail: string;
+  readonly headline: string;
 }
 
 type Resolution = RankContext['resolutions'][number];
@@ -62,7 +63,18 @@ interface Run {
 interface StepEntry {
   readonly separatedAs: TieBreakerKind;
   readonly describe: (upper: TeamRecord, lower: TeamRecord) => string;
+  readonly headline: (upper: TeamRecord, lower: TeamRecord) => string;
   readonly skipNote: string | null;
+}
+
+const SHORT_PHRASE: { readonly [K in TieBreakerKind]: string } = {
+  ...CRITERION_PHRASE,
+  nrr: 'NRR',
+  head_to_head_nrr: 'head-to-head NRR',
+};
+
+function aheadOn(kind: TieBreakerKind): (upper: TeamRecord, lower: TeamRecord) => string {
+  return (_upper, lower) => `Ahead of ${lower.name} on ${SHORT_PHRASE[kind]}`;
 }
 
 interface CriterionOutcome {
@@ -78,12 +90,21 @@ function recordOutcome(kind: RecordCriterion, run: readonly TeamRecord[]): Crite
     entry: {
       separatedAs: kind,
       skipNote: null,
+      headline: kind === 'points' ? (upper, lower) => `${formatPoints(upper.points - lower.points)} pts ahead of ${lower.name}` : aheadOn(kind),
       describe: (upper, lower) =>
         kind === 'points'
           ? `${recordValueText(kind, upper)}, ${formatPoints(upper.points - lower.points)} ahead of ${lower.name}`
-          : `Ahead of ${lower.name} on ${CRITERION_PHRASE[kind]} (${recordValueText(kind, upper)} vs ${recordValueText(kind, lower)})`,
+          : kind === 'nrr' && (upper.nrr === null || lower.nrr === null)
+            ? nrrAgainstUnplayed(upper, lower)
+            : `Ahead of ${lower.name} on ${CRITERION_PHRASE[kind]} (${recordValueText(kind, upper)} vs ${recordValueText(kind, lower)})`,
     },
   };
+}
+
+function nrrAgainstUnplayed(upper: TeamRecord, lower: TeamRecord): string {
+  if (upper.nrr !== null) return `Ahead of ${lower.name} on net run rate (${recordValueText('nrr', upper)}; ${lower.name} have no net run rate yet)`;
+  if (lower.nrr !== null) return `Ahead of ${lower.name} on net run rate (no net run rate yet vs ${recordValueText('nrr', lower)})`;
+  return `Ahead of ${lower.name}; neither team has a net run rate yet`;
 }
 
 function missingPairs(run: readonly TeamRecord[], ctx: RankContext): string {
@@ -106,6 +127,7 @@ function headToHeadOutcome(kind: HeadToHeadCriterion, run: readonly TeamRecord[]
         separatedAs: kind,
         skipNote: `Head-to-head not used: ${missingPairs(run, ctx)}.`,
         describe: () => '',
+        headline: () => '',
       },
     };
   }
@@ -116,6 +138,7 @@ function headToHeadOutcome(kind: HeadToHeadCriterion, run: readonly TeamRecord[]
     entry: {
       separatedAs: kind,
       skipNote: null,
+      headline: aheadOn(kind),
       describe: (upper, lower) =>
         `Ahead of ${lower.name} on ${CRITERION_PHRASE[kind]} (${headToHeadValueText(kind, recordOf(upper))} vs ${headToHeadValueText(
           kind,
@@ -140,7 +163,7 @@ function matchingResolution(run: readonly TeamRecord[], resolutions: readonly Re
 
 function resolutionOutcome(kind: 'organizer_decision' | 'draw_lots', run: readonly TeamRecord[], ctx: RankContext): CriterionOutcome {
   const resolution = matchingResolution(run, ctx.resolutions);
-  if (!resolution) return { groups: [run], entry: { separatedAs: kind, skipNote: null, describe: () => '' } };
+  if (!resolution) return { groups: [run], entry: { separatedAs: kind, skipNote: null, describe: () => '', headline: () => '' } };
   const byId = new Map(run.map((team) => [team.teamId, team]));
   const ordered = resolution.orderedTeamIds.map((teamId) => byId.get(teamId)).filter((team): team is TeamRecord => !!team);
   return {
@@ -148,6 +171,7 @@ function resolutionOutcome(kind: 'organizer_decision' | 'draw_lots', run: readon
     entry: {
       separatedAs: resolution.method,
       skipNote: null,
+      headline: (_upper, lower) => `Above ${lower.name} by ${resolution.method === 'draw_lots' ? 'draw of lots' : 'organizer decision'}`,
       describe: (_upper, lower) =>
         resolution.method === 'draw_lots'
           ? `Placed above ${lower.name} by draw of lots${resolution.seed !== null ? ` (seed ${resolution.seed})` : ''}`
@@ -168,6 +192,8 @@ function firstDivergence(a: readonly number[], b: readonly number[]): number {
   }
   return -1;
 }
+
+export const LEVEL_DECISION = ': organizer decides';
 
 export function rankTeams(records: readonly TeamRecord[], chain: readonly TieBreakerKind[], ctx: RankContext): readonly RankedTeam[] {
   if (records.length === 0) return [];
@@ -197,23 +223,24 @@ export function rankTeams(records: readonly TeamRecord[], chain: readonly TieBre
   return flat.map((entry, index) => {
     const below = flat[index + 1];
     const base = { teamId: entry.team.teamId, position: entry.start + 1, shared: entry.run.teams.length > 1 };
-    if (!below) return { ...base, separatedBy: null, detail: '' };
+    if (!below) return { ...base, separatedBy: null, detail: '', headline: '' };
     if (below.run === entry.run) {
       return {
         ...base,
         separatedBy: null,
         detail: `Level with ${below.team.name}${decisionRequired ? ' — organizer decision required' : ''}`,
+        headline: `Level with ${below.team.name}${decisionRequired ? LEVEL_DECISION : ''}`,
       };
     }
     const step = firstDivergence(entry.run.path, below.run.path);
     const stepEntry = step >= 0 ? steps[step].get(entry.team.teamId) : undefined;
-    if (!stepEntry) return { ...base, separatedBy: null, detail: '' };
+    if (!stepEntry) return { ...base, separatedBy: null, detail: '', headline: '' };
     const notes = steps
       .slice(0, step)
       .map((entries) => entries.get(entry.team.teamId)?.skipNote ?? null)
       .filter((note): note is string => note !== null);
     const detail = [...new Set(notes), stepEntry.describe(entry.team, below.team)].join(' ');
-    return { ...base, separatedBy: stepEntry.separatedAs, detail };
+    return { ...base, separatedBy: stepEntry.separatedAs, detail, headline: stepEntry.headline(entry.team, below.team) };
   });
 }
 

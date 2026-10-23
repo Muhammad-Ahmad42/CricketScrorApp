@@ -1,6 +1,6 @@
 # Scorebook — Design System
 
-Spec: §1, §67–§78, §101, **§106 (liquid glass amendment)**. Implemented by **WP-design-system** in `src/ui/**` (tokens in `src/ui/theme`, glass material in `src/ui/glass`, text styles in `src/ui/typography`, primitives in `src/ui/primitives`, scoreboard parts in `src/ui/scoreboard`, charts in `src/ui/charts`). Companion docs: [THEMES.md](THEMES.md) (per-component colour mapping, charts, PDF), [RESPONSIVE.md](RESPONSIVE.md), [ACCESSIBILITY.md](ACCESSIBILITY.md), [WIREFRAMES.md](WIREFRAMES.md).
+Spec: §1, §67–§78, §101, **§106 (liquid glass amendment)**, **§107 (Cyber-Cyan / Deep Electric Teal palette)**. Implemented by **WP-design-system** in `src/ui/**` (tokens in `src/ui/theme`, glass material in `src/ui/glass`, text styles in `src/ui/typography`, primitives in `src/ui/primitives`, scoreboard parts in `src/ui/scoreboard`, charts in `src/ui/charts`). Companion docs: [THEMES.md](THEMES.md) (per-component colour mapping, charts, PDF), [RESPONSIVE.md](RESPONSIVE.md), [ACCESSIBILITY.md](ACCESSIBILITY.md), [WIREFRAMES.md](WIREFRAMES.md).
 
 Every value in this document is a contract for `src/ui`. Feature code never uses a hex literal, a raw number for spacing, or a font name. It uses `theme.color.*`, `theme.space.*`, `theme.radius.*` and `<Text variant="…">`.
 
@@ -8,7 +8,7 @@ Every value in this document is a contract for `src/ui`. Feature code never uses
 
 ## 0. Identity: a modern cricket scorebook
 
-The product should look like a well-kept scorebook set in a sports-broadcast typeface. It is information design, not decoration (§1, §101). Since §106 the **floating control and navigation layer** is made of liquid glass: the scorebook page stays calm and solid, and the chrome that floats above it (tab bar, top bars, sheets, dialogs, toasts, menus, segmented and filter bars, the scoring dock, floating buttons, the live score band) is a translucent, frosted material that lets the page show through (§1.4).
+The product should look like a well-kept scorebook set in a sports-broadcast typeface, lit like a **night stadium scoring HUD** (§107): obsidian and ice grounds, cyan and deep teal for identity and interaction. It is information design, not decoration (§1, §101), and never a gaming dashboard. Since §106 the **floating control and navigation layer** is made of liquid glass: the scorebook page stays calm and solid, and the chrome that floats above it (tab bar, top bars, sheets, dialogs, toasts, menus, segmented and filter bars, the scoring dock, floating buttons, the live score band) is a translucent, frosted material that lets the page show through (§1.4).
 
 | Do | Don't (§1) |
 |---|---|
@@ -18,7 +18,7 @@ The product should look like a well-kept scorebook set in a sports-broadcast typ
 | Liquid glass on the floating chrome only, built from `src/ui/glass` (§1.4, §106) | Glass on content, glass behind dense numbers, raw `GlassView`/`BlurView`/gradients in feature code |
 | Condensed numerals (Barlow Condensed) for the score, overs and figures, as on a ground scoreboard | Giant icons, illustrations, stadium photos, grass, bats or balls |
 | Restrained marks for events: circle, outline, fill, square. Each is paired with its text label | Colour-only states, confetti, game-show animation |
-| One accent (cricket green `#1F5C3A`, already the app icon/splash colour in `app.json`) | Multi-colour palettes, accent on every element |
+| One identity family (§107 cyan / deep teal): `accent` for interaction, `accentDeep` for secondary fills, `highlight` only for attention | Multi-colour palettes, accent on every element, neon, glowing blobs, RGB-gaming glow, ultra-bright cyan on routine 4s/6s |
 
 Cricket details are allowed only when they carry information:
 - **Score notation**: `142/4`, overs `16.4`, figures `3.4-0-28-2`.
@@ -29,50 +29,52 @@ Cricket details are allowed only when they carry information:
 
 ---
 
-## 1. Colour tokens (§68, §69, §71)
+## 1. Colour tokens (§71, §107)
 
-The §71 tokens are mandatory. The extended tokens complete the system and use the same naming rules. Light and dark were designed separately (see THEMES.md for the rationale), and dark is not an inversion of light.
+The §71 tokens are mandatory. The extended tokens complete the system and use the same naming rules. Since **§107 (2026-10-02)** the palette is **Cyber-Cyan / Deep Electric Teal**: a night stadium, a professional scoring HUD and liquid glass, not a gaming dashboard. Cyan/teal is the identity; green survives only as the small `success` signal (the second chart series is a muted violet). §107 supersedes the warm off-white + cricket green of §68 and the green-charcoal dark of §69. Light and dark were designed separately (THEMES.md §2), and dark is not an inversion of light.
 
 ### 1.1 Core tokens (§71)
 
 | Token | Light | Dark | Use |
 |---|---|---|---|
-| `background` | `#F5F3EC` warm off-white (paper) | `#111412` deep charcoal, green undertone | Screen canvas |
-| `surface` | `#FFFFFF` | `#181C19` | Rows, tables, inputs, scoring keys, the selected segment lens |
-| `surfaceElevated` | `#FFFFFF` (plus elevation 1) | `#212622` (tone step, no shadow) | Solid raised content such as chart callouts. Sheets, dialogs, menus and toasts are glass since §106 (§1.4) |
-| `textPrimary` | `#1A1C19` charcoal | `#ECEEE9` | Body text, names, table values |
-| `textSecondary` | `#474E49` muted slate | `#B4BBB4` | Supporting lines, column headers, unselected tabs |
-| `textMuted` | `#646A65` | `#8E968F` | Metadata (dates, "16.4 ov" suffix), dot balls, placeholders |
-| `border` | `#DDD9CE` | `#2B312D` | Hairline separators (decorative, not an affordance) |
-| `accent` | `#1F5C3A` cricket green | `#72BE90` restrained green | Primary buttons, selection, links, striker marker, focus |
-| `success` | `#276A3E` | `#7CC49A` | "Qualified", completed/saved confirmations |
-| `warning` | `#8A5300` | `#E3B55E` | Advisory banners (retirement due, uneven pools, provisional), "Manual Override" |
-| `danger` | `#B3261E` | `#EE8A7F` | Wicket, destructive actions, errors |
-| `score` | `#111310` | `#F6F7F3` | The live score figure and score keys only (the highest-contrast ink) |
+| `background` | `#F0F5F8` cool ice | `#070E12` obsidian (plus the §1.4 ambient glows) | Screen canvas |
+| `surface` | `#FFFFFF` | `#0D171C` (one step above the page) | Rows, tables, inputs, scoring keys, the selected segment lens |
+| `surfaceElevated` | `#FFFFFF` (plus elevation 1) | `#132129` (tone step, no shadow) | Solid raised content such as chart callouts. Sheets, dialogs, menus and toasts are glass (§1.4) |
+| `textPrimary` | `#0B232B` deep teal ink | `#F2F7F9` | Body text, names, table values |
+| `textSecondary` | `#3D5864` mid teal-grey | `#8FA7B3` | Supporting lines, column headers, unselected tabs |
+| `textMuted` | `#526B77` | `#7F97A3` | Metadata (dates, "16.4 ov" suffix), dot balls, placeholders |
+| `border` | `#D5E0E6` | `#1A2A33` cool blue-grey | Hairline separators (decorative, not an affordance) |
+| `accent` | `#00606F` deep teal (AA as text: 7.23:1 on white) | `#00C2E0` cyan | Primary buttons, selection, links, striker marker, the FOUR chip |
+| `success` | `#0C7552` | `#35D49A` | "Qualified", completed/saved confirmations |
+| `warning` | `#8A5000` | `#FFB74D` | Advisory banners (retirement due, uneven pools, provisional), "Manual Override" |
+| `danger` | `#C42B2B` | `#FF5252` wicket red | Wicket, destructive actions, errors |
+| `score` | `#061A20` | `#F8FCFD` near-white | The live score figure and score keys only (the highest-contrast ink) |
 
 ### 1.2 Extended tokens
 
 | Token | Light | Dark | Use |
 |---|---|---|---|
-| `surfaceSunken` | `#ECE9E0` | `#0B0D0C` | Scoring pad well outside the glass dock (edit ball), skeleton blocks, pressed rows |
-| `borderStrong` | `#8A877C` | `#646E66` | Input outlines, secondary buttons, ball-chip outlines (these are affordances, so ≥ 3:1) |
-| `accentPressed` | `#174A2D` | `#5FA87C` | Pressed primary button |
-| `accentSubtle` | `#E2ECE4` | `#1C3326` | Selected row/segment tint, current batter row, pressed run key |
-| `onAccent` | `#FFFFFF` | `#0A1A10` | Text/icons on `accent` fills |
-| `successSubtle` | `#E3EFE6` | `#1A3023` | Qualified badge background |
-| `warningSubtle` | `#FAEFD9` | `#33291A` | Advisory banner background, Manual Override badge |
-| `dangerSubtle` | `#FBE8E6` | `#3A1E1B` | Pressed WICKET key, error banner background |
-| `onDanger` | `#FFFFFF` | `#240907` | Text on `danger` fills (the W ball chip, the destructive confirm button) |
-| `focusRing` | `#1F5C3A` | `#9AD3AF` | 2 px keyboard/switch-access focus outline |
-| `scrim` | `rgba(17,19,16,0.40)` | `rgba(0,0,0,0.60)` | Legacy solid scrim. Sheets and dialogs use `glass.scrim` (§1.4) |
-| `inverseSurface` | `#1A1C19` | `#ECEEE9` | Reserved (the pre-§106 light toast). Toasts are `popover` glass now |
-| `inverseText` | `#F5F3EC` | `#111412` | Toast text on `inverseSurface` |
-| `inverseAccent` | `#9AD3AF` | `#72BE90` | Reserved, paired with `inverseSurface` |
-| `chartSeries1` | `#2A7F50` | `#55A877` | Team batting first / innings 1 (THEMES.md §4) |
-| `chartSeries2` | `#4A6FC0` | `#7792DA` | Team batting second / innings 2 |
-| `chartGrid` | `#E7E4DA` | `#252A26` | Chart gridlines |
+| `surfaceSunken` | `#E2EBF0` | `#04090C` | Scoring pad well outside the glass dock (edit ball), skeleton blocks, pressed rows |
+| `borderStrong` | `#6E848E` | `#5A7482` | Input outlines, secondary buttons, ball-chip outlines (affordances, so ≥ 3:1) |
+| `accentPressed` | `#004A56` | `#00A5BF` | Pressed primary button |
+| `accentDeep` | `#007385` | `#008BA3` deep teal | **Secondary / selection fills** (§107 "secondary"): the SIX chip fill. Carries `onAccent` ink at ≥ 4.5:1 |
+| `accentSubtle` | `#DCEFF3` | `#0A2C36` | Selected row/segment tint, current batter row, pressed run key |
+| `onAccent` | `#FFFFFF` | `#010B0E` dark ink | Text/icons on `accent`, `accentPressed` and `accentDeep` fills |
+| `highlight` | `#008BA3` (non-text only, ≥ 3:1) | `#28D9F2` bright cyan | **Attention only** (§107): live indicator, keyboard focus, a brief genuine highlight. Never routine 4s/6s, never body text in light |
+| `successSubtle` | `#DDF2E9` | `#0B2A22` | Qualified badge background |
+| `warningSubtle` | `#FBEFDA` | `#2A2014` | Advisory banner background, Manual Override badge |
+| `dangerSubtle` | `#FCE8E8` | `#2D1316` | Pressed WICKET key, error banner background |
+| `onDanger` | `#FFFFFF` | `#1C0506` | Text on `danger` fills (the W ball chip, the destructive confirm button) |
+| `focusRing` | `#008BA3` | `#28D9F2` | 2 px keyboard/switch-access focus outline (the `highlight` value) |
+| `scrim` | `rgba(6,26,32,0.40)` | `rgba(2,7,9,0.64)` | Legacy solid scrim. Sheets and dialogs use `glass.scrim` (§1.4) |
+| `inverseSurface` | `#0B232B` | `#E3ECF0` | Reserved (the pre-§106 light toast). Toasts are `popover` glass now |
+| `inverseText` | `#F0F5F8` | `#070E12` | Text on `inverseSurface` |
+| `inverseAccent` | `#5ED3E8` | `#00C2E0` | Reserved, paired with `inverseSurface` (dark: checked on `surfaceElevated`) |
+| `chartSeries1` | `#0A96B2` cyan | `#19A2BE` cyan | Team batting first / innings 1 (THEMES.md §4) |
+| `chartSeries2` | `#6650B8` muted violet | `#7A64D6` muted violet | Team batting second / innings 2 (never green: green is the success signal) |
+| `chartGrid` | `#E1E9ED` | `#16242B` | Chart gridlines |
 
-Rule: status colours (`success`, `warning`, `danger`) are never used as chart series or decoration. `accent` is never used for an error.
+Rules: status colours (`success`, `warning`, `danger`) are never used as chart series or decoration, and no series is green: `chartSeries2` is a non-semantic muted violet, so green stays the success signal only (§107). `accent` is never used for an error. `highlight` is never a fill behind text and never marks a routine boundary. Only the cyan identity (`accent`, `accentPressed`, `focusRing`/`highlight`, `inverseAccent`) runs above 0.7 channel chroma, and nothing is a fully saturated colour at full brightness (`#00E5FF`-style neon is rejected by the adversarial design test).
 
 ### 1.3 Verified contrast (WCAG 2.2, relative luminance)
 
@@ -80,110 +82,128 @@ Computed with the WCAG formula for every text/background pairing the components 
 
 | Pair | Light | Dark | Requirement |
 |---|---|---|---|
-| `textPrimary` / `background` | **15.45** | **15.87** | 4.5 (AAA 7) |
-| `textPrimary` / `surface` | 17.16 | 14.74 | 4.5 |
-| `textPrimary` / `surfaceElevated` | 17.16 | 13.17 | 4.5 |
-| `textPrimary` / `surfaceSunken` | 14.13 | 16.69 | 4.5 |
-| `textSecondary` / `background` | 7.71 | 9.45 | 4.5 |
-| `textSecondary` / `surface` | 8.56 | 8.78 | 4.5 |
-| `textSecondary` / `surfaceElevated` | 8.56 | 7.84 | 4.5 |
-| `textMuted` / `background` | 4.99 | 6.10 | 4.5 |
-| `textMuted` / `surface` | 5.54 | 5.67 | 4.5 |
-| `textMuted` / `surfaceElevated` | 5.54 | 5.06 | 4.5 |
-| `textMuted` / `surfaceSunken` | 4.56 | 6.41 | 4.5 |
-| `score` / `background` | 16.82 | 17.23 | 3 (large) |
-| `score` / `surface` | 18.68 | 16.01 | 3 (large) |
-| `accent` / `background` (links, selected text) | 7.14 | 8.37 | 4.5 |
-| `accent` / `surface` | 7.92 | 7.78 | 4.5 |
-| `accent` / `surfaceElevated` | 7.92 | 6.95 | 4.5 |
-| `accent` / `accentSubtle` (selected segment label) | 6.55 | 6.11 | 4.5 |
-| `onAccent` / `accent` (primary button) | 7.92 | 8.12 | 4.5 |
-| `onAccent` / `accentPressed` | 10.22 | 6.32 | 4.5 |
-| `textPrimary` / `accentSubtle` (current batter row) | 14.18 | 11.59 | 4.5 |
-| `success` / `surface` | 6.53 | 8.38 | 4.5 |
-| `success` / `successSubtle` | 5.52 | 6.85 | 4.5 |
-| `warning` / `surface` | 6.33 | 9.05 | 4.5 |
-| `warning` / `warningSubtle` | 5.55 | 7.49 | 4.5 |
-| `danger` / `surface` | 6.54 | 7.04 | 4.5 |
-| `danger` / `background` | 5.89 | 7.57 | 4.5 |
-| `danger` / `dangerSubtle` | 5.54 | 6.21 | 4.5 |
-| `onDanger` / `danger` (W chip) | 6.54 | 7.68 | 4.5 |
-| `textPrimary` / `warningSubtle` (banner body) | 15.04 | 12.20 | 4.5 |
-| `textPrimary` / `dangerSubtle` | 14.53 | 13.01 | 4.5 |
-| `borderStrong` / `surface` (input outline) | 3.60 | 3.25 | 3 (non-text) |
-| `borderStrong` / `background` | 3.24 | 3.50 | 3 (non-text) |
-| `focusRing` / `background` | 7.14 | 10.87 | 3 (non-text) |
-| `focusRing` / `surface` | 7.92 | 10.10 | 3 (non-text) |
-| `border` / `surface` | 1.41 | 1.30 | none: decorative separator only; never the only boundary of a control |
-| `inverseText` / `inverseSurface` (toast) | 15.45 | – | 4.5 |
-| `inverseAccent` / `inverseSurface` (toast action) | 10.06 | 6.95 (on `surfaceElevated`) | 4.5 |
-| `chartSeries1` / `surface` | 4.94 | 5.95 | 3 (graphical object) |
-| `chartSeries2` / `surface` | 4.85 | 5.67 | 3 (graphical object) |
-| `chartSeries1` / `background` | 4.45 | 6.40 | 3 (graphical object) |
-| `chartSeries2` / `background` | 4.37 | 6.10 | 3 (graphical object) |
+| `textPrimary` / `background` | **14.83** | **18.00** | 4.5 (AAA 7) |
+| `textPrimary` / `surface` | 16.29 | 16.82 | 4.5 |
+| `textPrimary` / `surfaceElevated` | 16.29 | 15.23 | 4.5 |
+| `textPrimary` / `surfaceSunken` | 13.47 | 18.53 | 4.5 |
+| `textSecondary` / `background` | 6.88 | 7.72 | 4.5 |
+| `textSecondary` / `surface` | 7.56 | 7.22 | 4.5 |
+| `textSecondary` / `surfaceElevated` | 7.56 | 6.53 | 4.5 |
+| `textSecondary` / `surfaceSunken` | 6.25 | 7.95 | 4.5 |
+| `textMuted` / `background` | 5.13 | 6.35 | 4.5 |
+| `textMuted` / `surface` | 5.63 | 5.93 | 4.5 |
+| `textMuted` / `surfaceElevated` | 5.63 | 5.37 | 4.5 |
+| `textMuted` / `surfaceSunken` | 4.66 | 6.53 | 4.5 |
+| `score` / `background` | 16.25 | 18.82 | 3 (large) |
+| `score` / `surface` | 17.85 | 17.58 | 3 (large) |
+| `accent` / `background` (links, selected text) | 6.59 | 9.06 | 4.5 |
+| `accent` / `surface` | 7.23 | 8.47 | 4.5 |
+| `accent` / `surfaceElevated` | 7.23 | 7.67 | 4.5 |
+| `accent` / `accentSubtle` (selected segment label) | 6.09 | 6.87 | 4.5 |
+| `onAccent` / `accent` (primary button) | 7.23 | 9.28 | 4.5 |
+| `onAccent` / `accentPressed` | 9.93 | 6.76 | 4.5 |
+| `onAccent` / `accentDeep` (SIX chip) | 5.54 | 4.95 | 4.5 |
+| `textPrimary` / `accentSubtle` (current batter row) | 13.71 | 13.63 | 4.5 |
+| `success` / `surface` | 5.70 | 9.54 | 4.5 |
+| `success` / `successSubtle` | 4.88 | 8.06 | 4.5 |
+| `warning` / `surface` | 6.51 | 10.49 | 4.5 |
+| `warning` / `warningSubtle` | 5.72 | 9.23 | 4.5 |
+| `danger` / `surface` | 5.63 | 5.69 | 4.5 |
+| `danger` / `background` | 5.13 | 6.09 | 4.5 |
+| `danger` / `dangerSubtle` | 4.79 | 5.41 | 4.5 |
+| `onDanger` / `danger` (W chip) | 5.63 | 6.13 | 4.5 |
+| `textPrimary` / `warningSubtle` (banner body) | 14.32 | 14.79 | 4.5 |
+| `textPrimary` / `dangerSubtle` | 13.84 | 15.99 | 4.5 |
+| `borderStrong` / `surface` (input outline) | 3.92 | 3.68 | 3 (non-text) |
+| `borderStrong` / `background` | 3.57 | 3.94 | 3 (non-text) |
+| `focusRing` / `background` | 3.66 | 11.38 | 3 (non-text) |
+| `focusRing` / `surface` | 4.02 | 10.63 | 3 (non-text) |
+| `highlight` / `background` | 3.66 | 11.38 | 3 (non-text) |
+| `highlight` / `surface` | 4.02 | 10.63 | 3 (non-text) |
+| `border` / `surface` | 1.34 | 1.23 | none: decorative separator only; never the only boundary of a control |
+| `inverseText` / `inverseSurface` | 14.83 | 16.22 | 4.5 |
+| `inverseAccent` / `inverseSurface` | 9.27 | 7.67 (on `surfaceElevated`) | 4.5 |
+| `chartSeries1` / `surface` | 3.49 | 6.01 | 3 (graphical object) |
+| `chartSeries2` / `surface` | 6.17 | 4.00 | 3 (graphical object) |
+| `chartSeries1` / `background` | 3.18 | 6.43 | 3 (graphical object) |
+| `chartSeries2` / `background` | 5.62 | 4.28 | 3 (graphical object) |
 
-The chart pair also passes the dataviz palette validator's checks (lightness band, chroma floor, colour-vision separation, normal-vision floor): colour-vision ΔE 17.8 in light and 15.3 in dark. Series text never uses these colours (THEMES.md §4).
+**Why the light teal is `#00606F`.** The §107 deep teal `#008BA3` is only 4.02:1 on white and 3.66:1 on the ice page, so it may not carry text; in light it is the non-text `highlight`/`focusRing` (≥ 3:1). Light text, icons and interactive fills use `#00606F` (7.23:1 on white, 6.59:1 on ice), which also keeps AA on the light glass bars (§1.4); the softer `#007385` is the six-chip fill under white digits (5.54:1). Cyan proper appears in light only in rims, edges and the ambient light.
 
-Every text token reaches **≥ 4.5:1 on every surface it is placed on, in both themes**. That includes `textMuted`, so there are no low-contrast labels outdoors (§72). Disabled controls are the only exception. They are exempt under WCAG, and they are marked by a "disabled" accessibility state and never carry information.
+The chart pair (cyan + muted violet) passes the dataviz palette validator (lightness band, chroma floor, CVD separation, normal-vision floor, contrast vs surface) in both themes: light worst adjacent CVD ΔE 14.6 deutan (normal vision 19.7), dark 12.4 (18.8). Series text never uses these colours (THEMES.md §4).
 
-### 1.4 Glass material (§106)
+Every text token reaches **≥ 4.5:1 on every surface it is placed on, in both themes**, `textMuted` included, so there are no low-contrast labels outdoors (§72). Disabled controls are the only exception: WCAG exempts them, they carry a "disabled" accessibility state and never carry information.
 
-Glass is a **material**, not a colour: a frosted blur of whatever scrolls behind it, a tint, a rim highlight on the edge that catches the light, and a soft specular sheen at the top. The tokens live in `src/ui/theme/glass.ts` (`lightGlass`, `darkGlass`, exposed as `theme.glass` / `useGlass()`), the only other file besides `tokens.ts` allowed to contain colour literals. Feature code never sees these values; it uses the `src/ui/glass` components (§6.20).
+### 1.4 Glass material (§106, §107)
 
-**Where glass is used (and where it is not).** Glass belongs to the floating control and navigation layer: the tab bar, top bars once content scrolls under them, bottom sheets, dialogs, toasts, menus (they are sheets), segmented controls and filter/tab bars, the live-scoring dock that holds the pad and its action row, floating action buttons and the live score band. Tables, long lists, form fields, rows and any text-dense content stay on `background`/`surface`. Scoring keys keep their solid `surface` faces: the dock around them is glass, the keys are not.
+Glass is a **material**, not a colour: a frosted blur of whatever scrolls behind it, a tint, a 1 px rim whose **top-left edge is lit** (the specular edge that sells liquid glass), and a soft sheen at the top. The tokens live in `src/ui/theme/glass.ts` (`lightGlass`, `darkGlass`, exposed as `theme.glass` / `useGlass()`), the only other file besides `tokens.ts` allowed to contain colour literals. Feature code never sees these values; it uses the `src/ui/glass` components (§6.20).
+
+**Hierarchy.** Solid content, glass controls. Glass belongs to the floating control and navigation layer: the tab bar, top bars (resting glass, stronger once content scrolls under them), bottom sheets, player sheets, dialogs, toasts, menus, segmented controls and filter/tab bars, the live-scoring dock, floating action buttons and the live score band. The page, tables, long lists, form fields, charts, score content and any text-dense content stay on `background`/`surface`. Scoring keys keep their solid `surface` faces: the dock around them is glass, the keys are not. **The scoring dock is the strongest glass element**: the densest chrome tint and its own stronger rim.
 
 #### Elevation levels
 
-Each level has a translucent **tint**, an **opaque twin** with the same RGB (used when transparency is reduced), a **blur** intensity (expo-blur 1–100) and whether it carries the **sheen**. Tints are deliberately dense: the material reads as glass from the blur, rim and sheen, while the tint opacity is what keeps text legible over the worst content behind it.
+Each level has a translucent **tint** (blurred renderers and iOS 26 native glass), a denser **unblurred** tint (floating glass where nothing can blur the backdrop: Android below 12 or outside a blur target, web without `backdrop-filter`), an **opaque twin** with the same RGB (Reduce Transparency, high contrast), a **blur** intensity (expo-blur 1–100; 100 is the §107 24 px frost on web, see the model below) and whether it carries the **sheen**.
 
-| Level | Used by | Light tint / opaque | Dark tint / opaque | Blur | Sheen L / D |
+| Level | Used by | Light tint / unblurred / opaque | Dark tint / unblurred / opaque | Blur | Sheen L / D |
 |---|---|---|---|---|---|
-| `bar` | Tab bar capsule, top bars, top tabs, FAB | `rgba(251,251,248,0.80)` / `#FBFBF8` | `rgba(18,26,28,0.88)` / `#121A1C` | 60 | yes / yes |
-| `dock` | Scoring dock, sticky footers | `rgba(251,251,248,0.84)` / `#FBFBF8` | `rgba(18,26,28,0.88)` / `#121A1C` | 60 | yes / yes |
-| `control` | Segmented-control track | `rgba(232,229,220,0.84)` / `#E8E5DC` | `rgba(8,12,13,0.84)` / `#080C0D` | 40 | yes / yes |
-| `popover` | Toasts, popovers | `rgba(251,251,248,0.90)` / `#FBFBF8` | `rgba(22,31,34,0.90)` / `#161F22` | 50 | yes / no |
-| `sheet` | Bottom sheets, dialogs (near-solid: they hold forms and lists) | `rgba(251,251,248,0.94)` / `#FBFBF8` | `rgba(20,27,30,0.95)` / `#141B1E` | 70 | yes / no |
+| `bar` | Tab bar, top bars, top tabs, FAB, live score band | `rgba(252,254,255,0.60)` / `0.98` / `#FCFEFF` | `rgba(15,27,34,0.70)` / `0.98` / `#0F1B22` | 100 | yes / yes |
+| `dock` | Scoring dock, sticky footers (strongest) | `rgba(252,254,255,0.66)` / `0.985` / `#FCFEFF` | `rgba(15,27,34,0.76)` / `0.985` / `#0F1B22` | 100 | yes / yes |
+| `control` | Segmented-control track, floating filter bars | `rgba(232,240,244,0.64)` / `0.98` / `#E8F0F4` | `rgba(11,20,25,0.70)` / `0.98` / `#0B1419` | 90 | yes / yes |
+| `popover` | Toasts, popovers | `rgba(252,254,255,0.86)` / `0.985` / `#FCFEFF` | `rgba(17,30,37,0.90)` / `0.985` / `#111E25` | 100 | yes / no |
+| `sheet` | Bottom sheets, player sheets, dialogs, menus (they sit on the scrim and hold long text) | `rgba(252,254,255,0.88)` / `0.99` / `#FCFEFF` | `rgba(9,17,22,0.82)` / `0.99` / `#091116` | 100 | yes / no |
 
-Light glass is a pale, warm white that blends into the paper background without harsh blocks. Dark glass is a deep charcoal with a teal-navy cast (blue channel above red, never transparent black), so it separates from the green-charcoal page instead of looking muddy.
+**Perceptible, not opaque.** The short-text chrome (bars, dock, controls, FAB) runs at the §107 values: **dark bars are exactly `rgba(15,27,34,0.70)`**, light bars a pale 0.60 white, so the colour masses of what scrolls beneath (cards, buttons, chips, the ambient light) show through the 24 px frost, boosted by a 160–170% backdrop saturation. AA is kept by **glass inks** rather than by a denser tint (below). The dock is still the strongest (0.76 dark / 0.66 light, stronger rim). Sheets, dialogs and popovers stay denser because they carry long text; the dark sheet is a deeper charcoal than the page's cards so in-sheet rows (raised to `surfaceElevated`) stand apart at ≥ 1.15:1.
 
-#### Edges, sheen, selection and wash
+**Resting state.** A top bar is never invisible: at rest (nothing scrolled beneath it) it shows its tint, sheen and bottom rim at `glass.rest` = 60% strength; once content scrolls under it the tint rises to 100% and the soft lift appears in light. The frost layer sits outside the fading layer, so on web no ancestor opacity ever cuts the `backdrop-filter` off. Under Reduce Transparency a resting bar is fully opaque (never a part-transparent opaque fill).
+
+#### Rims, edges, sheen, selection, scrim, ambient
 
 | Token | Light | Dark | Use |
 |---|---|---|---|
-| `rim.color` / `rim.top` (1 pt) | `rgba(255,255,255,0.55)` / `rgba(255,255,255,0.90)` | `rgba(120,196,196,0.20)` / `rgba(140,214,210,0.38)` | Rim highlight; the top edge is lit more, like light catching a glass edge. Dark rims are a soft teal, never white glare |
-| `edge.color` (hairline) | `rgba(26,28,25,0.10)` | `rgba(2,6,7,0.60)` | Outer hairline that separates glass from a same-tone page |
-| `sheen.from` → `to` (top 60%) | `rgba(255,255,255,0.45)` → 0 | `rgba(150,214,214,0.05)` → 0 | Soft specular gradient on the blur fallback |
-| `selection` + `selectionRim` | `rgba(31,92,58,0.10)` + `rgba(31,92,58,0.24)` | `rgba(6,20,13,0.36)` + `rgba(114,190,144,0.50)` | The selected "lens" in the tab bar (fill **and** outline, so selection reads by shape) |
-| `pressed` | `rgba(26,28,25,0.06)` | `rgba(4,10,11,0.30)` | Pressed state of controls on glass |
-| `scrim.color` / `scrim.reduced` | `rgba(17,19,16,0.32)` / `0.48` | `rgba(3,8,9,0.56)` / `0.72` | Behind sheets and dialogs; the denser value applies when transparency is reduced or contrast is high |
-| `ambient.primary` / `secondary` | green 4% / blue 2.5% | teal 8% / violet 6% | The optional ambient wash behind a screen (`<Screen ambient>`): two whisper-quiet diagonal gradients that give glass something to refract. No loud gradients, no imagery (§101) |
-| `shadow` | `#0E1A13`, opacity 0.10, radius 24, offset {0, 8} | none | Soft lift for **floating** glass only (tab bar, dialog, toast, FAB). Dark elevation stays tonal |
+| `rim.color` / `rim.top` / `rim.left` (1 pt) | white 70% / 92% / 84% | `rgba(0,194,224,0.20)` / `rgba(40,217,242,0.40)` / `rgba(40,217,242,0.30)` | The rim. Top brightest, left next, right and bottom the base: a top-left light source. Dark rims are soft cyan, never white glare |
+| `level.dock.rim` | white 80% / 94% / 88% | `rgba(0,194,224,0.30)` / `rgba(40,217,242,0.50)` / `rgba(40,217,242,0.38)` | The dock's stronger rim (`glassRimFor(palette, level)` returns the level rim or the shared one) |
+| `edge.color` (1 px) | `rgba(0,139,163,0.30)` faint cyan | `rgba(1,5,7,0.60)` | Outer 1 px line that separates glass from a same-tone page: in light the near-white rim sits just inside it, so the edge reads as a highlight over a soft line even over white rows |
+| `sheen.from` → `to` (top 45%) | `rgba(255,255,255,0.65)` → 0 | `rgba(40,217,242,0.07)` → 0 faint cyan | Visible specular gradient on the blur fallback |
+| `ink.secondary` / `ink.accent` | `#2F4954` / `#004D5A` | `#ABBDC7` / `#26CCE6` | **Glass inks**: secondary, muted and accent text on `bar`, `dock` and `control` glass (see below) |
+| `rest` | 0.6 | 0.6 | Strength of a resting top bar's tint and rim |
+| `saturation` | 1.7 | 1.6 | Web `backdrop-filter` saturation, so colour under the glass shows through without glowing |
+| `selection` + `selectionRim` | ice lens `rgba(214,239,245,0.78)` + `rgba(0,96,111,0.55)` | deep teal lens `rgba(0,72,86,0.55)` + `rgba(0,194,224,0.50)` | The selected "lens" of the selected segment (fill **and** outline, so selection reads by shape) |
+| `pressed` | `rgba(10,34,41,0.06)` | `rgba(1,6,8,0.30)` | Pressed state of controls on glass |
+| `scrim.color` / `scrim.reduced` | `rgba(6,26,32,0.40)` / `0.52` | `rgba(2,7,9,0.60)` / `0.76` | Behind sheets and dialogs, strong enough that the page reads as inactive; the denser value applies when transparency is reduced or contrast is high |
+| `ambient.primary` / `secondary` | faint cyan `rgba(0,194,224,0.07)` top-left / white light `rgba(255,255,255,0.60)` centre-right | `#0D3843` at 18% top-left / `#08313A` at 10% centre-right | The §107 page atmosphere behind **every** `Screen` (§6.20) |
+| `shadow` | `#06222B`, opacity 0.10, radius 24, offset {0, 8} | none | Soft lift for **floating** glass only (dialog, toast, FAB; the docked tab bar has none). Dark elevation stays tonal |
+| `liquid` (fill / edge / glow / rim / line) | `#0AA6C2` 0.10 → 0.26 / `#00606F` 0.30 / `#00C2E0` 0.14 / `#00A9C7` 0.75 / `#008BA3` 0.24 | `#00C2E0` 0.12 → 0.30 / `#28D9F2` 0.45 / `#00C2E0` 0.16 / `#28D9F2` 0.80 / `#28D9F2` 0.18 | The tab bar's liquid droplet and its top edge (§6.6). Balanced cyan: tinted, never a solid neon puck. `liquid.ink` is the icon ink inside it: glass accent in light, `textPrimary` in dark (cyan on cyan would fall below 3:1); both stay ≥ 3:1 over the worst backdrop. The glow stops above the caption, so the accent caption keeps its ≥ 4.5:1 |
 
-Glass radii (`theme.glass.radius`) are larger and continuous, and are used **only** by glass chrome: `control` 12, `popover` 16, `dialog` 22, `sheet` 24, `dock` 24, `pill` 999 (tab bar capsule, FAB). Content keeps the §4.1 maximum of 10.
+**Ambient atmosphere.** `AmbientBackground` paints two very large, very soft radial glows with `react-native-svg` (`objectBoundingBox` units, so they stretch with the screen): `primary` centred at (6%, 2%) with radius 85%, `secondary` centred at (92%, 46%) with radius 56%, each fading on an eased curve (six stops, weight `(e^(−3t²) − e^(−3)) / (1 − e^(−3))`) to nothing, so there is no ring edge and no blob. The bottom of the screen falls back to the plain `#070E12`. The lit page stays within 1.1:1 of the plain page (dark 1.076, light 1.036), and every text token stays ≥ 4.5:1 on it. Reduce Transparency keeps the glows (they are light on the page, not glass); the system high-contrast setting removes them.
+
+Glass radii (`theme.glass.radius`) are larger and continuous, and are used **only** by glass chrome: `control` 12, `popover` 16, `dialog` 22, `sheet` 24, `dock` 24, `pill` 999 (FAB). Content keeps the §4.1 maximum of 10.
 
 #### Inks allowed on glass and verified contrast
 
-Text on glass must meet WCAG AA against the **worst-case content behind it**: the test composites tint + sheen over white, black, both score inks, both accents, chart series 2, danger, warning, the page, the surface and text itself, and takes the minimum. Only the inks listed per level (`GLASS_INKS`) may be used on that level; `textMuted` is never used on bars, docks or controls.
+Text on glass must meet WCAG AA against the **worst-case content behind it**, under a blur-aware model (ACCESSIBILITY.md §7.1): blurred levels are checked over every solid field (page, surfaces, subtle tints, the ambient-lit page) mixed with a button-sized block of every bright fill (coverage 0.757 at σ 24 px) and with dense detail of every ink (coverage 0.199), in sRGB and in linear light; unblurred tints are checked over raw white, raw black and every token. Sheets add the scrim. Tint + sheen are composited both ways. Only the inks listed per level (`GLASS_INKS`) may be used on that level; `textMuted` is never used on bars, docks or controls.
 
-| Level | Allowed inks | Worst case, light | Worst case, dark |
+**Glass inks.** On the short-text levels (`GLASS_INK_LEVELS` = `bar`, `dock`, `control`) every `GlassSurface` re-inks its children through a scoped theme (`GlassInkScope` → `glassInkTheme(theme)`): `textSecondary` and `textMuted` become `glass.ink.secondary`, `accent` becomes `glass.ink.accent`; `textPrimary`, `score` and the status colours are unchanged. The glass inks are one small step further from the tint than the page inks (light: deeper teal-slate `#2F4954` and deep teal `#004D5A`; dark: paler slate `#ABBDC7` and a cyan `#26CCE6` that stays below the attention cyan). That is what lets the bars drop to 0.60 / 0.70 and still pass. Under high contrast the secondary ink is `textPrimary`. Sheets and popovers keep the page inks. Feature code needs nothing: any `Text`, `Icon` or `Button` inside the header, tab bar, dock, FAB or a segmented control picks the glass inks up.
+
+| Level | Allowed inks (glass inks applied) | Worst case light (blurred · unblurred) | Worst case dark (blurred · unblurred) |
 |---|---|---|---|
-| `bar` | `textPrimary`, `textSecondary`, `accent`, `score` | 13.13, 6.55, 6.06, 14.29 | 9.49, 5.65, 5.01, 10.30 |
-| `dock` | `textPrimary`, `textSecondary`, `accent`, `score` | 13.82, 6.90, 6.38, 15.05 | 9.49, 5.65, 5.01, 10.30 |
-| `control` | `textPrimary`, `textSecondary`, `accent` | 12.58, 6.27, 5.81 | 9.76, 5.82, 5.15 |
-| `popover` | `textPrimary`, `textSecondary`, `accent`, `success`, `warning`, `danger`, `score` | 14.91, 7.44, 6.88, 5.67, 5.50, 5.68, 16.23 | 10.66, 6.35, 5.62, 6.06, 6.54, 5.08, 11.57 |
-| `sheet` | every text token, `textMuted` included | `textMuted` 5.05, `warning` 5.78, all others higher | `textMuted` 5.02, `danger` 6.24, all others higher |
+| `bar` | `textPrimary`, `textSecondary`, `accent`, `score` | 8.96, 5.25, 5.23, 9.82 · 15.41, 9.03, 9.00, 16.89 | 8.26, 4.60, 4.61, 8.63 · 13.40, 7.46, 7.48, 14.01 |
+| `dock` | `textPrimary`, `textSecondary`, `accent`, `score` | 9.86, 5.77, 5.76, 10.81 · 15.58, 9.13, 9.09, 17.08 | 9.26, 5.16, 5.17, 9.69 · 13.59, 7.57, 7.59, 14.20 |
+| `control` | `textPrimary`, `textSecondary`, `accent` | 8.38, 4.91, 4.89 · 13.52, 7.92, 7.89 | 8.68, 4.84, 4.85 · 14.50, 8.08, 8.10 |
+| `popover` | `textPrimary`, `textSecondary`, `accent`, `success`, `warning`, `danger`, `score` | 13.29, 6.17, 5.91, 4.66, 5.31, 4.60, 14.57 · 15.58, 7.23, 6.92, 5.46, 6.22, 5.39, 17.08 | 13.52, 5.80, 6.81, 7.67, 8.43, 4.57, 14.14 · 15.15, 6.50, 7.63, 8.60, 9.45, 5.13, 15.84 |
+| `sheet` | every text token, `textMuted` included | `textMuted` 4.57 · 5.45, `danger` 4.57 · 5.45, all others higher | `danger` 5.53 · 5.92, `textMuted` 5.76 · 6.17, all others higher |
 
-A selected and pressed tab lens keeps `accent` at 4.70:1 (light) and 7.21:1 (dark) in the worst case. On the opaque twins (transparency reduced) the three `control` inks are at least 6.29:1, and every text token is at least 5.34:1 on the other levels. `src/ui/theme/__tests__/glass.test.ts` recomputes all of this.
+Tab-bar lens states (glass inks): pressed ≥ 4.71 (light) / 6.33 (dark); selected `accent` 7.28 / 4.96; selected and pressed 6.50 / 6.67. The selected segment's 1.5 pt glass-accent outline is 8.24:1 (light) / 9.63:1 (dark) against the opaque control track and 8.39 / 9.76 against the tinted track over the page, well above the 3:1 WCAG 1.4.11 asks for a selection boundary. On the opaque twins (transparency reduced) every text token is at least 5.57:1 (light) and 5.32:1 (dark), the three `control` inks at least 6.27 / 7.40. `src/ui/theme/__tests__/glass.test.ts` recomputes all of this, and proves that the page `textSecondary` (dark) and page `accent` (light) would fail on the 0.70 / 0.60 bars without the glass inks.
 
 #### Platforms (the renderer)
 
-`useGlassRenderer()` picks one of three renderers; every glass component goes through it.
+`useGlassRenderer()` picks one of four renderers; every glass component goes through it.
 
 | Renderer | When | What renders |
 |---|---|---|
 | `liquid` | iOS 26+ with `isLiquidGlassAvailable()` and `isGlassEffectAPIAvailable()` true | Native Liquid Glass: `expo-glass-effect` `GlassView` (`glassEffectStyle` regular, `tintColor` = level tint, `colorScheme` = app theme, `isInteractive` for tappable chrome unless motion is reduced). Neighbouring glass can merge through `GlassGroup` (`GlassContainer`) |
-| `blur` | Older iOS, Android, web | `expo-blur` `BlurView` (tint `light`/`dark`, level intensity) + level tint + sheen + rim + hairline edge. On Android the blur samples the screen content through `BlurTargetView` (inside `Screen`); chrome outside a `Screen` (the tab bar) gets the dense tint without a live blur. On web, expo-blur uses CSS `backdrop-filter` |
-| `opaque` | Reduce Transparency (system or in-app), or the system high-contrast setting | The level's opaque twin with a solid `border` (`borderStrong` in high contrast) edge; no blur, no sheen, no rim, no ambient wash, denser scrim |
+| `blur` | Older iOS, Android 12+ inside a blur target, web with `backdrop-filter` | `expo-blur` `BlurView` (ultra-thin material, level intensity; Android halves intensity with `blurReductionFactor` 2) or on web CSS `backdrop-filter: saturate(170% light / 160% dark) blur(σ px)` + level tint + sheen + top-left-lit rim + 1 px edge. Saturation lifts the colour of content passing under the glass so the frost is perceptible, but stays low enough that cyan content never glows |
+| `unblurred` | Floating glass where nothing can blur (Android < 12 or outside the blur target, web without `backdrop-filter`) | The level's near-opaque `unblurred` tint (0.98–0.99), sheen, rim and edge. Without a blur nothing may read through the chrome: text behind it stays under 1.06:1 (bars, dock, controls) and 1.05:1 (sheets, dialogs, toasts) against its own background. Android QA showed 0.95 still left large dark text faintly readable under the tab labels |
+| `opaque` | Reduce Transparency (system or in-app), or the system high-contrast setting | The level's opaque twin with a solid `border` (`borderStrong` in high contrast) edge; no blur, no sheen, no rim; denser scrim |
 
 ---
 
@@ -273,19 +293,20 @@ Content (rows, tables, keys, inputs, chips) never goes above 10. The larger, con
 | `border.control` | 1 | `borderStrong` | Inputs, secondary buttons, scoring keys, outlined chips |
 | `border.emphasis` | 2 | `accent` / `danger` | Selected option, focused input, the FOUR chip, the WICKET key |
 | `border.focus` | 2, offset 2 | `focusRing` | Focus-visible outline (external keyboard, switch access) |
-| **Boundary rule** | 2 + gap 2 + 1 | `textPrimary` at 100% (2 px) and `border` (1 px) | Under the live score block, between innings on the scorecard, under the tournament header, above "CONTINUE MATCH" on Home. At most two per screen |
+| **Section rule** (`BoundaryRule`, default `tone="section"`) | one hairline, snapped to a whole device pixel | `border` | Between sections and innings, under the tournament header, above "CONTINUE MATCH". Quiet: a near-white 2 px stripe fights the glass and hairline language |
+| **Band rule** (`BoundaryRule tone="band"`) | 2 + gap 2 + 1 | `accentDeep` (2 px) and `border` (1 px) | Reserved for the live score band only, if anywhere |
 
-Separators are full-bleed inside sections. Rows inside a list use a 16 px left inset, so the separator starts under the text rather than under an icon.
+Separators are full-bleed inside sections. Rows inside a list use **one** inset token (`LIST_SEPARATOR_INSET`, 16), whatever their leading slot, and every hairline is snapped to a whole device pixel (`snapHairline`), so no row is ruled heavier than its neighbour. Draw separators in one place only: the `ListRow`/`ChoiceList` separator inside a grouped list, none inside card mode.
 
 ### 4.3 Elevation: minimal, and carried by the glass
 
 | Level | Light | Dark | Used by |
 |---|---|---|---|
 | 0 | none | none | Everything on the page, including scoring keys |
-| 1 (raised content) | `theme.elevation.raised`: iOS `shadowColor #000, opacity 0.10, radius 16, offset {0, 4}`; Android `elevation 6` | no shadow; 1 px `border` top edge | Rare raised content (not used by glass) |
-| Glass | `glass.shadow`: `#0E1A13`, opacity 0.10, radius 24, offset {0, 8}, plus the near-white rim | no shadow; the deeper tint and the soft teal rim separate it | Floating glass: tab bar, dialog, toast, FAB (`GlassSurface elevated`) |
+| 1 (raised content) | `theme.elevation.raised`: iOS `shadowColor #06222B, opacity 0.10, radius 16, offset {0, 4}`; Android `elevation 6` | no shadow; 1 px `border` top edge | Rare raised content (not used by glass) |
+| Glass | `glass.shadow`: `#06222B`, opacity 0.10, radius 24, offset {0, 8}, plus the near-white rim | no shadow; the tint, the soft cyan rim and its lit top-left edge separate it | Floating glass: tab bar, dialog, toast, FAB (`GlassSurface elevated`) |
 
-No other shadows, and never a shadow on content. Top bars get no shadow either: at rest they are clear, and once content scrolls under them they turn to `bar` glass with a hairline bottom edge (§6.20).
+No other shadows, and never a shadow on content. Top bars rest as `bar` glass at 60% strength with their bottom edge; once content scrolls under them they strengthen to full tint and, in light, take the glass lift (§6.20). Floating and side sheets on tablets take the glass lift too; a phone bottom sheet does not.
 
 ---
 
@@ -332,9 +353,9 @@ All components live in `src/ui/primitives` or `src/ui/scoreboard`. They take pla
 |---|---|---|---|---|
 | `lg` | 56 | 24 | `bodyStrong` 16 | 20 |
 | `md` (default) | 48 | 20 | `bodyStrong` 16 | 20 |
-| `sm` | 36 visible, 44 hit (hitSlop 4) | 12 | `subhead` 600 14 | 16 |
+| `sm` | 44 (compact in width and type, never in height: web ignores `hitSlop`) | 12 | `subhead` 600 14 | 16 |
 
-- **States:** default; pressed (instant background swap, no scale, no opacity flash); disabled (`surfaceSunken` background, `textMuted` label, no border, `accessibilityState.disabled`); loading (spinner 20 replaces the icon, the label stays, width is fixed, presses are ignored, `accessibilityState.busy`); focus (`border.focus`).
+- **States:** default; pressed (instant background swap, no scale, no opacity flash); disabled (`accessibilityState.disabled` + `aria-disabled`, `textMuted` label, and a surface that is never more prominent than the enabled one: `tertiary` stays transparent text, `secondary`/`destructive` keep a quiet 1 pt `border` outline on transparent, filled variants sit on `disabledFill(theme)` = `surfaceSunken` in light and the raised charcoal `surfaceElevated` in dark, never the near-black sunken well); loading (spinner 20 replaces the icon, the label stays, width is fixed, presses are ignored, `accessibilityState.busy`); focus (`border.focus`).
 - Full-width buttons are used only at the bottom of forms, wizards and sheets. Bottom CTAs sit in a sticky footer: `<Screen footer={…}>`, a floating `dock` glass panel with 24 pt top corners, a lit top rim, padding 16 plus the safe-area inset, and the content scrolling beneath it (§6.20).
 - Icon-only buttons (`IconButton`) are 44 × 44, with the icon at 24 and `accessibilityLabel` required by the type.
 
@@ -349,8 +370,8 @@ The eight primary keys are `0 1 2 3 4 6 EXTRAS WICKET`, laid out as a 4 × 2 gri
 | Row order | Row 1: `0 1 2 3`. Row 2: `4 6 EXTRAS WICKET`. The most frequent keys sit in the middle of the thumb arc, WICKET at bottom-right (right-hand thumb). A **left-handed pad** setting that mirrors row 2 is recommended (see ACCESSIBILITY.md §9). It needs a `ScoringPreferences` field, so it is reported as a contract gap |
 | Run keys (`0`–`6`) | **Solid** `surface` background (never glass, §106), 1 `borderStrong`, radius 6, label `scoreKey` in `score` colour. `0` shows `0` or `•` per `settings.scoring.dotStyle` |
 | `4`, `6` keys | Same as run keys, plus a small `label` caption under the digit: `FOUR`, `SIX` (`textSecondary`). This gives an extra non-colour cue and prevents a mistaken 4/6 |
-| EXTRAS | `surface`, 1 `borderStrong`, `plus` icon 20 above `keyLabel` `EXTRAS` (`textPrimary`) |
-| WICKET | `surface`, **2 `danger` border**, stumps glyph 20 above `keyLabel` `WICKET` in `danger` |
+| EXTRAS | `surface`, 1 `borderStrong`, `plus` icon 20 above `keyLabel` `EXTRAS` (`textPrimary`). The label fits the key width (shrinks, never below 12 pt, never ellipsised) |
+| WICKET | `surface`, **2 `danger` border**, stumps glyph 20 above `keyLabel` `WICKET` in `danger`; fits the key width like EXTRAS |
 | Pressed | Run keys and EXTRAS → `accentSubtle`; WICKET → `dangerSubtle`. The swap happens on `onPressIn` with no delay |
 | Busy (a commit in flight) | Keys stay enabled visually. A second tap is queued by the store (dispatches are serialised, ARCHITECTURE §5.1), so rapid scoring is never dropped |
 | Disabled (`!canRecordDelivery`) | The pad is covered by the pending-action panel (§7 below), so it never shows greyed keys the scorer might try to use |
@@ -371,7 +392,7 @@ Shape grammar:
 | `0` or `•` | `dot` | circle | none | 1 `border` | `textMuted` / 500 |
 | `1` `2` `3` `5` (and `1s`, `2s`) | `runs` | circle | none | 1 `borderStrong` | `textPrimary` / 600 |
 | `4` | `four` | circle | none | **2 `accent`** | `accent` / 700 |
-| `6` | `six` | circle | **`accent`** | none | `onAccent` / 700 |
+| `6` | `six` | circle | **`accentDeep`** (deep teal) | none | `onAccent` / 700 |
 | `W`, `1+W`, `WD+W`, `NB+1+W` | `wicket` | square, radius 2 | **`danger`** | none | `onDanger` / 700 |
 | `WD`, `WD+1`…`WD+4` | `wide` | rectangle, radius 2 | none | 1 **dashed** `borderStrong` | `textSecondary` / 600 |
 | `NB`, `NB+4`, `NB+2B`, `NB+1LB` | `no_ball` | rectangle, radius 2 | none | 1 **dashed** `borderStrong` | `textSecondary` / 600 |
@@ -385,10 +406,11 @@ Shape grammar:
 - **Combined tokens**: `kind` decides the visual. The domain assigns `wicket` to any token containing `W`. This design assumes that precedence; see the contract note in the result report.
 - The dashed border uses `borderStyle: 'dashed'` with `borderRadius: 2`. If the dashed style does not render on some Android version, fall back to a solid 1 px border plus a 3 px notch gap at the top centre (an SVG-drawn outline in `src/ui/scoreboard/BallChip`).
 - In dark theme the mapping is the same, using dark tokens (THEMES.md §3).
+- **Restrained boundaries (§107).** The FOUR ring is `accent`, the SIX is a solid deep-teal disc, and no chip is ever painted in `highlight`: ultra-bright cyan is reserved for genuine attention moments, so an over full of boundaries still reads calm.
 
 ### 6.4 OverStrip (§13)
 
-A horizontal row: the `label` "THIS OVER" (or "OVER 17" when read back), then chips at gap 8, then placeholders for the legal balls still due. Height 48, horizontally scrollable when the over has many extras (auto-scrolled to the end, with a fading hairline edge rather than a gradient). The trailing end shows the over's runs so far as a `figureSmall` number with the `label` "RUNS". At over end the strip shows the finished over until the first delivery of the next over; motion is in §8.
+A horizontal row: the `label` "THIS OVER" (or "OVER 17" when read back), then chips at gap 8, then placeholders for the legal balls still due. Height 48, horizontally scrollable when the over has many extras (auto-scrolled to the end, with a fading hairline edge rather than a gradient). A free-hit delivery carries a visible **FH** micro-label in `warning` under a 2 pt `warning` bar (`FREE_HIT_MARK`), not only a coloured line. Ball-log grids that wrap (scorecard overs, edit-ball) should use the `md` chip size with a 4 pt gap, or a `ScrollRow`, so up to nine deliveries stay on one row at 390. The trailing end shows the over's runs so far as a `figureSmall` number with the `label` "RUNS". At over end the strip shows the finished over until the first delivery of the next over; motion is in §8.
 
 ### 6.5 Table
 
@@ -397,29 +419,46 @@ A horizontal row: the `label` "THIS OVER" (or "OVER 17" when read back), then ch
 | Header row | height 36, `label` style `textSecondary`, hairline bottom border, background `surface` (sticky in scrolling tables) |
 | Body row | min height 44 (48 when the row is tappable), `tableNumeric` for numbers, `body` for names, hairline separators, no zebra stripes |
 | Alignment | Names left; numbers **right-aligned**, tabular; decimal columns (SR, Econ, NRR) right-aligned to the same number of decimals from `format.ts` |
-| Column widths | First column `flex: 1` with min 120; numeric columns fixed: 1–2 digits 32, 3 digits 40, decimals 56, NRR 64 (sign included) |
+| Column widths | First column `flex: 1` with min 120; numeric columns fixed: 1–2 digits 32, 3 digits 40, decimals 56, NRR 64 (sign included). Gap 8 after the name column, 4 between numeric columns (`TABLE_NAME_GAP`, `TABLE_NUMERIC_GAP`) |
+| Standings widths | Standings values vary in width (`+11.500`, double-digit points), so the standings table sizes each numeric column to the widest of its header word and its values at the current font scale (`contentWidth`), with `space.sm` (8) between numeric columns and after the team. Headers wrap, never truncate. At `medium`/`expanded` the team column gets at least 152 (scaled) before optional columns drop; all remaining width goes to the team. Values may shrink to fit but never below 12 pt |
 | Emphasis row | Current batter / bowler / own team: `accentSubtle` background **plus** a 3 px `accent` bar on the leading edge **plus** a marker glyph (▶ striker, `circle-dot` bowler). Three cues, never colour alone |
 | Subtext | Dismissal text ("c Rizwan b Hassan") on a second line in `footnote` `textSecondary` |
-| Overflow | Horizontal scroll with the first column sticky; the header scrolls with the body. Used by standings at large font scales and by stats tables |
+| Overflow | `scrollable="auto"` (default): when `tableMinWidth(columns)` exceeds the measured width, the first column is pinned and the rest scrolls sideways, with an `EdgeFades` affordance (surface-coloured fade + chevron) on the side that has more. `true` always splits, `false` never does |
 | Totals row | `bodyStrong`, hairline top border plus the boundary rule for the innings total |
 | Empty | One row spanning all columns: "No matches played yet" in `textMuted` |
 | Accessibility | Each row is one accessible element: "Position 1, Tigers, played 3, won 3, lost 0, no result 0, points 6, net run rate plus 1.234, qualified". Header cells are hidden from the reader (their meaning is included in row labels) |
 
 ### 6.6 Tabs (top tabs)
 
-Used for scorecard innings, standings pools and stats categories. Height 44. The tab row is a `bar` glass strip with a hairline bottom edge (`<Tabs floating>` adds the live blur when the row floats over content; inline it is the tint without blur). Labels `subhead` 600 (selected, `textPrimary`) or 500 (unselected, `textSecondary`). The selected indicator is a 2 px `accent` underline across the label width, so selection shows by weight, underline and colour. Tabs scroll horizontally when they exceed the width; the selected tab is scrolled into view. Role `tablist`/`tab` with `accessibilityState.selected`. Swiping between tab panes is optional; every tab is also tappable (§72: nothing hidden behind gestures).
+Used for scorecard innings, standings pools and stats categories. Height 44. The tab row is a `bar` glass strip with a hairline bottom edge (`<Tabs floating>` adds the live blur when the row floats over content; inline it is the tint without blur). Labels `subhead` 600 (selected, `textPrimary`) or 500 (unselected, glass `textSecondary`). The selected indicator is a 3 pt rounded `accent` underline across the label width, independent of focus, so selection shows by weight, underline and colour in both themes. Tabs are built on `ScrollRow`: they scroll horizontally when they exceed the width, the selected tab is always scrolled into view (also when it is selected before layout), and `EdgeFades` show a fade and chevron on any side with more tabs. Role `tablist`/`tab` with `accessibilityState.selected` and `aria-selected` on web. Role `tablist`/`tab` with `accessibilityState.selected`. Swiping between tab panes is optional; every tab is also tappable (§72: nothing hidden behind gestures).
 
-**Bottom tab bar** (`(tabs)/_layout.tsx` → `RouterTabBar`/`TabBar`): 4 items (Home · Tournaments · History · Settings) in a **floating glass capsule**: `bar` glass, radius `pill`, 56 pt items plus 4 pt padding (64 tall), at most 520 wide, 16 from the screen sides, floating 8 pt above the home indicator (`floatingTabBarMetrics`), with the soft glass lift in light and the teal rim in dark. On iOS 26 it is native Liquid Glass and interactive. Icon 24 above a `label`-size (12, not uppercase) caption. Selected: an outlined glass **lens** (`glass.selection` fill + 1 pt `glass.selectionRim`), `accent` icon and 600 caption. Unselected: `textSecondary`, 500. Content scrolls beneath the capsule; `TabChrome` reports its footprint as a chrome inset so every list can still scroll its last row clear of it (§6.20).
+**Bottom tab bar** (`(tabs)/_layout.tsx` → `RouterTabBar`/`TabBar`, cleanup brief 2026-10-05): 4 items (Home · Tournaments · History · Settings) on **one docked glass surface**, not a floating capsule and not a pill on top of a block.
+
+| Part | Spec |
+|---|---|
+| Surface | `bar` glass, edge to edge, square corners, docked to the bottom of the screen. It runs down into the home-indicator / gesture area and behind Android's 3-button bar, so no strip of page shows under it. A 24 pt fade (page colour at 0 → `glass.fade`) sits just above it, so content dissolves into the bar instead of meeting a hard block edge |
+| Top edge | No box border. A 1 pt `liquid.line` hairline that fades out over the outer 16% on each side (light catching the glass), drawn in the same SVG as the liquid. Reduce Transparency: the opaque `bar` twin with the opaque hairline edge instead, no fade |
+| Row | 56 pt tall, centred, at most 520 wide, 4 pt below the top edge (`TAB_BAR_TOP`), 16 from the sides (8 below 360 wide) plus any landscape side inset |
+| Metrics | `tabBarMetrics(inset)` → height 60, bottom = the safe-area inset (8 when there is none), footprint = 60 + bottom: 94 on iOS (34), 84 with gesture navigation (24), 108 with the Android 3-button bar (48), 68 with no inset. `TabChrome` publishes `footprint − inset` (always 60, or 68 without an inset) as bottom chrome, so the height never changes between screens |
+| Items | Icon 24 (centre 18 pt below the top edge) above a 12 pt `label` caption, 4 pt apart. Items size to their labels (`flexGrow 1, flexShrink 1, flexBasis auto`), ≥ 44 pt, caption capped at 1.5× and never ellipsized ("Tournaments" fits at 320 wide) |
+| Active state | A **liquid droplet** hanging from the top edge, fused to it by concave 12 pt fillets and closed by a rounded bottom 2 pt below the icon: half-width 22 (16–22, from the narrowest tab), depth 32. Fill: `liquid.fill` from `fillTop` at the edge to `fillBottom` at the bottom; a 1 pt `liquid.edge` refraction line on its lower half only; a soft radial `liquid.glow` under it; a `liquid.rim` highlight on the top edge either side of it that fades to nothing. Icon in `liquid.ink` (glass accent in light, `textPrimary` in dark), caption in glass accent, 600. No onAccent puck, no lens, no outline box |
+| Unselected | Glass `textSecondary` icon and caption, caption 500. Pressed: the icon and caption dim to `PRESSED_OPACITY`; no wash, no rectangle |
+| Change | The droplet's leading end moves in 300 ms (ease-out `bezier(0.22, 1, 0.36, 1)`), its trailing end follows in 460 ms (`bezier(0.65, 0, 0.35, 1)`), so the liquid stretches along the top edge, shallower and narrower at the trailing end with a raised neck between, then settles into the new tab. Icons and captions it passes under cross-fade to accent together (each caption is a 600 accent layer over a 500 secondary layer, both driven by the droplet, so a label never lights before the liquid reaches it; the row is sized by the 600 layer, so widths never jump). No spring, no overshoot, no loop: nothing moves at rest. Light haptic on change (`onSelectionChange`). Reduced motion: the droplet jumps |
+| Keyboard | Android (edge-to-edge): while the keyboard is up the bar is hidden (opacity 0, no touches, hidden from screen readers) and comes back unchanged; its height and the published chrome never change. iOS: the keyboard covers it |
+| Implementation | `liquid.ts` geometry helpers are all `'worklet'` functions with no parameter defaults that read outside values; the paths are animated SVG props driven on the UI thread (`useDerivedValue` → `useAnimatedProps`), no per-frame JS. The canvas spans the whole surface so nothing is clipped at the row edge. It mounts only once the droplet has a measured position, and an unplaced path is a 2 × 2 square parked off the canvas, never an empty path: Android rejects a gradient on a zero-size shape (`ending radius must be > 0`) |
+
+Content scrolls beneath the bar; every tab screen pads its last item clear of the footprint through `useContentInsets()` / `useScreenList()` (§6.20).
 
 ### 6.7 SegmentedControl
 
-Track: `control` glass, radius 12, padding 2, height 44 (segments 40). Inline in a form the track is the glass tint without blur; `floating` adds the blur and the glass lift for filter bars that float over content. Selected segment: a **solid** raised lens, `surface` background, 1 `borderStrong`, radius 10, label `subhead` 600 `textPrimary`, with a `check` 16 icon when there are only two segments (colour-independent). Unselected: `textSecondary` 500. Two to four segments; five or more becomes Tabs or a picker sheet. Role `radiogroup` / `radio`. Used for: theme (Light · Dark · System), toss decision (Bat · Bowl), extras type (Wide · No ball · Bye · Leg bye · Other: five items, so that one is Tabs), dot style, history (Matches · Tournaments).
+Track: `control` glass, radius 12, padding 2, height 44 (segments 40). Inline in a form the track is the glass tint without blur; `floating` adds the blur and the glass lift for filter bars that float over content. Selected segment: a glass **lens** (`glass.selection` fill) with a **1.5 pt glass-accent outline** (≥ 3:1 against the track in both themes, §1.4), radius 10, label `subhead` 600 `textPrimary`, and a leading `check` 16 for **every** option count. Unselected: transparent with a transparent 1.5 pt border (no layout shift), glass `textSecondary` 500. Segments size to their labels (`flexBasis auto`) so "Completed" is never cut to "Complet…". Two to four segments; five or more becomes Tabs or a picker sheet. Role `radiogroup` / `radio` with `checked` (and `aria-checked` on web). Used for: theme (Light · Dark · System), toss decision (Bat · Bowl), extras type (Wide · No ball · Bye · Leg bye · Other: five items, so that one is Tabs), dot style, history (Matches · Tournaments).
 
 ### 6.8 BottomSheet
 
 | Part | Spec |
 |---|---|
-| Container | `sheet` glass (near-solid: 94% light / 95% dark tint over the blur, sheen in light, rim), top corners radius 24, max height 90% of the window; scoring sheets size to their content. Content inside (rows, fields, chips) keeps its own solid surfaces |
+| Container | `sheet` glass (88% light / 82% dark tint over the blur, sheen in light, rim, 1 px cyan edge in light), top corners radius 24, max height 90% of the window; scoring sheets size to their content. Content inside (rows, fields, chips) keeps its own solid surfaces, raised one step (`SurfaceLevelScope level="raised"` → `useContentSurface()` = `surfaceElevated`) so grouped rows stand apart from the dark sheet |
+| Presentation | `sheetPresentation(width, height)`: phones (< 600) get the bottom sheet; portrait tablets and other widths up to landscape tablets get a **floating** sheet, max width 560, centred, every corner radius 24, 16 above the safe area, with the glass lift; landscape windows ≥ 768 wide get a **side sheet** on the right edge, 420 wide, full height inside 16 margins, sliding in from the right (no swipe-to-dismiss there) |
 | Grabber | 36 × 4, radius 2, `borderStrong`, 8 from top (decorative, hidden from accessibility) |
 | Header | 56: title `headline` left, optional subtitle `footnote`, close `IconButton` (`x`) right |
 | Body | padding 16; scrolls inside when content exceeds the height |
@@ -443,11 +482,11 @@ Label above (`subhead`, `textSecondary`, 8 gap), field height 48, padding x 12, 
 
 ### 6.12 Stepper
 
-`[−] value [+]`: buttons 44 × 44 (`secondary`, radius 6, icons `minus`/`plus` 20); value `scoreMedium`-style Barlow Condensed 600 24, tabular, min width 56, centered. Tapping the value opens a numeric TextField in place. Long-press repeats after 400 ms every 100 ms (a convenience; plain taps work). At a bound the button is disabled. Accessibility role `adjustable` with increment/decrement actions and a label like "Overs, 20". Used for: custom overs, players per side, balls per over, custom extras runs, pool count, legs.
+`caption … [−] value [+]`: the `label` is **always visible** as a `body` caption on the left (optional `caption` second line in `footnote`; `hideLabel` only where the screen already names the stepper next to it), hidden from the reader because the adjustable control already carries it; controls on the right. Buttons 44 × 44 (radius 6, icons `minus`/`plus` 20, 1 pt `borderStrong` outline on transparent; at a bound the button keeps a quiet `border` outline, never a filled block); value `scoreMedium`-style Barlow Condensed 600 24, tabular, min width 56, centered. Tapping the value opens a numeric TextField in place. Long-press repeats after 400 ms every 100 ms (a convenience; plain taps work). At a bound the button is disabled. Accessibility role `adjustable` with increment/decrement actions and a label like "Overs, 20". Used for: custom overs, players per side, balls per over, custom extras runs, pool count, legs.
 
 ### 6.13 ListRow
 
-Min height 56 (48 for single-line settings rows). Padding x 16, y 12. Slots: leading (icon 20 `textSecondary`, or a 32 initials monogram: `surfaceSunken` square radius 6, `subhead` 600), title `body`, optional subtitle `footnote` `textSecondary` (max 2 lines), trailing (value `body` `textSecondary` / `chevron-right` / Switch / Badge / `ellipsis` IconButton). Pressed: `surfaceSunken`. Separator: hairline inset 16 (inset 64 with a leading monogram). The whole row is one accessible element; the trailing menu is a separate button with a label ("More actions for Lions v Tigers").
+Min height 56 (48 for single-line settings rows). Padding x 16, y 12. Slots: leading (icon 20 `textSecondary`, or a team-code `Monogram`: min 40 × 32, grows with the code, 6 pt padding, radius 6, `accentSubtle` fill with the code in `accent` Barlow Condensed `figureSmall`, so "WFW" never overflows and the dark badge is never a near-black hole), title `body`, optional subtitle `footnote` `textSecondary` (max 2 lines), trailing (value `body` `textSecondary` / `chevron-right` / Switch / Badge / `ellipsis` IconButton). Pressed: `surfaceSunken`. The row, its trailing menu cell and the line behind them share one surface (`useContentSurface()`). Separator: hairline, snapped, inset 16 for every row. The whole row is one accessible element; the trailing menu is a separate button with a label ("More actions for Lions v Tigers").
 
 ### 6.14 SectionHeader
 
@@ -488,7 +527,19 @@ Status text comes from `matchStatusLabel` / `TeamQualification.state`. The UI ma
 
 ### 6.19 Switch
 
-The platform `Switch`, tinted `accent` (track on) and `borderStrong` (track off). It always sits in a ListRow whose title names the setting. The row is the accessible element (role `switch`).
+`Switch` (`src/ui/primitives/Switch.tsx`) wraps the platform switch with token colours from `switchColors(theme)`: light track on `accent` with a `surface` (white) knob (7.2:1), dark track on `accentDeep` with an `inverseSurface` knob; off track `borderStrong` in both, knob ≥ 3:1 against every track; disabled uses the quiet `surfaceSunken`/`surfaceElevated` track. `thumbColor`, `ios_backgroundColor` and the web `activeThumbColor`/`activeTrackColor` are all set, so the Material default `#009688` never appears. It always sits in a ListRow whose title names the setting. The row is the accessible element (role `switch`, `checked`).
+
+### 6.19a Selection controls: ChoiceList, Chip, ChipGroup, OptionTile (§78)
+
+One selected treatment everywhere, never colour alone: **a mark (radio dot or check), a heavier label, and an accent outline**, plus `checked` (and `aria-checked` on web).
+
+| Primitive | Single choice | Multi choice |
+|---|---|---|
+| `ChoiceList` | `radiogroup` of `radio` rows (min 56): a 22 pt ring (2 pt `borderStrong`, `accent` when selected) with a 10 pt filled dot, label 600 when selected | `mode="multi"`: `checkbox` rows with a 22 pt square that fills `accent` with an `onAccent` check |
+| `Chip` / `ChipGroup` | 40 tall (44 with hit slop), pill, 1 pt `borderStrong`; selected: leading `check` 16, label 600, 2 pt `accent` outline on `accentSubtle`. `scroll` puts a long row in a `ScrollRow` with edge fades that keeps the selected chip in view | same, role `checkbox` |
+| `OptionTile` | Card tile (radius 8): title, description, a trailing radio mark; selected adds the 2 pt `accent` outline on `accentSubtle`. Replaces the "SELECTED" word inside tiles | `kind="checkbox"` |
+
+Single-choice lists (outcome, override type, stage, pool, venue, hypothetical result) must use single mode: square checkboxes there tell users several items can be picked.
 
 ### 6.20 Glass components (§106)
 
@@ -496,18 +547,21 @@ Everything glass is built from `src/ui/glass`; `expo-glass-effect` and `expo-blu
 
 | Component | What it is | Key props |
 |---|---|---|
-| `GlassSurface` | A view whose background is glass at a level. iOS 26: `GlassView`; elsewhere `GlassMaterial` under the children; opaque twin when transparency is reduced | `level`, `radius`, `corners` (`all`/`top`/`bottom`), `rim` (`all`/`top`/`bottom`/`none`), `sheen`, `blur`, `active` (fades the material in/out), `elevated` (glass lift), `interactive` (iOS 26 touch response) |
+| `GlassSurface` | A view whose background is glass at a level. iOS 26: `GlassView`; elsewhere `GlassMaterial` under the children; opaque twin when transparency is reduced. Children on `bar`/`dock`/`control` get the glass inks (§1.4) | `level`, `radius`, `corners` (`all`/`top`/`bottom`), `rim` (`all`/`top`/`bottom`/`none`), `sheen`, `blur`, `active` (strengthens the material), `rest` (strength while inactive, 0–1), `elevated` (glass lift while active), `interactive` (iOS 26 touch response) |
 | `GlassMaterial` | The material alone, absolutely filling its parent and hidden from assistive technology, for parents that animate themselves (Sheet, Dialog, Toast) | same material props |
-| `GlassBar` | Top bar: `bar` glass, bottom rim/edge, safe-area top padding, clear until `scrolled` | `scrolled`, `safeArea`, `floating` |
+| `GlassBar` | Top bar: `bar` glass, bottom rim/edge, safe-area top padding, resting at `glass.rest` and full once `scrolled` (with the lift in light) | `scrolled`, `safeArea`, `floating`, `rest` |
 | `GlassDock` | Bottom dock: `dock` glass, 24 pt top corners, lit top rim, safe-area bottom padding | `safeArea`, `floating`, `offset`, `rounded` |
 | `GlassGroup` | Lets neighbouring glass merge and morph on iOS 26 (`GlassContainer`); a plain view elsewhere | `spacing` |
-| `AmbientBackground` | The whisper-quiet wash behind a screen; off when transparency is reduced | – |
-| `Screen` | Page frame that wires it all: `header` in a floating `GlassBar`, `footer` in a floating `GlassDock` (`footerPadding="flush"` for a scoring pad), status-bar glass on scroll, `ambient`, content insets, toast anchor | `header`, `footer`, `footerPadding`, `scroll`, `ambient`, `barTitle` |
+| `AmbientBackground` | The §107 page atmosphere: two very large, very soft radial glows (`react-native-svg`, eased six-stop falloff, §1.4). Kept under Reduce Transparency (it is light, not glass); removed under the system high-contrast setting. `AMBIENT_GLOWS`, `AMBIENT_FALLOFF` and `ambientStops()` expose the geometry | – |
+| `Screen` | Page frame that wires it all: the §107 ambient atmosphere behind **every** screen (opt out with `flat`; removed under high contrast), `header` in a floating `GlassBar` with an 8 pt bottom gap so scrolled content visibly passes under the frost, `footer` in a floating `GlassDock` (`footerPadding="flush"` for a scoring pad), status-bar glass on scroll, content insets, toast anchor. The old `ambient` prop is accepted and ignored | `header`, `footer`, `footerPadding`, `scroll`, `flat`, `barTitle` |
 | Insets | `useContentInsets()` (safe area + chrome above/below), `useChromeInsets()`, `useScreenList()` (padding, indicator insets and the glass scroll handler for a FlatList inside a non-scrolling `Screen`), `ChromeInsetsProvider` | – |
 | Toast anchor | `ToastAnchorProvider` (root), `useToastAnchor({ edge, offset })` | – |
-| Built-in users | `TabBar` (floating capsule), `Tabs`, `SegmentedControl`, `FloatingActionButton` (pill `bar` glass, rides above the tab bar through `useContentInsets`), `Sheet`, `Dialog`, `Toast` | – |
+| `EdgeFades` | The overflow affordance for horizontal rows (`ScrollRow`, `Tabs`, split `Table`): a fade to the row's background and a 16 pt chevron on each side that has more content | `overflow`, `color` |
+| Built-in users | `TabBar` (docked surface with the liquid droplet, §6.6), `Tabs`, `SegmentedControl`, `FloatingActionButton` (pill `bar` glass, rides above the tab bar through `useContentInsets`; `collapsed` makes it a 56 pt icon-only circle on short screens), `Sheet`, `Dialog`, `Toast` | – |
 
-**Scroll-under behaviour.** Top bars are clear at rest and fade to glass (`motion.fast`, instant when motion is reduced; on iOS 26 the native glass animates in) once the content has scrolled more than 2 pt beneath them. Screens without a header get the same treatment for the status-bar strip, optionally with a centred `barTitle` (iOS large-title style).
+**Scroll-under behaviour.** Top bars rest as glass at 60% (tint, sheen and bottom rim visible on the ambient page) and strengthen to full glass (`motion.fast`, instant when motion is reduced; on iOS 26 the native glass is always on) once the content has scrolled more than 2 pt beneath them. Screens without a header keep a clear status-bar strip at rest (`rest={0}`, iOS large-title style) that turns to glass on scroll, optionally with a centred `barTitle`.
+
+**Focus rings.** Every primitive draws its 2 pt `focusRing` outline only for keyboard or switch-access focus. The shared `useFocusRing()` tracks the input modality: on web from keydown versus pointerdown (document capture phase); natively from touches seen by `InputModalityRoot` at the app root. A focus that follows a touch (for example Android restoring focus to a row after a sheet closes) draws no ring; a run of two focus moves without a touch switches back to keyboard modality. A ring that is showing disappears as soon as the screen is touched, so a tapped key, tab, row or button never looks armed or selected.
 
 ---
 
@@ -546,7 +600,7 @@ The feel is subtle and precise, like a broadcast graphic, never a game show. Imp
 | **Score change** (any run) | Only the changed digits roll vertically: outgoing moves −8 px and fades, incoming +8 → 0 and fades in, `motion.base`. Tabular digits keep the width constant | Instant text swap |
 | **Dot / 1 / 2 / 3** | New chip fades in (opacity 0 → 1, `motion.fast`); the placeholder it replaces is removed | Instant |
 | **Four** (small confirmation) | Chip enters with scale 0.85 → 1 over `motion.base`; the chip's 2 px accent ring draws once as an expanding outline (1 → 1.25, opacity 0.6 → 0) over 240 ms | Chip appears instantly; no ring |
-| **Six** (slightly stronger) | Same entry as four; the ring expands 1 → 1.4 over 320 ms; the score figure's **new digits** show in `accent` for 400 ms, then return to `score` over `motion.base` | Instant chip; accent tint on digits held for 400 ms, then swapped back without a fade |
+| **Six** (slightly stronger) | Same entry as four; the ring expands 1 → 1.4 over 320 ms; the score figure's **new digits** show in `accent` for 400 ms, then return to `score` over `motion.base`. Never the bright `highlight`: a six is routine, not an alert | Instant chip; accent tint on digits held for 400 ms, then swapped back without a fade |
 | **Wicket** (brief) | The wickets digit rolls; a 2 px `danger` rule draws left → right under the score block (`motion.slow`), holds 300 ms, then fades (`motion.exit`); the W chip enters with scale 0.85 → 1 | The danger rule appears and disappears (no draw); chip instant |
 | **End of over** (smooth) | The strip slides left by its width while the next (empty) strip slides in, `motion.slow`. The finished over collapses into a one-line summary "Over 17 · 9 runs · Hassan" that stays in the strip header until the next delivery | Crossfade 120 ms |
 | **Innings complete / pending panel** | The panel slides up from the pad area, `motion.base`; the pad fades out behind it | Crossfade 120 ms |
@@ -555,8 +609,9 @@ The feel is subtle and precise, like a broadcast graphic, never a game show. Imp
 | **Dialog** | Fade + scale 0.98 → 1, `motion.fast` | Fade only |
 | **Toast** | Fade + translateY 8 → 0, `motion.fast` | Fade only |
 | **Tab / screen transitions** | Platform native-stack defaults | Native stack with `animation: 'none'` |
+| **Tab bar liquid** | Leading end 300 ms ease-out, trailing end 460 ms ease-in-out, no overshoot (§6.6) | The droplet jumps to the new tab |
 | **Glass under scroll** | Top-bar material fades in over `motion.fast`; iOS 26 glass animates its style change (0.2 s) | Instant switch, no animation |
-| **Glass touch (iOS 26)** | Interactive glass on the tab bar and FAB responds to touch (the native highlight and flex) | `isInteractive` off: no morphing or highlight |
+| **Glass touch (iOS 26)** | Interactive glass on the FAB responds to touch (the native highlight and flex) | `isInteractive` off: no morphing or highlight |
 | **Skeleton** | Opacity pulse, 1200 ms | Static |
 
 Rules:
@@ -592,7 +647,7 @@ The tier comes from the committed event's `BallToken.kind` and `isFour`/`isSix` 
 
 ## 10. Implementation checklist for `src/ui`
 
-- `theme/tokens.ts`: `lightColors`, `darkColors` (every key in §1.1 and §1.2), `space`, `radius`, `border`, `elevation`, `motion`. With `theme/glass.ts` (`lightGlass`, `darkGlass`, `GLASS_INKS`, `glassRadius`, §1.4), these are the **only** files with colour literals.
+- `theme/tokens.ts`: `lightColors`, `darkColors` (every key in §1.1 and §1.2), `space`, `radius`, `border`, `elevation`, `motion`. With `theme/glass.ts` (`lightGlass`, `darkGlass`, `GLASS_INKS`, `glassRadius`, `glassRimFor`, the blur-aware contrast model, §1.4), these are the **only** files with colour literals (plus the print palette in `src/export/pdf/styles.ts`).
 - `glass/*`: `GlassSurface`, `GlassMaterial`, `GlassBar`, `GlassDock`, `GlassGroup`, `GlassBackdrop`, `AmbientBackground`, the renderer resolver (`useGlassRenderer`), the content-inset hooks, and a test seam (`glass/testing`: `setLiquidGlassAvailable`) for the iOS 26 path. The only place `expo-glass-effect` and `expo-blur` are imported.
 - `theme/ThemeProvider.tsx`: resolves `ThemePreference` (`system` uses `useColorScheme()`), the reduced-motion preference and Reduce Transparency (in-app `settings.reduceTransparency` OR the system setting: iOS `isReduceTransparencyEnabled`, web `prefers-reduced-transparency`); exposes `useTheme()`, `useGlass()`. Switching theme re-renders without remounting screens.
 - `typography/Text.tsx`: `<Text variant>` with the table in §2. Numeric variants set `fontVariant: ['tabular-nums']` and per-variant `maxFontSizeMultiplier` (RESPONSIVE.md §5).

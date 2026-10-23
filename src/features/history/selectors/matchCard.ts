@@ -1,7 +1,8 @@
 import type { InningsLine, MatchListItem, MatchTeam, TeamRef } from '@/domain/types';
-import { formatOvers, formatScore } from '@/domain/scoring/format';
+import { formatOvers, formatRequirement, formatRequirementCompact, formatScore } from '@/domain/scoring/format';
 import { formatResult, matchStatusLabel } from '@/domain/scoring/result';
-import { formatShortDate } from '@/features/scoring/selectors/dates';
+import { matchShortDate } from '@/features/scoring/selectors/dates';
+import { plural } from '@/features/shared/text';
 
 export interface MatchCardVM {
   readonly id: string;
@@ -13,6 +14,7 @@ export interface MatchCardVM {
   readonly resultLine: string | null;
   readonly scoreLine: string | null;
   readonly footer: string | null;
+  readonly meta: string;
   readonly tournamentId: string | null;
   readonly accessibilityLabel: string;
 }
@@ -37,9 +39,10 @@ export function selectMatchCard(item: MatchListItem): MatchCardVM {
   const resultLine = item.result === null ? null : formatResult(item.result, [asMatchTeam(item.teamA), asMatchTeam(item.teamB)]);
   const regular = item.innings.filter((line) => line.kind === 'regular');
   const scoreLine = regular.length === 0 ? null : regular.map((line) => inningsText(item, line)).join(' · ');
-  const footer = [`${item.oversPerInnings} overs`, item.tournamentName].filter((part): part is string => part !== null).join(' · ');
+  const footer = [plural(item.oversPerInnings, 'over'), item.tournamentName].filter((part): part is string => part !== null).join(' · ');
   const title = `${item.teamA.name} v ${item.teamB.name}`;
-  const dateLabel = formatShortDate(item.scheduledDate ?? item.updatedAt);
+  const dateLabel = matchShortDate(item);
+  const meta = [dateLabel, footer].filter((part): part is string => part !== null && part !== '').join(' · ');
   return {
     id: item.id,
     title,
@@ -50,6 +53,7 @@ export function selectMatchCard(item: MatchListItem): MatchCardVM {
     resultLine,
     scoreLine,
     footer,
+    meta,
     tournamentId: item.tournamentId,
     accessibilityLabel: [title, dateLabel, resultLine ?? statusLabel, scoreLine, footer].filter((part): part is string => part !== null && part !== '').join(', '),
   };
@@ -58,13 +62,18 @@ export function selectMatchCard(item: MatchListItem): MatchCardVM {
 export interface ContinueVM {
   readonly id: string;
   readonly title: string;
+  readonly matchTitle: string;
   readonly badge: string;
   readonly paused: boolean;
   readonly battingTeam: string;
+  readonly battingShort: string;
+  readonly opponent: string;
   readonly score: string;
   readonly overs: string;
   readonly oversText: string;
+  readonly oversOf: string;
   readonly other: string;
+  readonly requirement: string | null;
   readonly tournamentId: string | null;
   readonly accessibilityLabel: string;
 }
@@ -78,19 +87,27 @@ export function selectContinue(item: MatchListItem): ContinueVM {
   const overs = current === undefined ? '0' : formatOvers(current.legalBalls, current.ballsPerOver, { alwaysShowBalls: true });
   const otherLine = regular.find((line) => line !== current);
   const other = otherLine === undefined ? `${otherTeam.name} yet to bat` : inningsText(item, otherLine);
+  const requirement = item.chase === undefined ? null : formatRequirementCompact(item.chase.runsRequired, item.chase.ballsRemaining);
+  const spokenRequirement = item.chase === undefined ? null : formatRequirement(item.chase.runsRequired, item.chase.ballsRemaining);
   const badge = item.status === 'paused' ? 'Paused' : 'Live';
-  const title = `${item.teamA.name} v ${item.teamB.name} · ${item.oversPerInnings} ov`;
+  const matchTitle = `${item.teamA.name} v ${item.teamB.name}`;
+  const title = `${matchTitle} · ${item.oversPerInnings} ov`;
   return {
     id: item.id,
     title,
+    matchTitle,
     badge,
     paused: item.status === 'paused',
     battingTeam: battingTeam.name,
+    battingShort: battingTeam.shortName,
+    opponent: otherTeam.name,
     score,
     overs: `${overs} ov`,
-    oversText: `${overs} overs`,
+    oversText: plural(overs, 'over'),
+    oversOf: `${overs} of ${plural(item.oversPerInnings, 'over')}`,
     other,
+    requirement,
     tournamentId: item.tournamentId,
-    accessibilityLabel: `${title}, ${badge}, ${battingTeam.name} ${score} after ${overs} overs, ${other}`,
+    accessibilityLabel: `${title}, ${badge}, ${battingTeam.name} ${score} after ${plural(overs, 'over')}, ${spokenRequirement === null ? '' : `${spokenRequirement}, `}${other}`,
   };
 }

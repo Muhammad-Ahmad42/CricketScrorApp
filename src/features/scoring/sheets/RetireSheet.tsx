@@ -2,12 +2,13 @@ import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import type { OffBallDismissalType, PlayerId, RetirementKind } from '@/domain/types';
 import type { ScoringIntent } from '@/domain/scoring/commands';
-import { Button, SegmentedControl, Sheet, Text, space } from '@/ui';
-import { OptionButton } from '../components/common/OptionButton';
+import { Button, RadioList, Sheet, Text, space } from '@/ui';
 import { OFF_BALL_LABEL, RETIREMENT_LABEL } from '../selectors/labels';
 import type { PlayerOption } from '../selectors/options';
 
 type Kind = RetirementKind | `off_${OffBallDismissalType}`;
+
+const LATER = '__later__';
 
 const KINDS: readonly { readonly value: Kind; readonly label: string }[] = [
   { value: 'retired_hurt', label: RETIREMENT_LABEL.retired_hurt },
@@ -61,48 +62,44 @@ export function RetireSheet({ visible, striker, nonStriker, nextBatters, initial
     onSubmit(retireIntent(kind, playerId, nextId));
   };
   return (
-    <Sheet visible={visible} title="Retire or dismiss batter" onClose={onClose} testID="sheet-retire">
+    <Sheet
+      visible={visible}
+      title="Retire or dismiss batter"
+      onClose={onClose}
+      testID="sheet-retire"
+      footer={<Button label="Record" size="lg" fullWidth disabled={playerId === null} onPress={record} testID="retire-submit" />}
+    >
       <View style={styles.body}>
         <Text variant="subhead" tone="secondary">
           Batter
         </Text>
-        <SegmentedControl
-          options={batters.map((option) => ({ value: option.id, label: option.label, testID: `retire-batter-${option.id}` }))}
-          value={playerId ?? ''}
-          onChange={setPlayerId}
+        <RadioList
           accessibilityLabel="Batter"
+          value={playerId}
+          onChange={setPlayerId}
+          choices={batters.map((option) => ({ value: option.id, label: option.label, testID: `retire-batter-${option.id}` }))}
         />
         <Text variant="subhead" tone="secondary">
           What happened
         </Text>
-        <View style={styles.list}>
-          {KINDS.map((entry) => (
-            <OptionButton
-              key={entry.value}
-              label={entry.label}
-              selected={kind === entry.value}
-              onPress={() => setKind(entry.value)}
-              testID={`retire-kind-${entry.value}`}
-            />
-          ))}
-        </View>
+        <RadioList
+          accessibilityLabel="What happened"
+          value={kind}
+          onChange={setKind}
+          choices={KINDS.map((entry) => ({ value: entry.value, label: entry.label, testID: `retire-kind-${entry.value}` }))}
+        />
         <Text variant="subhead" tone="secondary">
           Next batter
         </Text>
-        <View style={styles.list}>
-          {nextBatters.map((option) => (
-            <OptionButton
-              key={option.id}
-              label={option.label}
-              detail={option.detail}
-              selected={nextId === option.id}
-              onPress={() => setNextId(option.id)}
-              testID={`retire-next-${option.id}`}
-            />
-          ))}
-          <OptionButton label="Choose later" selected={nextId === null} onPress={() => setNextId(null)} testID="retire-next-later" />
-        </View>
-        <Button label="Record" size="lg" fullWidth disabled={playerId === null} onPress={record} testID="retire-submit" />
+        <RadioList
+          accessibilityLabel="Next batter"
+          value={nextId ?? LATER}
+          onChange={(value) => setNextId(value === LATER ? null : value)}
+          choices={[
+            ...nextBatters.map((option) => ({ value: option.id, label: option.label, description: option.detail ?? undefined, testID: `retire-next-${option.id}` })),
+            { value: LATER, label: 'Choose later', testID: 'retire-next-later' },
+          ]}
+        />
       </View>
     </Sheet>
   );
@@ -110,5 +107,4 @@ export function RetireSheet({ visible, striker, nonStriker, nextBatters, initial
 
 const styles = StyleSheet.create({
   body: { gap: space.sm },
-  list: { gap: space.xs },
 });

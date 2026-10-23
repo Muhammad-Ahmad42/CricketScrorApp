@@ -1,5 +1,4 @@
 import type { AppSettings, FormatId, FormatPreset, PadHand, ScoringPreferences, ThemePreference } from '@/domain/types';
-import { COPY } from '../copy';
 
 export type ReducedMotionSetting = AppSettings['reducedMotion'];
 export type DotStyle = ScoringPreferences['dotStyle'];
@@ -71,10 +70,6 @@ export function selectSettingsVM(settings: AppSettings, presets: readonly Format
     keepAwake: settings.scoring.keepAwake,
     defaultFormatLabel: formatLabel(settings.defaultFormatId, presets),
   };
-}
-
-export function transparencyNote(systemReduced: boolean): string {
-  return systemReduced ? COPY.transparencySystemOn : COPY.transparencyExplained;
 }
 
 export function scoringPatch(current: ScoringPreferences, change: Partial<ScoringPreferences>): Pick<AppSettings, 'scoring'> {

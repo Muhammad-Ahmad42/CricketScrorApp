@@ -90,7 +90,7 @@ export function TypedNameConfirm({
           />
         ) : null}
         <Text variant="footnote" tone="secondary">
-          This cannot be undone. Back up first if you might need these results again.
+          This can't be undone.
         </Text>
       </View>
     </Dialog>

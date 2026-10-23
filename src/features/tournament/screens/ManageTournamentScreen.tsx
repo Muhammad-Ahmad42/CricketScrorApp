@@ -2,8 +2,9 @@ import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import type { TournamentId, TournamentStatus } from '@/domain/types';
-import { ImpactSheet, Notice, TypedNameConfirm, isBlank, type DeleteFootprint } from '@/features/shared';
-import { Button, Dialog, ListRow, SectionHeader, Separator, Sheet, Text, TextField, space } from '@/ui';
+import { useDiscardGuard } from '@/features/scoring/hooks/useDiscardGuard';
+import { ImpactSheet, TypedNameConfirm, isBlank, type DeleteFootprint } from '@/features/shared';
+import { Banner, Button, Dialog, Inset, ListRow, SHEET_GUTTER, SectionHeader, Separator, Sheet, Text, TextField, space, useFormChain } from '@/ui';
 import { useBackupStore, useExportStore, useTournamentListStore, useTournamentStore } from '@/stores';
 import { RulesEditor, type CompetitionRulesValue } from '../components/RulesEditor';
 import { showError, showToast } from '../hooks/toast';
@@ -20,6 +21,8 @@ import { TournamentContainer } from './TournamentContainer';
 export interface ManageTournamentScreenProps {
   readonly tournamentId: TournamentId;
 }
+
+const TEMPLATE_FIELDS = ['name', 'description'] as const;
 
 type Mode =
   | { readonly kind: 'idle' }
@@ -41,6 +44,9 @@ function ManageBody({ tournamentId, index }: { readonly tournamentId: Tournament
   const actions = statusActions(index);
   const rules = index.snapshot.rules;
   const close = () => setMode({ kind: 'idle' });
+  const templateChain = useFormChain(TEMPLATE_FIELDS);
+  const savedRules: CompetitionRulesValue = { pointsSystem: rules.pointsSystem, nrrMode: rules.nrr.mode, tieBreakers: rules.tieBreakers };
+  const rulesGuard = useDiscardGuard(mode.kind === 'rules' && JSON.stringify(mode.value) !== JSON.stringify(savedRules), close, 'dialog-discard-rules');
 
   const run = async (task: () => Promise<boolean>, success: string, failure: string): Promise<boolean> => {
     setBusy(true);
@@ -96,31 +102,34 @@ function ManageBody({ tournamentId, index }: { readonly tournamentId: Tournament
       <ListRow
         title="Name, season, dates"
         subtitle={[tournament.name, tournament.season].filter(Boolean).join(' · ')}
-        trailing={{ kind: 'chevron' }}
+        trailing={policy.info === 'forbidden' ? undefined : { kind: 'chevron' }}
         disabled={policy.info === 'forbidden'}
         onPress={() => setMode({ kind: 'info' })}
         testID="tmanage-btn-info"
       />
       <ListRow
-        title="Rules: points, NRR, tie-breakers"
-        trailing={{ kind: 'chevron' }}
+        title="Rules"
+        subtitle="Points, NRR, tie-breakers"
+        trailing={policy.rules === 'forbidden' ? undefined : { kind: 'chevron' }}
         disabled={policy.rules === 'forbidden'}
-        onPress={() => setMode({ kind: 'rules', value: { pointsSystem: rules.pointsSystem, nrrMode: rules.nrr.mode, tieBreakers: rules.tieBreakers } })}
+        onPress={() => setMode({ kind: 'rules', value: savedRules })}
         testID="tmanage-btn-rules"
       />
       <Separator />
       <SectionHeader title={`Status · ${TOURNAMENT_STATUS_LABEL[tournament.status]}`} />
       {actions.length === 0 ? (
-        <Text variant="callout" tone="secondary" style={styles.padded}>
-          Finish the setup to start the tournament.
-        </Text>
+        <Inset>
+          <Text variant="callout" tone="secondary">
+            Finish the setup to start the tournament.
+          </Text>
+        </Inset>
       ) : (
         actions.map((action) => (
           <ListRow
             key={action.to}
             title={action.label}
             subtitle={action.blockedReason ?? action.description}
-            trailing={{ kind: 'chevron' }}
+            trailing={action.enabled ? { kind: 'chevron' } : undefined}
             disabled={!action.enabled}
             onPress={() => setMode({ kind: 'status', action })}
             testID={action.testID}
@@ -128,18 +137,20 @@ function ManageBody({ tournamentId, index }: { readonly tournamentId: Tournament
         ))
       )}
       <Separator />
-      <SectionHeader title="Share & keep" />
-      <ListRow title="Export PDF (standings, results)" leading={{ icon: 'file-text' }} trailing={{ kind: 'chevron' }} onPress={() => void exportPdf()} testID="tmanage-btn-export-pdf" />
-      <ListRow title="Back up this tournament (JSON)" leading={{ icon: 'hard-drive-download' }} trailing={{ kind: 'chevron' }} onPress={() => void backup()} testID="tmanage-btn-backup" />
+      <SectionHeader title="Export" />
+      <ListRow title="Export PDF" leading={{ icon: 'file-text' }} trailing={{ kind: 'chevron' }} onPress={() => void exportPdf()} testID="tmanage-btn-export-pdf" />
+      <ListRow title="Back up tournament" leading={{ icon: 'hard-drive-download' }} trailing={{ kind: 'chevron' }} onPress={() => void backup()} testID="tmanage-btn-backup" />
       <ListRow title="Save as template" leading={{ icon: 'trophy' }} trailing={{ kind: 'chevron' }} onPress={() => setMode({ kind: 'template' })} testID="tmanage-btn-save-template" />
       <Separator />
-      <View style={styles.danger}>
-        {policy.deleteTournament === 'forbidden' ? (
-          <Notice tone="info" message="Unarchive the tournament before deleting it." testID="tmanage-text-delete-locked" />
-        ) : (
+      {policy.deleteTournament === 'forbidden' ? (
+        <View style={styles.danger}>
+          <Banner tone="info" message="Unarchive to delete" testID="tmanage-text-delete-locked" />
+        </View>
+      ) : (
+        <Inset top="md" bottom="md">
           <Button label="Delete tournament" variant="destructive" icon="trash-2" onPress={() => void startDelete()} fullWidth testID="tmanage-btn-delete" />
-        )}
-      </View>
+        </Inset>
+      )}
       {mode.kind === 'info' ? (
         <InfoEditSheet
           tournament={tournament}
@@ -156,9 +167,9 @@ function ManageBody({ tournamentId, index }: { readonly tournamentId: Tournament
       ) : null}
       {mode.kind === 'rules' ? (
         <Sheet
-          visible
+          visible={!rulesGuard.asking}
           title="Rules"
-          onClose={close}
+          onClose={rulesGuard.requestClose}
           testID="sheet-rules"
           footer={
             <Button
@@ -177,14 +188,16 @@ function ManageBody({ tournamentId, index }: { readonly tournamentId: Tournament
             />
           }
         >
-          <RulesEditor value={mode.value} onChange={(value) => setMode({ kind: 'rules', value })} testIDPrefix="tmanage" />
+          <View style={styles.sheetBleed}>
+            <RulesEditor value={mode.value} onChange={(value) => setMode({ kind: 'rules', value })} testIDPrefix="tmanage" />
+          </View>
         </Sheet>
       ) : null}
       {mode.kind === 'status' && mode.action.needsReason ? (
         <ReasonSheet
           visible
           title={mode.action.label}
-          message={[mode.action.description, ...mode.action.warnings].join(' ')}
+          message={mode.action.description}
           confirmLabel={mode.action.label}
           required
           busy={busy}
@@ -237,10 +250,17 @@ function ManageBody({ tournamentId, index }: { readonly tournamentId: Tournament
           }
         >
           <View style={styles.sheetBody}>
-            <TextField label="Template name" value={templateName} onChangeText={setTemplateName} testID="tmanage-input-template-name" />
-            <TextField label="Description" value={templateDescription} onChangeText={setTemplateDescription} multiline testID="tmanage-input-template-description" />
+            <TextField label="Template name" value={templateName} onChangeText={setTemplateName} {...templateChain.field('name')} testID="tmanage-input-template-name" />
+            <TextField
+              label="Description (optional)"
+              value={templateDescription}
+              onChangeText={setTemplateDescription}
+              multiline
+              ref={templateChain.field('description').ref}
+              testID="tmanage-input-template-description"
+            />
             <Text variant="footnote" tone="secondary">
-              Saves the stages, pools, qualification and rules. Teams and results are not included.
+              Teams and results aren't included.
             </Text>
           </View>
         </Sheet>
@@ -264,6 +284,7 @@ function ManageBody({ tournamentId, index }: { readonly tournamentId: Tournament
           }
         />
       ) : null}
+      {rulesGuard.dialog}
       <ImpactSheet {...flow.sheet} names={index.impactNames} />
     </View>
   );
@@ -271,14 +292,14 @@ function ManageBody({ tournamentId, index }: { readonly tournamentId: Tournament
 
 export function ManageTournamentScreen({ tournamentId }: ManageTournamentScreenProps) {
   return (
-    <TournamentContainer tournamentId={tournamentId} testID="screen-tournament-manage" title="Tournament settings">
+    <TournamentContainer tournamentId={tournamentId} testID="screen-tournament-manage" title="Tournament settings" width="column">
       {(index) => <ManageBody tournamentId={tournamentId} index={index} />}
     </TournamentContainer>
   );
 }
 
 const styles = StyleSheet.create({
-  padded: { paddingHorizontal: space.md },
-  danger: { padding: space.md },
+  danger: { paddingVertical: space.md },
   sheetBody: { gap: space.md },
+  sheetBleed: { marginHorizontal: -SHEET_GUTTER },
 });

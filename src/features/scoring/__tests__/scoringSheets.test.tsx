@@ -2,6 +2,7 @@ import './support/mocks';
 import { fireEvent, screen, waitFor } from '@testing-library/react-native';
 import { bye, legBye, noBall, overthrowBoundary, scoreRuns, wicket, wide, type ScoringIntent } from '@/domain/scoring/commands';
 import { ScoringScreen } from '../screens/ScoringScreen';
+import { dismissalColumns } from '../sheets/WicketSheet';
 import { liveMatch, OPEN } from './support/liveMatch';
 import { renderScreen, resetCommonStores, setLive } from './support/render';
 import { mockStores } from './support/storeModule';
@@ -30,7 +31,7 @@ describe('extras sheet (§17)', () => {
       await fireEvent.press(screen.getByTestId(`extras-chip-${key}`));
     }
     expect(dispatched(store)).toEqual([wide(), wide(1), wide(2), wide(3), wide(4), wide(0, { boundary: true })]);
-    expect(screen.getByText('Wide penalty is 1 run, bowled again (match rule).', { includeHiddenElements: true })).toBeTruthy();
+    expect(screen.getByText('Wide: 1 run · bowled again', { includeHiddenElements: true })).toBeTruthy();
   });
 
   it('records no-balls off the bat, with byes and with leg byes', async () => {
@@ -118,6 +119,14 @@ describe('wicket sheet (§18)', () => {
     jest.clearAllMocks();
   });
 
+  it('stacks the dismissal buttons in one column on a narrow phone with large text', () => {
+    expect(dismissalColumns(320, 1)).toBe(2);
+    expect(dismissalColumns(390, 1.3)).toBe(2);
+    expect(dismissalColumns(320, 1.3)).toBe(1);
+    expect(dismissalColumns(360, 1.3)).toBe(1);
+    expect(dismissalColumns(1024, 2)).toBe(2);
+  });
+
   it('records bowled in two taps with the next batter preselected', async () => {
     const store = setLive(liveMatch([OPEN, '1', '1']));
     await renderScreen(<ScoringScreen />);
@@ -132,11 +141,22 @@ describe('wicket sheet (§18)', () => {
     await renderScreen(<ScoringScreen />);
     await fireEvent.press(screen.getByTestId('score-btn-wicket'));
     await fireEvent.press(screen.getByTestId('wicket-btn-caught'));
-    expect(screen.getByTestId('wicket-fielder-T11')).toHaveProp('accessibilityLabel', 'Haris, c&b');
-    expect(screen.getByTestId('wicket-fielder-T1')).toHaveProp('accessibilityLabel', 'Rizwan, WK');
-    expect(screen.getByTestId('wicket-fielder-T12')).toHaveProp('accessibilityLabel', 'Ali, sub');
+    expect(screen.getByTestId('wicket-fielder-T11')).toHaveProp('accessibilityLabel', 'Haris. c&b');
+    expect(screen.getByTestId('wicket-fielder-T1')).toHaveProp('accessibilityLabel', 'Rizwan. WK');
+    expect(screen.getByTestId('wicket-fielder-T12')).toHaveProp('accessibilityLabel', 'Ali. sub');
     await fireEvent.press(screen.getByTestId('wicket-fielder-T5'));
     expect(dispatched(store)).toEqual([wicket({ dismissal: 'caught', call: 'fair', fielderIds: ['T5'], nextBatterId: 'L3' })]);
+  });
+
+  it('puts Back to the dismissal list in the sheet header once a dismissal is chosen', async () => {
+    setLive(liveMatch([OPEN, '1']));
+    await renderScreen(<ScoringScreen />);
+    await fireEvent.press(screen.getByTestId('score-btn-wicket'));
+    expect(screen.queryByTestId('wicket-btn-back')).not.toBeOnTheScreen();
+    await fireEvent.press(screen.getByTestId('wicket-btn-caught'));
+    expect(screen.getByTestId('wicket-btn-back')).toHaveProp('accessibilityLabel', 'Back to dismissals');
+    await fireEvent.press(screen.getByTestId('wicket-btn-back'));
+    expect(screen.getByTestId('wicket-btn-caught')).toBeOnTheScreen();
   });
 
   it('lets the scorer change the incoming batter or choose later before the dismissal', async () => {

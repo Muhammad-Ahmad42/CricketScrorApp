@@ -23,7 +23,7 @@ export function createDeletionOperations(ctx: ServiceContext): DeletionOperation
         inTransaction(ctx, async (repos) => {
           const snapshot = await readSnapshot(ctx, repos, tournamentId);
           if (confirm.typedName.trim() !== snapshot.tournament.name) {
-            throw failure('VALIDATION', "Type the tournament's name exactly as shown to delete it.");
+            throw failure('VALIDATION', "Type the tournament's name to delete it.");
           }
           const { policy } = evaluateSnapshot(snapshot);
           if (policy.deleteTournament === 'forbidden') {
@@ -33,7 +33,7 @@ export function createDeletionOperations(ctx: ServiceContext): DeletionOperation
           if (footprint.matches > 0 && !confirm.deleteCompletedMatches) {
             throw failure(
               'CONFIRMATION_REQUIRED',
-              `This tournament has ${footprint.matches} match${footprint.matches === 1 ? '' : 'es'} with scores. Confirm that they should be deleted too.`,
+              `${footprint.matches} scored match${footprint.matches === 1 ? '' : 'es'} will be deleted too. Confirm to continue.`,
             );
           }
           for (const matchId of await repos.tournaments.listMatchIds(tournamentId)) {

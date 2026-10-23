@@ -8,7 +8,6 @@ import { createExpoFileSystem } from './fileSystem';
 import { createExpoHapticsDriver } from './haptics';
 import { newSeed, newUuid, sha256, systemClock } from './identity';
 import { createExpoPrinter, createExpoSharer } from './output';
-import { createExpoSoundDriver } from './sound';
 import { createWebFileStore } from './webFiles';
 
 function fileDeps(os: string): Pick<ServiceDeps, 'fileSystem' | 'sharer'> {
@@ -38,5 +37,5 @@ export function createDeviceServices(): AppServices {
 }
 
 export function createDeviceFeedback(preferences: () => FeedbackPreferences): ScoringFeedback {
-  return createScoringFeedback({ haptics: createExpoHapticsDriver(), sound: createExpoSoundDriver(), preferences });
+  return createScoringFeedback({ haptics: createExpoHapticsDriver(), sound: null, preferences });
 }

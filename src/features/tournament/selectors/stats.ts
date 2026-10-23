@@ -1,4 +1,5 @@
 import { formatNrr, formatOvers, formatRate } from '@/domain/scoring/format';
+import { recordHoldersText, recordValueText } from '@/domain/tournament';
 import type { PlayerTournamentStats, TeamTournamentStats, TournamentRecordLine, TournamentStats } from '@/domain/types';
 import type { TournamentIndex } from './names';
 
@@ -8,14 +9,21 @@ export interface RecordVM {
   readonly key: RecordKey;
   readonly title: string;
   readonly value: string;
+  readonly holder: string | null;
   readonly detail: string;
   readonly matchId: string | null;
+  readonly accessibilityLabel: string;
 }
 
 export interface TotalsVM {
   readonly matches: string;
   readonly runsWickets: string;
   readonly boundaries: string;
+  readonly played: string;
+  readonly runs: string;
+  readonly wickets: string;
+  readonly fours: string;
+  readonly sixes: string;
 }
 
 type PlayerNames = ReadonlyMap<string, string>;
@@ -31,14 +39,22 @@ function withThousands(value: number): string {
   return value.toLocaleString('en-US');
 }
 
-function recordVM(index: TournamentIndex, names: PlayerNames, key: RecordKey, title: string, line: TournamentRecordLine | null, value: (line: TournamentRecordLine) => string): RecordVM {
+function recordVM(index: TournamentIndex, names: PlayerNames, key: RecordKey, title: string, line: TournamentRecordLine | null): RecordVM {
   if (line === null) {
-    return { key, title, value: '–', detail: 'No record yet', matchId: null };
+    return { key, title, value: '–', holder: null, detail: 'No record yet', matchId: null, accessibilityLabel: `${title}: no record yet` };
   }
-  const who = playerName(names, line.playerId);
-  const team = index.teamShort(line.teamId);
-  const detail = who ? `${who} (${team}) · ${line.detail}` : line.detail;
-  return { key, title, value: value(line), detail, matchId: line.matchId };
+  const value = recordValueText(line);
+  const individual = line.playerId !== null || (line.playerIds?.length ?? 0) > 0;
+  const holder = individual ? recordHoldersText(line, { player: (playerId) => playerName(names, playerId) ?? 'Player', team: (teamId) => index.teamShort(teamId) }) : null;
+  return {
+    key,
+    title,
+    value,
+    holder,
+    detail: line.detail,
+    matchId: line.matchId,
+    accessibilityLabel: [`${title}: ${value}`, holder, line.detail].filter(Boolean).join(', '),
+  };
 }
 
 export function totalsVM(stats: TournamentStats): TotalsVM {
@@ -46,18 +62,22 @@ export function totalsVM(stats: TournamentStats): TotalsVM {
     matches: `${stats.completedMatches} of ${stats.totalMatches} played`,
     runsWickets: `${withThousands(stats.totalRuns)} · ${withThousands(stats.totalWickets)}`,
     boundaries: `${withThousands(stats.totalFours)} · ${withThousands(stats.totalSixes)}`,
+    played: `${stats.completedMatches} of ${stats.totalMatches}`,
+    runs: withThousands(stats.totalRuns),
+    wickets: withThousands(stats.totalWickets),
+    fours: withThousands(stats.totalFours),
+    sixes: withThousands(stats.totalSixes),
   };
 }
 
 export function recordsVM(index: TournamentIndex, stats: TournamentStats, names: PlayerNames): readonly RecordVM[] {
-  const plain = (line: TournamentRecordLine) => String(line.value);
   return [
-    recordVM(index, names, 'highest-team-score', 'Highest score', stats.highestTeamScore, plain),
-    recordVM(index, names, 'highest-individual-score', 'Best batting', stats.highestIndividualScore, plain),
-    recordVM(index, names, 'best-bowling', 'Best bowling', stats.bestBowling, (line) => `${line.value} wkts`),
-    recordVM(index, names, 'most-sixes', 'Most sixes', stats.mostSixes, plain),
-    recordVM(index, names, 'most-fours', 'Most fours', stats.mostFours, plain),
-    recordVM(index, names, 'highest-partnership', 'Best partnership', stats.highestPartnership, plain),
+    recordVM(index, names, 'highest-team-score', 'Highest score', stats.highestTeamScore),
+    recordVM(index, names, 'highest-individual-score', 'Best batting', stats.highestIndividualScore),
+    recordVM(index, names, 'best-bowling', 'Best bowling', stats.bestBowling),
+    recordVM(index, names, 'most-sixes', 'Most sixes', stats.mostSixes),
+    recordVM(index, names, 'most-fours', 'Most fours', stats.mostFours),
+    recordVM(index, names, 'highest-partnership', 'Best partnership', stats.highestPartnership),
   ];
 }
 
@@ -75,6 +95,7 @@ export interface BattingRowVM {
   readonly fours: string;
   readonly sixes: string;
   readonly best: string;
+  readonly notOuts: string;
 }
 
 export interface BowlingRowVM {
@@ -136,6 +157,7 @@ export function battingRows(index: TournamentIndex, players: readonly PlayerTour
     fours: String(player.fours),
     sixes: String(player.sixes),
     best: player.highestScore ? `${player.highestScore.runs}${player.highestScore.notOut ? '*' : ''}` : '–',
+    notOuts: String(player.notOuts),
   }));
 }
 

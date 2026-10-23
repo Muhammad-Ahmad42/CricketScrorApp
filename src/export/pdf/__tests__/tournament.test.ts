@@ -1,6 +1,6 @@
 /** @jest-environment node */
 import { buildTournamentHtml } from '..';
-import { tournamentDocument } from '../tournament/assemble';
+import { formatLabel, tournamentDocument } from '../tournament/assemble';
 import { evaluation, snapshot, TEAM, tournamentSource } from './fixtures/tournament';
 
 jest.mock('@/domain/scoring/format', () =>
@@ -18,6 +18,17 @@ function text(html: string): string {
 
 describe('buildTournamentHtml', () => {
   const html = buildTournamentHtml(tournamentSource(), OPTIONS);
+
+  it('names the format from the confirmed stages, not the stored structure kind', () => {
+    const [groups, knockout] = [...snapshot().stages].sort((a, b) => a.orderIndex - b.orderIndex);
+    const league = { ...groups, type: 'league' as const };
+    expect(formatLabel([league], 'groups_knockout')).toBe('League');
+    expect(formatLabel([knockout, league], 'league')).toBe('League and knockout');
+    expect(formatLabel([groups], 'league')).toBe('Groups');
+    expect(formatLabel([{ ...knockout, orderIndex: 0 }], 'league')).toBe('Knockout');
+    expect(formatLabel([{ ...groups, type: 'custom' as const }], 'league')).toBe('Custom');
+    expect(formatLabel([], 'groups_knockout')).toBe('Groups and knockout');
+  });
 
   it('shows the tournament information', () => {
     expect(html).toContain('<h1>Spring &lt;Cup&gt;</h1>');

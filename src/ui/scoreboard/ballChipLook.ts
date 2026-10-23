@@ -26,7 +26,7 @@ export function ballChipLook(kind: BallChipKind): BallChipLook {
     case 'four':
       return { shape: 'circle', fill: null, border: 'accent', borderWidth: 2, dashed: false, text: 'accent', weight: 'bold' };
     case 'six':
-      return { shape: 'circle', fill: 'accent', border: null, borderWidth: 0, dashed: false, text: 'onAccent', weight: 'bold' };
+      return { shape: 'circle', fill: 'accentDeep', border: null, borderWidth: 0, dashed: false, text: 'onAccent', weight: 'bold' };
     case 'wicket':
       return { shape: 'square', fill: 'danger', border: null, borderWidth: 0, dashed: false, text: 'onDanger', weight: 'bold' };
     case 'wide':

@@ -1,21 +1,30 @@
 import { StyleSheet, View } from 'react-native';
-import { Button, Icon, SectionHeader, Text, space, useTheme } from '@/ui';
+import { Button, Icon, SectionHeader, Text, space } from '@/ui';
+import type { ImportReportLines } from '../selectors/importReport';
+import { Block } from './Block';
 
 export interface ImportReportViewProps {
-  readonly text: string;
+  readonly lines: ImportReportLines;
 }
 
-export function ImportReportView({ text }: ImportReportViewProps) {
-  const theme = useTheme();
+export function ImportReportView({ lines }: ImportReportViewProps) {
+  const label = lines.supporting ? `${lines.headline}. ${lines.supporting}.` : `${lines.headline}.`;
   return (
     <View testID="import-group-report">
       <SectionHeader title="Import finished" />
-      <View style={[styles.body, { backgroundColor: theme.color.surface }]} accessible accessibilityRole="summary" accessibilityLabel={text}>
+      <Block direction="row" align="start" gap="xs" accessible accessibilityRole="summary" accessibilityLabel={label}>
         <Icon name="circle-check" size={20} color="success" />
-        <Text variant="body" style={styles.text} testID="import-text-report">
-          {text}
-        </Text>
-      </View>
+        <View style={styles.text}>
+          <Text variant="bodyStrong" testID="import-text-report">
+            {lines.headline}
+          </Text>
+          {lines.supporting ? (
+            <Text variant="footnote" tone="secondary" testID="import-text-report-skipped">
+              {lines.supporting}
+            </Text>
+          ) : null}
+        </View>
+      </Block>
     </View>
   );
 }
@@ -29,6 +38,5 @@ export function ImportReportAction({ onDone }: ImportReportActionProps) {
 }
 
 const styles = StyleSheet.create({
-  body: { flexDirection: 'row', alignItems: 'flex-start', gap: space.xs, paddingHorizontal: space.md, paddingVertical: space.sm },
-  text: { flex: 1 },
+  text: { flex: 1, minWidth: 0, gap: space.xxs },
 });

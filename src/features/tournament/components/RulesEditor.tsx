@@ -1,6 +1,6 @@
-import { StyleSheet, View } from 'react-native';
+import { View } from 'react-native';
 import type { NrrMode, PointsSystem, TieBreakerKind } from '@/domain/types';
-import { SectionHeader, SegmentedControl, Separator, Stepper, Text, space } from '@/ui';
+import { Inset, SectionHeader, SegmentedControl, Separator, Stepper, Text } from '@/ui';
 import { NRR_MODE_LABEL } from '../labels';
 import { TieBreakerChainEditor } from './TieBreakerChainEditor';
 
@@ -23,9 +23,9 @@ const POINT_FIELDS: readonly { readonly key: 'win' | 'tie' | 'noResult' | 'loss'
   { key: 'loss', label: 'Loss', id: 'loss' },
 ];
 
-const NRR_HELP: { readonly [K in NrrMode]: string } = {
-  icc: 'A side bowled out is charged its full quota of overs.',
-  actual_overs: 'Only the overs actually faced count, even when bowled out.',
+export const NRR_HELP: { readonly [K in NrrMode]: string } = {
+  icc: 'All out counts as the full overs.',
+  actual_overs: 'Only overs faced count.',
 };
 
 export function RulesEditor({ value, onChange, testIDPrefix = 'twiz' }: RulesEditorProps) {
@@ -33,7 +33,7 @@ export function RulesEditor({ value, onChange, testIDPrefix = 'twiz' }: RulesEdi
   return (
     <View>
       <SectionHeader title="Points" />
-      <View style={styles.padded}>
+      <Inset gap="sm">
         {POINT_FIELDS.map((field) => (
           <Stepper
             key={field.key}
@@ -46,7 +46,7 @@ export function RulesEditor({ value, onChange, testIDPrefix = 'twiz' }: RulesEdi
           />
         ))}
         <Text variant="label" tone="secondary">
-          A tie decided by a super over counts as
+          Super over tie counts as
         </Text>
         <SegmentedControl
           options={[
@@ -57,10 +57,10 @@ export function RulesEditor({ value, onChange, testIDPrefix = 'twiz' }: RulesEdi
           onChange={(superOverDecidedTie) => onChange({ ...value, pointsSystem: { ...points, superOverDecidedTie } })}
           accessibilityLabel="A tie decided by a super over counts as"
         />
-      </View>
+      </Inset>
       <Separator />
       <SectionHeader title="Net run rate" />
-      <View style={styles.padded}>
+      <Inset gap="sm">
         <SegmentedControl
           options={[
             { value: 'icc', label: 'ICC', accessibilityLabel: NRR_MODE_LABEL.icc, testID: `${testIDPrefix}-chip-nrr-icc` },
@@ -73,14 +73,10 @@ export function RulesEditor({ value, onChange, testIDPrefix = 'twiz' }: RulesEdi
         <Text variant="footnote" tone="secondary" testID={`${testIDPrefix}-text-nrr-help`}>
           {NRR_HELP[value.nrrMode]}
         </Text>
-      </View>
+      </Inset>
       <Separator />
       <SectionHeader title="Tie-breakers (in order)" />
       <TieBreakerChainEditor chain={value.tieBreakers} onChange={(tieBreakers) => onChange({ ...value, tieBreakers })} testIDPrefix={testIDPrefix} />
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  padded: { paddingHorizontal: space.md, gap: space.sm },
-});

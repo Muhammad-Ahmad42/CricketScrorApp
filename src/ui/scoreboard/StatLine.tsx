@@ -48,9 +48,7 @@ function StatLineComponent({
         {kind === 'bowler' ? <BowlerMarker testID={markerTestID} /> : active ? <StrikerMarker testID={markerTestID} /> : null}
       </View>
       <View style={styles.nameBlock}>
-        <Text variant={active ? 'bodyStrong' : 'body'} numberOfLines={1}>
-          {name}
-        </Text>
+        <Text variant={active ? 'bodyStrong' : 'body'}>{name}</Text>
         {detail ? (
           <Text variant="footnote" tone="secondary" numberOfLines={1}>
             {detail}
@@ -126,7 +124,7 @@ const styles = StyleSheet.create({
   },
   bar: { position: 'absolute', left: 0, top: 0, bottom: 0, width: 3 },
   marker: { width: space.md + space.sm, alignItems: 'center', justifyContent: 'center' },
-  nameBlock: { flex: 1, paddingRight: space.xs },
+  nameBlock: { flex: 1, flexShrink: 1, minWidth: 0, paddingRight: space.xs },
   figures: { flexDirection: 'row', alignItems: 'baseline', gap: space.xs },
   labelled: { flexDirection: 'row', alignItems: 'baseline', gap: space.xxs },
   secondary: { fontVariant: ['tabular-nums'] },

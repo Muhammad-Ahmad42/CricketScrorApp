@@ -35,6 +35,21 @@ describe('rankTeams', () => {
     expect(byId(ranked, 'A').detail).toBe('Ahead of B on net run rate (+1.200 vs +0.300)');
   });
 
+  it('wave-3 QA: NRR against a team that has no net run rate yet says so instead of "vs –"', () => {
+    const records = [teamRecord('EEG', { points: 0, nrr: -1.554 }), teamRecord('SBS', { points: 0, nrr: null })];
+    const ranked = rankTeams(records, ['points', 'nrr', 'head_to_head'], rankContext([]));
+    const detail = ranked[0].detail;
+    expect(detail).not.toContain('vs –');
+    expect(detail).toMatch(/^Ahead of (EEG|SBS) on net run rate \(|^Ahead of (EEG|SBS); neither team has a net run rate yet$/);
+    const upper = ranked[0].teamId;
+    const lower = ranked[1].teamId;
+    expect(detail).toBe(
+      upper === 'EEG'
+        ? `Ahead of ${lower} on net run rate (-1.554; ${lower} have no net run rate yet)`
+        : `Ahead of ${lower} on net run rate (no net run rate yet vs -1.554)`,
+    );
+  });
+
   it('U-TB-03 three-way cycle leaves the mini-league level and NRR decides', () => {
     const records = [
       teamRecord('A', { nrr: 0.8 }),

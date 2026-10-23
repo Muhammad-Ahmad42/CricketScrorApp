@@ -131,6 +131,7 @@ describe('PoolsScreen (§33, §34)', () => {
     const { previewChange } = stubPreview();
     await renderWithTheme(<PoolsScreen tournamentId="t1" />);
     await fireEvent.press(screen.getByTestId('pools-btn-redraw'));
+    await fireEvent.press(screen.getByTestId('pools-btn-repeat-draw'));
     await fireEvent.changeText(screen.getByTestId('pools-input-seed'), '847291');
     await fireEvent.press(screen.getByTestId('pools-btn-draw'));
     expect(screen.getByTestId('pools-text-replace-warning')).toHaveTextContent('Current pool arrangement will be replaced.');
@@ -140,7 +141,7 @@ describe('PoolsScreen (§33, §34)', () => {
     const change = previewChange.mock.calls[0][0];
     expect(change).toMatchObject({ kind: 'pools_replace', seed: 847291 });
     await fireEvent.press(screen.getByTestId('impact-btn-continue'));
-    await waitFor(() => expect(useToastStore.getState().show).toHaveBeenCalledWith(expect.objectContaining({ message: 'Pools drawn (seed 847291)' })));
+    await waitFor(() => expect(useToastStore.getState().show).toHaveBeenCalledWith(expect.objectContaining({ message: 'Pools drawn (no. 847291)' })));
   });
 
   it('re-previews when the tournament changed during review (CONFLICT)', async () => {
@@ -157,7 +158,7 @@ describe('PoolsScreen (§33, §34)', () => {
     await fireEvent.press(screen.getByTestId('pools-swap-row-2'));
     await waitFor(() => expect(screen.getByTestId('impact-btn-continue')).toBeOnTheScreen());
     await fireEvent.press(screen.getByTestId('impact-btn-continue'));
-    await waitFor(() => expect(screen.getByTestId('impact-text-notice')).toHaveTextContent(/The tournament changed while you were reviewing/));
+    await waitFor(() => expect(screen.getByTestId('impact-text-notice')).toHaveTextContent('Tournament changed. Review again.'));
     expect(useTournamentStore.getState().refresh).toHaveBeenCalled();
     expect(previewChange).toHaveBeenCalledTimes(2);
   });

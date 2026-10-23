@@ -149,7 +149,7 @@ export function applyEvent(setup: MatchSetup, state: MatchState, event: MatchEve
       eventId,
       severity: 'warning',
       code: 'CONTEXT_MISMATCH',
-      message: 'The batters or bowler stored on this ball did not match the scorecard; the scorecard was used.',
+      message: 'Batters or bowler on this ball corrected to match the scorecard.',
     });
   }
   applyPayload(setup, draft, withDerivedStamps(event, innings));

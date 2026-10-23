@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
-import { Badge, IconButton, Text, space, type BadgeTone } from '@/ui';
+import { Badge, IconButton, Text, space, useGutter, type BadgeTone } from '@/ui';
 
 export interface TopBarProps {
   readonly title: string;
@@ -15,24 +15,26 @@ export interface TopBarProps {
 }
 
 export function TopBar({ title, subtitle, onBack, backIcon = 'chevron-left', backLabel = 'Back', badge, badgeTone = 'paused', trailing, testID }: TopBarProps) {
+  const gutter = useGutter();
+  const iconEdge = Math.max(0, gutter - space.sm);
   return (
     <View testID={testID} style={styles.bar}>
-      <View style={styles.row}>
-        {onBack ? <IconButton icon={backIcon} accessibilityLabel={backLabel} onPress={onBack} testID="top-bar-back" /> : <View style={styles.spacer} />}
+      <View style={[styles.row, { paddingLeft: onBack ? iconEdge : gutter, paddingRight: trailing ? iconEdge : gutter }]}>
+        {onBack ? <IconButton icon={backIcon} accessibilityLabel={backLabel} onPress={onBack} testID="top-bar-back" /> : null}
         <View style={styles.titles}>
           <View style={styles.titleLine}>
-            <Text variant="subhead" weight="semibold" accessibilityRole="header" numberOfLines={1} style={styles.title}>
+            <Text variant="headline" accessibilityRole="header" style={styles.title}>
               {title}
             </Text>
             {badge ? <Badge label={badge} tone={badgeTone} /> : null}
           </View>
           {subtitle ? (
-            <Text variant="footnote" tone="secondary" numberOfLines={1}>
+            <Text variant="footnote" tone="secondary" numberOfLines={2}>
               {subtitle}
             </Text>
           ) : null}
         </View>
-        {trailing}
+        {trailing ? <View style={styles.trailing}>{trailing}</View> : null}
       </View>
     </View>
   );
@@ -40,8 +42,8 @@ export function TopBar({ title, subtitle, onBack, backIcon = 'chevron-left', bac
 
 const styles = StyleSheet.create({
   bar: { alignSelf: 'stretch' },
-  row: { minHeight: 48, flexDirection: 'row', alignItems: 'center', paddingHorizontal: space.xxs, gap: space.xxs },
-  spacer: { width: space.sm },
+  row: { minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: space.xxs },
+  trailing: { flexDirection: 'row', alignItems: 'center' },
   titles: { flex: 1, paddingVertical: space.xxs },
   titleLine: { flexDirection: 'row', alignItems: 'center', gap: space.xs },
   title: { flexShrink: 1 },

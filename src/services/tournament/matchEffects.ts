@@ -107,7 +107,7 @@ async function reopenCompletedTournament(ctx: ServiceContext, repos: Repositorie
       action: 'tournament_status_changed',
       entityType: 'tournament',
       entityId: tournament.id,
-      summary: `${tournament.name} moved from completed back to active because one of its matches was reopened.`,
+      summary: `${tournament.name} is active again because a match was reopened.`,
       previousValue: { status: tournament.status },
       newValue: { status: 'active' },
       reason: input.reason ?? null,
@@ -138,7 +138,7 @@ export function assertTournamentWritable(snapshot: TournamentSnapshot): void {
   }
 }
 
-export const SUPERSEDED_MESSAGE = 'This match was replaced by a replay. It stays on record as it was and can no longer be changed.';
+export const SUPERSEDED_MESSAGE = "This match was replaced by a replay. It stays on record and can't be changed.";
 
 export async function assertMatchTournamentWritable(repos: Repositories, match: Pick<Match, 'id' | 'tournamentId' | 'fixtureId'>): Promise<void> {
   const tournamentId = match.tournamentId;

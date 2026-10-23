@@ -2,10 +2,9 @@ import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import type { TeamId } from '@/domain/types';
 import type { ScoringIntent } from '@/domain/scoring/commands';
-import { Button, SegmentedControl, Text, space } from '@/ui';
-import { OptionButton } from '../common/OptionButton';
+import { Button, OptionTile, Text, space } from '@/ui';
 import { PickerRow } from '../common/PickerRow';
-import type { PlayerOption, StartInningsVM } from '../../selectors/options';
+import type { ChaseVM, PlayerOption, StartInningsVM } from '../../selectors/options';
 import { PanelFrame } from './PanelFrame';
 
 export interface StartInningsPanelProps {
@@ -20,6 +19,21 @@ type Slot = 'striker' | 'nonStriker' | 'bowler';
 
 const SLOT_LABEL: { readonly [K in Slot]: string } = { striker: 'Striker', nonStriker: 'Non-striker', bowler: 'Opening bowler' };
 
+const SLOT_PLACEHOLDER: { readonly [K in Slot]: string } = { striker: 'Choose striker…', nonStriker: 'Choose non-striker…', bowler: 'Choose bowler…' };
+
+function ChaseLine({ chase, testID }: { readonly chase: ChaseVM; readonly testID: string }) {
+  return (
+    <View style={styles.chase} testID={testID}>
+      <Text variant="headline">{chase.headline}</Text>
+      {chase.detail ? (
+        <Text variant="callout" tone="secondary" accessibilityLabel={chase.spokenDetail}>
+          {chase.detail}
+        </Text>
+      ) : null}
+    </View>
+  );
+}
+
 export function StartInningsPanel({ vm, confirmFirst, busy = false, onStart, onUndo }: StartInningsPanelProps) {
   const [confirmed, setConfirmed] = useState(!confirmFirst);
   const [teamId, setTeamId] = useState<TeamId>(vm.suggestedBattingTeamId ?? vm.teams[0].id);
@@ -29,6 +43,7 @@ export function StartInningsPanel({ vm, confirmFirst, busy = false, onStart, onU
   if (!confirmed) {
     return (
       <PanelFrame heading="End of innings?" subheading={vm.previous} onUndo={onUndo} testID="prompt-innings-confirm">
+        {vm.chase !== null ? <ChaseLine chase={vm.chase} testID="prompt-innings-chase" /> : null}
         <Button label="Continue" size="lg" fullWidth onPress={() => setConfirmed(true)} testID="prompt-innings-continue" />
       </PanelFrame>
     );
@@ -45,7 +60,7 @@ export function StartInningsPanel({ vm, confirmFirst, busy = false, onStart, onU
   };
   const labelFor = (slot: Slot) => {
     const list = slot === 'bowler' ? bowlers : batters;
-    return list.find((option) => option.id === picked[slot])?.label ?? 'Choose';
+    return list.find((option) => option.id === picked[slot])?.label ?? SLOT_PLACEHOLDER[slot];
   };
   const ready = picked.striker !== null && picked.nonStriker !== null && picked.bowler !== null;
   const start = () => {
@@ -58,24 +73,34 @@ export function StartInningsPanel({ vm, confirmFirst, busy = false, onStart, onU
 
   return (
     <PanelFrame heading={vm.heading} subheading={vm.previous} onUndo={onUndo} testID="prompt-start-innings">
+      {vm.chase !== null ? <ChaseLine chase={vm.chase} testID="prompt-start-chase" /> : null}
       {vm.suggestedBattingTeamId === null ? (
-        <SegmentedControl
-          options={vm.teams.map((team) => ({ value: team.id, label: team.name, testID: `prompt-start-team-${team.id}` }))}
-          value={teamId}
-          onChange={(next) => {
-            setTeamId(next);
-            setPicked({ striker: null, nonStriker: null, bowler: null });
-          }}
-          accessibilityLabel="Batting team"
-        />
+        <View style={styles.list} accessibilityRole="radiogroup" accessibilityLabel="Batting team">
+          {vm.teams.map((team) => (
+            <OptionTile
+              key={team.id}
+              kind="radio"
+              compact
+              title={team.name}
+              selected={teamId === team.id}
+              onPress={() => {
+                if (team.id !== teamId) {
+                  setTeamId(team.id);
+                  setPicked({ striker: null, nonStriker: null, bowler: null });
+                }
+              }}
+              testID={`prompt-start-team-${team.id}`}
+            />
+          ))}
+        </View>
       ) : null}
-      <Text variant="label" tone="secondary">
+      <Text variant="label" tone="secondary" accessibilityRole="header" style={styles.section}>
         {`${battingName} openers`}
       </Text>
       {(['striker', 'nonStriker', 'bowler'] as const).map((slot) => (
         <View key={slot}>
           {slot === 'bowler' ? (
-            <Text variant="label" tone="secondary" style={styles.bowlingLabel}>
+            <Text variant="label" tone="secondary" accessibilityRole="header" style={styles.section}>
               Bowling
             </Text>
           ) : null}
@@ -83,15 +108,20 @@ export function StartInningsPanel({ vm, confirmFirst, busy = false, onStart, onU
             label={SLOT_LABEL[slot]}
             value={labelFor(slot)}
             placeholder={picked[slot] === null}
+            required
+            inset={false}
+            expanded={open === slot}
             onPress={() => setOpen(open === slot ? null : slot)}
             testID={`prompt-start-${slot}`}
           />
           {open === slot ? (
-            <View style={styles.list}>
+            <View style={[styles.list, styles.options]} accessibilityRole="radiogroup" accessibilityLabel={SLOT_LABEL[slot]}>
               {optionsFor(slot).map((option) => (
-                <OptionButton
+                <OptionTile
                   key={option.id}
-                  label={option.label}
+                  kind="radio"
+                  compact
+                  title={option.label}
                   tag={option.tag}
                   selected={picked[slot] === option.id}
                   onPress={() => {
@@ -111,6 +141,8 @@ export function StartInningsPanel({ vm, confirmFirst, busy = false, onStart, onU
 }
 
 const styles = StyleSheet.create({
-  list: { gap: space.xs, paddingVertical: space.xs },
-  bowlingLabel: { paddingTop: space.sm },
+  list: { gap: space.xs },
+  chase: { gap: space.xxs },
+  options: { paddingVertical: space.xs },
+  section: { paddingTop: space.md },
 });

@@ -1,4 +1,3 @@
-import * as Audio from 'expo-audio';
 import * as Crypto from 'expo-crypto';
 import * as Haptics from 'expo-haptics';
 import * as Print from 'expo-print';
@@ -7,7 +6,6 @@ import { createExpoFileSystem } from '../platform/fileSystem';
 import { createExpoHapticsDriver } from '../platform/haptics';
 import { newSeed, sha256, systemClock } from '../platform/identity';
 import { createExpoPrinter, createExpoSharer } from '../platform/output';
-import { createExpoSoundDriver } from '../platform/sound';
 
 jest.mock('expo-haptics', () => ({
   ImpactFeedbackStyle: { Light: 'light', Medium: 'medium', Heavy: 'heavy' },
@@ -15,11 +13,6 @@ jest.mock('expo-haptics', () => ({
   impactAsync: jest.fn(() => Promise.resolve()),
   notificationAsync: jest.fn(() => Promise.resolve()),
   selectionAsync: jest.fn(() => Promise.resolve()),
-}));
-
-jest.mock('expo-audio', () => ({
-  createAudioPlayer: jest.fn(() => ({ volume: 1, seekTo: jest.fn(() => Promise.resolve()), play: jest.fn() })),
-  setAudioModeAsync: jest.fn(() => Promise.resolve()),
 }));
 
 jest.mock('expo-print', () => ({ printToFileAsync: jest.fn(() => Promise.resolve({ uri: 'file:///cache/Print/abc.pdf', numberOfPages: 1 })) }));
@@ -65,8 +58,8 @@ jest.mock('expo-file-system', () => {
     create(): void {
       store.set(this.uri, '');
     }
-    write(text: string): void {
-      store.set(this.uri, text);
+    write(text: string, options?: { readonly encoding?: string }): void {
+      store.set(this.uri, options?.encoding === 'base64' ? `base64:${text}` : text);
     }
     text(): Promise<string> {
       const value = store.get(this.uri);
@@ -95,29 +88,23 @@ describe('device adapters', () => {
     expect(Haptics.selectionAsync).toHaveBeenCalledTimes(1);
   });
 
-  it('creates one quiet player per bundled sound and replays it from the start', async () => {
-    const driver = createExpoSoundDriver({ run: 1, boundary: 2, wicket: 3, result: 4 });
-    driver.play('run');
-    driver.play('run');
-    driver.play('wicket');
-    await Promise.resolve();
-    await Promise.resolve();
-    expect(Audio.setAudioModeAsync).toHaveBeenCalledTimes(1);
-    expect(Audio.setAudioModeAsync).toHaveBeenCalledWith({ playsInSilentMode: false, interruptionMode: 'mixWithOthers' });
-    expect(Audio.createAudioPlayer).toHaveBeenCalledTimes(2);
-    const player = jest.mocked(Audio.createAudioPlayer).mock.results[0].value;
-    expect(player.volume).toBeLessThan(1);
-    expect(player.seekTo).toHaveBeenCalledWith(0);
-    expect(player.play).toHaveBeenCalledTimes(2);
-  });
-
   it('prints A4 PDFs and shares with the right type identifiers', async () => {
     expect(await createExpoPrinter().printToFile('<html></html>')).toBe('file:///cache/Print/abc.pdf');
-    expect(Print.printToFileAsync).toHaveBeenCalledWith({ html: '<html></html>', width: 595, height: 842 });
+    expect(Print.printToFileAsync).toHaveBeenCalledWith({ html: '<html></html>', width: 595, height: 842, base64: true });
     const sharer = createExpoSharer();
     expect(await sharer.isAvailable()).toBe(true);
     await sharer.share('file:///cache/exports/a.json', { mimeType: 'application/json', dialogTitle: 'Save backup' });
     expect(Sharing.shareAsync).toHaveBeenCalledWith('file:///cache/exports/a.json', { mimeType: 'application/json', UTI: 'public.json', dialogTitle: 'Save backup' });
+  });
+
+  it("keeps the printed PDF in the app's own cache, where Expo Go may read, move and share it (Android QA)", async () => {
+    jest.mocked(Print.printToFileAsync).mockResolvedValueOnce({ uri: 'file:///data/cache/Print/abc-123.pdf', numberOfPages: 1, base64: 'JVBERi0x' });
+    const uri = await createExpoPrinter().printToFile('<html></html>');
+    expect(uri).toBe('file:///cache/print/abc-123.pdf');
+    const fileSystem = createExpoFileSystem();
+    expect(await fileSystem.readText(uri)).toBe('base64:JVBERi0x');
+    await fileSystem.move(uri, 'file:///cache/exports/scorecard-lions-v-tigers-2026-05-01.pdf');
+    expect(await fileSystem.readText('file:///cache/exports/scorecard-lions-v-tigers-2026-05-01.pdf')).toBe('base64:JVBERi0x');
   });
 
   it('writes, reads, moves and removes files in the cache', async () => {

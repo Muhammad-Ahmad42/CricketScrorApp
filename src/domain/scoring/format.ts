@@ -9,8 +9,23 @@ import type {
   PlayerId,
   Runs,
 } from '../types';
+import { BUILTIN_FORMAT_IDS } from '../types';
 
 const UNDEFINED_VALUE = '–';
+const MINUS_SIGN = '−';
+
+export function builtinFormatOvers(formatId: string): number | null {
+  const ids: readonly string[] = BUILTIN_FORMAT_IDS;
+  return ids.includes(formatId) ? Number(formatId.slice(1)) : null;
+}
+
+export function formatDisplayLabel(formatId: string, oversPerInnings: number): string {
+  return builtinFormatOvers(formatId) === oversPerInnings ? formatId : `${oversPerInnings} ov`;
+}
+
+export function formatPresetName(formatId: string, oversPerInnings: number): string {
+  return builtinFormatOvers(formatId) === oversPerInnings ? formatId : 'Custom';
+}
 
 export function formatOvers(balls: BallCount, ballsPerOver: number, opts?: { readonly alwaysShowBalls?: boolean }): string {
   const safeBalls = Math.max(0, Math.floor(balls));
@@ -42,7 +57,7 @@ export function formatNrr(value: number | null): string {
   if (magnitude === '0.000') {
     return '0.000';
   }
-  return `${value > 0 ? '+' : '-'}${magnitude}`;
+  return `${value > 0 ? '+' : MINUS_SIGN}${magnitude}`;
 }
 
 export function formatBowlingFigures(row: Pick<BowlingCardRow, 'legalBalls' | 'maidens' | 'runsConceded' | 'wickets'>, ballsPerOver: number): string {
@@ -254,4 +269,8 @@ export function formatRequirement(runsRequired: Runs, ballsRemaining: BallCount)
   const runs = runsRequired === 1 ? '1 run' : `${runsRequired}`;
   const balls = ballsRemaining === 1 ? '1 ball' : `${ballsRemaining} balls`;
   return `Need ${runs} from ${balls}`;
+}
+
+export function formatRequirementCompact(runsRequired: Runs, ballsRemaining: BallCount): string {
+  return `Need ${runsRequired} off ${ballsRemaining}`;
 }

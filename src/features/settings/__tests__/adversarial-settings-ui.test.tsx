@@ -33,6 +33,7 @@ import {
   useFakeToastStore,
   useFakeTournamentListStore,
 } from './support/fakeStores';
+import { expectProblem } from './support/problem';
 import { resetRouter } from './support/router';
 
 jest.mock('@/stores', () => jest.requireActual('./support/fakeStores').fakeStoresModule);
@@ -183,16 +184,12 @@ describe('settings: theme, feedback and motion persist through the store (W-G1, 
     expect(settings().reducedMotion).toBe('system');
   });
 
-  it('keeps sound effects off, disabled and explained even when a restored backup stored them as on (§77, DESIGN_SYSTEM §9)', async () => {
+  it('hides the sound effects setting until the feature exists, even when a restored backup stored it as on (§77, DESIGN_SYSTEM §9)', async () => {
     useFakeSettingsStore.setState({ settings: appSettings({ soundEnabled: true }) });
-    const user = userEvent.setup();
     await renderWithTheme(<SettingsScreen />);
-    const sound = screen.getByTestId('settings-toggle-sound');
-    expect(sound).toBeDisabled();
-    expect(sound).not.toBeChecked();
-    expect(within(sound).getByText('Not available in this version')).toBeOnTheScreen();
-    await user.press(sound);
-    expect(useFakeSettingsStore.getState().update).not.toHaveBeenCalled();
+    expect(screen.queryByTestId('settings-toggle-sound')).not.toBeOnTheScreen();
+    expect(screen.queryByText(/Sound effects|Not available in this version/)).not.toBeOnTheScreen();
+    expect(screen.getByTestId('settings-toggle-haptics')).toBeOnTheScreen();
   });
 
   it('keeps both scoring choices when two are made before the store has committed the first write', async () => {
@@ -253,7 +250,7 @@ describe('settings: theme, feedback and motion persist through the store (W-G1, 
     useFakeSettingsStore.setState({ loaded: false, load });
     const user = userEvent.setup();
     await renderWithTheme(<SettingsScreen />);
-    expect(await screen.findByTestId('settings-banner-load-error')).toHaveTextContent(/^Couldn't load your settings\. Nothing was changed\./);
+    await expectProblem('settings-banner-load-error', "Couldn't load settings", 'Nothing was changed.');
     expect(screen.getByTestId('settings-chip-dot-dot')).toBeDisabled();
     expect(screen.getByTestId('settings-chip-theme-dark')).toBeDisabled();
     expect(screen.getByRole('switch', { name: /vibration/i })).toBeDisabled();
@@ -282,7 +279,7 @@ describe('settings: theme, feedback and motion persist through the store (W-G1, 
     await renderWithTheme(<SettingsScreen />);
     await user.press(screen.getByTestId('settings-chip-dot-dot'));
     const toast = jest.mocked(useFakeToastStore.getState().show).mock.calls[0]?.[0];
-    expect(toast?.message).toBe("Couldn't save this setting. Your other settings are unchanged.");
+    expect(toast?.message).toBe("Couldn't save this setting.");
     await user.press(screen.getByTestId('settings-chip-pad-left'));
     expect(settings().scoring).toEqual({ ...SCORING, padHand: 'left' });
     await act(async () => toast?.action?.run());
@@ -381,7 +378,7 @@ describe('backup export shares a .json file (§84, BACKUP_RESTORE §3)', () => {
       });
     });
     await user.press(screen.getByTestId('backup-btn-export-full'));
-    expect(await screen.findByTestId('backup-banner-export-error')).toHaveTextContent("Couldn't save the backup. Your data is safe.");
+    await expectProblem('backup-banner-export-error', "Couldn't save the backup", 'Your data is safe.');
     expect(useFakeExportStore.getState().share).toHaveBeenCalledTimes(1);
     expect(screen.queryByText(/ENOSPC|EXPORT_FAILED/)).not.toBeOnTheScreen();
   });
@@ -439,7 +436,7 @@ describe('import never applies without a preview, a policy and, for replace, a c
       });
     });
     await user.press(screen.getByTestId('backup-btn-import'));
-    expect(await screen.findByTestId('import-banner-error')).toHaveTextContent("Couldn't read this file. Nothing on this phone was changed.");
+    await expectProblem('import-banner-error', "Couldn't read this file", 'Nothing on this phone was changed.');
     expect(screen.queryByTestId('import-btn-apply')).not.toBeOnTheScreen();
     expect(screen.queryByTestId('import-group-preview')).not.toBeOnTheScreen();
     expect(screen.queryByText(/104857601|File too large/)).not.toBeOnTheScreen();
@@ -630,7 +627,7 @@ describe('real validation results reach the organizer in plain words (§86, E2E-
     await renderWithTheme(<BackupScreen />);
     await chooseFile(user);
     expect(screen.getByTestId('import-row-issue-1')).toHaveAccessibleName('Problem: This file was changed or damaged after it was exported.');
-    expect(screen.getByTestId('import-text-summary')).toHaveTextContent("This file can't be imported. Nothing on this phone was changed.");
+    expect(screen.getByTestId('import-text-summary')).toHaveTextContent("This file can't be imported");
   });
 
   it('walks a real re-import on the same phone from the duplicate warning to a confirmed replace (FR-06a/e, E2E-12)', async () => {
@@ -653,7 +650,7 @@ describe('real validation results reach the organizer in plain words (§86, E2E-
     expect(screen.getByTestId('import-chip-policy-replace')).toHaveAccessibleName(/1 match recorded only on this phone will be lost/);
     await user.press(screen.getByTestId('import-chip-policy-replace'));
     await user.press(screen.getByTestId('import-btn-apply'));
-    expect(screen.getByTestId('import-text-replace-message')).toHaveTextContent(/1 match and 37 scoring events that exist only on this phone will be deleted/);
+    expect(screen.getByTestId('import-text-replace-message')).toHaveTextContent(/1 match and 37 scoring events recorded only on this phone will be deleted/);
     expect(useFakeBackupStore.getState().applyImport).not.toHaveBeenCalled();
     await user.press(screen.getByTestId('import-btn-confirm-replace'));
     expect(useFakeBackupStore.getState().applyImport).toHaveBeenCalledWith(PICKED_URI, 'replace_existing');
@@ -667,7 +664,7 @@ describe('real validation results reach the organizer in plain words (§86, E2E-
     const user = userEvent.setup();
     await renderWithTheme(<BackupScreen />);
     await chooseFile(user);
-    expect(screen.getByTestId('import-text-settings-kept')).toHaveTextContent('App settings in this file are not restored. Your current settings stay as they are.');
+    expect(screen.getByTestId('import-text-settings-kept')).toHaveTextContent('Not restored');
     await user.press(screen.getByTestId('import-btn-apply'));
     expect(await screen.findByTestId('import-text-report')).toBeOnTheScreen();
     expect(useFakeSettingsStore.getState().update).not.toHaveBeenCalled();
@@ -764,10 +761,8 @@ describe('diagnostics keeps technical details off screen until asked (§86, §93
     await user.press(screen.getByTestId('diag-btn-fk-check'));
     const result = await screen.findByTestId('diag-text-fk-result');
     expect(result).toHaveTextContent(/3 broken links/);
-    const pragmaReadout = new Set(textsIn(screen.getByLabelText(/^Database safety settings, /)));
-    const shown = textsIn(screen.getByTestId('screen-diagnostics'))
-      .filter((line) => !pragmaReadout.has(line))
-      .join(' ');
+    expect(screen.queryByTestId('diag-text-pragmas')).not.toBeOnTheScreen();
+    const shown = textsIn(screen.getByTestId('screen-diagnostics')).join(' ');
     expect(shown).not.toMatch(/foreign[ _]?key|pragma|violation|constraint|sqlite/i);
     for (const id of ids) {
       expect(shown).not.toContain(id);
@@ -793,8 +788,11 @@ describe('diagnostics keeps technical details off screen until asked (§86, §93
     expect(await screen.findByTestId('diag-text-fk-result')).toBeOnTheScreen();
   });
 
-  it('shows the database pragmas the failure tests read (AC-E1-02, FR-02b, E2E §3.7 diag-text-pragmas)', async () => {
+  it('shows the database pragmas the failure tests read behind a disclosure (AC-E1-02, FR-02b, E2E §3.7 diag-text-pragmas)', async () => {
+    const user = userEvent.setup();
     await renderWithTheme(<DiagnosticsScreen />);
+    expect(screen.queryByTestId('diag-text-pragmas')).not.toBeOnTheScreen();
+    await user.press(screen.getByTestId('diag-btn-technical'));
     expect(screen.getByTestId('diag-text-pragmas')).toHaveTextContent(/foreign_keys=1.*journal_mode=wal.*synchronous=2/);
   });
 

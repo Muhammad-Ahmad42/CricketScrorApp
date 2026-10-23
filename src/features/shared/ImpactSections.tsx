@@ -1,7 +1,12 @@
 import { StyleSheet, View } from 'react-native';
-import { Separator, Text, space } from '@/ui';
-import type { ImpactFixtureVM, ImpactLineVM, ImpactViewModel } from './impactViewModel';
-import { Notice } from './Notice';
+import { DETAILS_LABEL, Icon, InlineNotice, Separator, Text, space, type IconName } from '@/ui';
+import type { ImpactFixtureKind, ImpactFixtureVM, ImpactLineVM, ImpactViewModel } from './impactViewModel';
+
+const KIND_ICON: { readonly [K in ImpactFixtureKind]: IconName } = {
+  added: 'plus',
+  removed: 'minus',
+  changed: 'pencil-line',
+};
 
 function SectionTitle({ title }: { readonly title: string }) {
   return (
@@ -12,21 +17,19 @@ function SectionTitle({ title }: { readonly title: string }) {
 }
 
 function FixtureLine({ fixture, testID }: { readonly fixture: ImpactFixtureVM; readonly testID: string }) {
-  const spoken = `${fixture.label} ${fixture.change}${fixture.hasMatchData ? ', has scores' : ''}`;
+  const spoken = [`${fixture.label}: ${fixture.change}`, fixture.note].filter(Boolean).join('. ');
   return (
-    <View style={styles.line} accessible accessibilityLabel={spoken} testID={testID}>
-      <Text variant="tableNumeric" style={styles.glyph}>
-        {fixture.glyph}
-      </Text>
-      <Text variant="callout" style={styles.flex}>
-        {fixture.label}
-      </Text>
-      <Text variant="footnote" tone="secondary">
-        {fixture.change}
-      </Text>
-      {fixture.hasMatchData ? (
-        <Text variant="footnote" tone="warning">
-          (has scores)
+    <View style={styles.fixture} accessible accessibilityLabel={spoken} testID={testID}>
+      <Text variant="callout">{fixture.label}</Text>
+      <View style={styles.change}>
+        <Icon name={KIND_ICON[fixture.kind]} size={16} color={fixture.kind === 'removed' ? 'danger' : 'textSecondary'} />
+        <Text variant="footnote" weight="semibold" tone={fixture.kind === 'removed' ? 'danger' : 'secondary'} style={styles.flex}>
+          {fixture.change}
+        </Text>
+      </View>
+      {fixture.note ? (
+        <Text variant="footnote" tone={fixture.hasMatchData ? 'warning' : 'secondary'}>
+          {fixture.note}
         </Text>
       ) : null}
     </View>
@@ -52,32 +55,29 @@ function TextLines({ lines, testIDPrefix }: { readonly lines: readonly ImpactLin
   );
 }
 
-export interface ImpactSectionsProps {
-  readonly vm: ImpactViewModel;
-  readonly showHeadline?: boolean;
+export function hasImpactSections(vm: ImpactViewModel): boolean {
+  return vm.fixtures.length + vm.standings.length + vm.qualification.length + vm.slots.length > 0 || vm.nrrText !== null;
 }
 
-export function ImpactSections({ vm, showHeadline = true }: ImpactSectionsProps) {
+export function impactDetailsLabel(_vm?: ImpactViewModel): string {
+  return DETAILS_LABEL;
+}
+
+export interface ImpactSectionsProps {
+  readonly vm: ImpactViewModel;
+  readonly showShortfalls?: boolean;
+}
+
+export function ImpactSections({ vm, showShortfalls = true }: ImpactSectionsProps) {
   return (
     <View style={styles.root}>
-      {showHeadline ? (
-        <View style={styles.block}>
-          <Text variant="headline" testID="impact-text-headline">
-            {vm.headline}
-          </Text>
-          {vm.lines.map((line, index) => (
-            <Text key={`${index}:${line}`} variant="callout" tone="secondary">
-              {line}
-            </Text>
-          ))}
-        </View>
-      ) : null}
-      {vm.severityNotice ? (
-        <Notice tone={vm.destructive ? 'danger' : 'warning'} message={vm.severityNotice} testID="impact-text-severity" />
-      ) : null}
+      {showShortfalls
+        ? vm.shortfalls.map((line, index) => (
+            <InlineNotice key={line.key} tone="warning" headline={line.text} detail={line.detail ?? null} testID={`impact-text-shortfall-${index + 1}`} />
+          ))
+        : null}
       {vm.fixtures.length > 0 ? (
         <View style={styles.block}>
-          <Separator />
           <SectionTitle title="Fixtures" />
           {vm.fixtures.map((fixture, position) => (
             <FixtureLine key={fixture.key} fixture={fixture} testID={`impact-row-${position + 1}`} />
@@ -86,7 +86,7 @@ export function ImpactSections({ vm, showHeadline = true }: ImpactSectionsProps)
       ) : null}
       {vm.standings.length > 0 ? (
         <View style={styles.block}>
-          <Separator />
+          {vm.fixtures.length > 0 ? <Separator /> : null}
           <SectionTitle title="Standings" />
           <TextLines lines={vm.standings} testIDPrefix="impact-text-standing" />
         </View>
@@ -115,11 +115,11 @@ export function ImpactSections({ vm, showHeadline = true }: ImpactSectionsProps)
 }
 
 const styles = StyleSheet.create({
-  root: { gap: space.md },
+  root: { gap: space.sm },
   block: { gap: space.xs },
-  sectionTitle: { paddingTop: space.xs },
-  line: { flexDirection: 'row', alignItems: 'center', gap: space.xs, minHeight: 28 },
-  textLine: { gap: 2 },
-  glyph: { width: 16 },
-  flex: { flex: 1 },
+  sectionTitle: { paddingTop: space.xxs },
+  fixture: { gap: space.xxs, paddingVertical: space.xxs },
+  change: { flexDirection: 'row', alignItems: 'center', gap: space.xxs },
+  flex: { flexShrink: 1 },
+  textLine: { gap: space.xxs },
 });

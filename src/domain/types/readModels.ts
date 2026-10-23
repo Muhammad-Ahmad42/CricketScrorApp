@@ -16,6 +16,11 @@ export interface InningsLine {
   readonly completionReason: InningsCompletionReason | null;
 }
 
+export interface ListChase {
+  readonly runsRequired: Runs;
+  readonly ballsRemaining: BallCount;
+}
+
 export interface MatchListItem {
   readonly id: MatchId;
   readonly title: string;
@@ -30,6 +35,9 @@ export interface MatchListItem {
   readonly tournamentName: string | null;
   readonly resumeDismissedAt: IsoDateTime | null;
   readonly updatedAt: IsoDateTime;
+  readonly startedAt?: IsoDateTime | null;
+  readonly completedAt?: IsoDateTime | null;
+  readonly chase?: ListChase;
 }
 
 export interface MatchListQuery {

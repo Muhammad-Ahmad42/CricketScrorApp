@@ -9,7 +9,6 @@ import {
   replaceConfirmation,
   selectImportPreview,
   sortIssues,
-  summarizeCounts,
 } from '../selectors/importPreview';
 import { conflict, counts, importPreview, importSource, issue } from './support/fixtures';
 
@@ -28,32 +27,32 @@ describe('import preview view model (§84, BACKUP_RESTORE §10)', () => {
     expect(new Set(issues.map((entry) => entry.key)).size).toBe(3);
   });
 
+  it('splits a long issue into a short headline and one supporting line', () => {
+    const [newer] = sortIssues([issue('error', 'SCHEMA_TOO_NEW', 'This backup was made by a newer version of Scorebook. Update the app, then import it again.')]);
+    expect([newer.headline, newer.supporting]).toEqual(['This backup was made by a newer version of Scorebook', 'Update the app, then import it again.']);
+    const [single] = sortIssues([issue('warning', 'CHECKSUM_MISSING', 'This file has no checksum.')]);
+    expect([single.headline, single.supporting]).toEqual(['This file has no checksum', null]);
+  });
+
   it('never shows the technical JSON path of an issue', () => {
     const vm = selectImportPreview(importPreview({ ok: false, issues: [issue('error', 'INVALID_VALUE', 'A score is not a number.')] }), 'bad.json');
     expect(JSON.stringify(vm)).not.toContain('data.matches[0]');
   });
 
-  it('summarises tournaments and matches first, otherwise the library', () => {
-    expect(summarizeCounts(counts({ tournaments: 1, matches: 24, teams: 8 }))).toBe('1 tournament, 24 matches');
-    expect(summarizeCounts(counts({ matches: 1, teams: 2 }))).toBe('1 match');
-    expect(summarizeCounts(counts({ teams: 3, players: 33, venues: 1, templates: 1 }))).toBe('3 teams, 33 players, 1 venue');
-    expect(summarizeCounts(counts({ settings: 1 }))).toBe('app settings only');
-    expect(summarizeCounts(counts())).toBe('no data');
-  });
-
-  it('lists the contents of the file with every non-empty collection and the settings', () => {
-    const lines = contentLines(counts({ tournaments: 1, fixtures: 28, matches: 24, matchEvents: 4210, teams: 8, settings: 1, slots: 4 }));
+  it('lists the non-empty collections people recognise and the settings, not internal records', () => {
+    const lines = contentLines(
+      counts({ tournaments: 1, fixtures: 28, matches: 24, matchEvents: 4210, teams: 8, settings: 1, slots: 4, overrides: 2, auditEvents: 31 }),
+    );
     expect(lines.map((line) => `${line.label}=${line.value}`)).toEqual([
       'Tournaments=1',
       'Fixtures=28',
       'Matches=24',
-      'Scoring events=4,210',
       'Teams=8',
-      'App settings=Included',
+      'App settings=Not restored',
     ]);
   });
 
-  it('describes each conflicting aggregate with what exists only on this phone', () => {
+  it('describes a conflicting aggregate only by what exists only on this phone, with no line when nothing would be lost', () => {
     const lines = conflictLines([
       conflict({ localOnly: { matches: 3, events: 240 } }),
       conflict({ entity: 'match', id: 'm-1', label: 'Lions v Tigers', localOnly: { matches: 1, events: 0 } }),
@@ -65,11 +64,23 @@ describe('import preview view model (§84, BACKUP_RESTORE §10)', () => {
     expect(lines.map((line) => [line.title, line.detail, line.losesLocalData])).toEqual([
       ['Tournament City Cup 2026', '3 matches (240 scoring events) exist only on this phone', true],
       ['Match Lions v Tigers', '1 match exists only on this phone', true],
-      ['Match Bulls v Bears', 'Already on this phone, with nothing extra recorded here', false],
-      ['Team Lions', 'Already in your library', false],
-      ['Format preset Gully 8', 'Already in your library', false],
+      ['Match Bulls v Bears', null, false],
       ['Tournament Spring Cup', '12 scoring events exist only on this phone', true],
+      ['Team Lions', null, false],
+      ['Format preset Gully 8', null, false],
     ]);
+  });
+
+  it('collapses many library items of one kind into a single counted row instead of a wall of rows', () => {
+    const players = Array.from({ length: 64 }, (_, index) => conflict({ entity: 'player', id: `p-${index}`, label: `Player ${index}` }));
+    const teams = Array.from({ length: 8 }, (_, index) => conflict({ entity: 'team', id: `t-${index}`, label: `Team ${index}` }));
+    const lines = conflictLines([conflict(), ...teams, ...players]);
+    expect(lines.map((line) => [line.title, line.detail])).toEqual([
+      ['Tournament City Cup 2026', null],
+      ['8 teams', null],
+      ['64 players', null],
+    ]);
+    expect(new Set(lines.map((line) => line.key)).size).toBe(lines.length);
   });
 
   it('adds up what replacing would destroy', () => {
@@ -89,7 +100,12 @@ describe('import preview view model (§84, BACKUP_RESTORE §10)', () => {
     ]);
     expect(lossy[2].detail).toBe('3 matches recorded only on this phone will be lost');
     expect(policyOptions({ matches: 0, events: 5 })[2].detail).toBe('5 scoring events recorded only on this phone will be lost');
-    expect(policyOptions({ matches: 0, events: 0 })[2].detail).toBe("Items on this phone are replaced by the file's version");
+    expect(policyOptions({ matches: 0, events: 0 })[2].detail).toBe("Uses the file's version");
+    expect(lossy.map((option) => option.detail)).toEqual([
+      'Import only new items',
+      'Nothing on this phone changes',
+      '3 matches recorded only on this phone will be lost',
+    ]);
   });
 
   it('builds the full preview for a valid duplicate file', () => {
@@ -105,30 +121,46 @@ describe('import preview view model (§84, BACKUP_RESTORE §10)', () => {
     expect(vm.title).toBe('city-cup.json');
     expect(vm.scopeLabel).toBe('Tournament backup');
     expect(vm.importable).toBe(true);
-    expect(vm.validity).toBe('File is valid · 1 tournament, 24 matches · 1 warning');
-    expect(vm.source).toBe('Exported 28 Sep 2026 from Scorebook 1.0.0 on Android');
-    expect(vm.versions).toBe('Backup format 1 · data version 1');
+    expect(vm.validity).toBe('Ready to import');
+    expect(vm.source).toBe('Exported 28 Sep 2026 · Scorebook 1.0.0');
     expect(vm.previouslyImported).toBe('Imported before on 29 Sep 2026');
     expect(vm.conflicts).toHaveLength(1);
     expect(vm.policies).toHaveLength(3);
     expect(vm.localLoss).toEqual({ matches: 3, events: 240 });
   });
 
-  it('hides versions when the preview carries no source details', () => {
+  it('never repeats an item from the "Already on this phone" list as a warning', () => {
+    const vm = selectImportPreview(
+      importPreview({
+        conflicts: [conflict()],
+        issues: [
+          issue('warning', 'ID_CONFLICT', 'The tournament "City Cup" is already on this device.'),
+          issue('warning', 'CHECKSUM_MISSING', 'This file has no checksum.'),
+        ],
+      }),
+      'city-cup.json',
+    );
+    expect(vm.issues.map((entry) => entry.message)).toEqual(['This file has no checksum.']);
+    expect(vm.validity).toBe('Ready to import');
+    expect(vm.conflicts).toHaveLength(1);
+    const alone = selectImportPreview(importPreview({ issues: [issue('warning', 'ID_CONFLICT', 'Already here.')] }), null);
+    expect(alone.issues).toHaveLength(1);
+  });
+
+  it('shows no source line when the preview carries no source details', () => {
     const vm = selectImportPreview(importPreview({ scope: { kind: 'full' } }), null);
     expect(vm.title).toBe('Backup file');
     expect(vm.scopeLabel).toBe('Full backup');
     expect(vm.source).toBeNull();
-    expect(vm.versions).toBeNull();
     expect(vm.previouslyImported).toBeNull();
     expect(vm.policies).toEqual([]);
-    expect(vm.validity).toBe('File is valid · 1 tournament, 24 matches');
+    expect(vm.validity).toBe('Ready to import');
   });
 
-  it('omits a missing platform in the source line', () => {
+  it('keeps the source line to the export date and app version', () => {
     const vm = selectImportPreview(importPreview({ scope: { kind: 'match', matchId: 'm-1' }, source: importSource({ platform: null }) }), 'x.json');
     expect(vm.scopeLabel).toBe('Match backup');
-    expect(vm.source).toBe('Exported 28 Sep 2026 from Scorebook 1.0.0');
+    expect(vm.source).toBe('Exported 28 Sep 2026 · Scorebook 1.0.0');
   });
 
   it('makes an invalid file impossible to import and shows only its problems', () => {
@@ -141,7 +173,7 @@ describe('import preview view model (§84, BACKUP_RESTORE §10)', () => {
       'notes.txt',
     );
     expect(vm.importable).toBe(false);
-    expect(vm.validity).toBe("This file can't be imported. Nothing on this phone was changed.");
+    expect(vm.validity).toBe("This file can't be imported");
     expect(vm.issues).toHaveLength(1);
     expect(vm.contents).toEqual([]);
     expect(vm.conflicts).toEqual([]);
@@ -157,10 +189,10 @@ describe('import preview view model (§84, BACKUP_RESTORE §10)', () => {
 
   it('spells out the replacement and its losses before anything is overwritten', () => {
     expect(replaceConfirmation(importPreview({ conflicts: [conflict({ localOnly: { matches: 3, events: 240 } }), conflict({ id: 'x' })] }))).toBe(
-      "2 items on this phone will be replaced by the version in the file. 3 matches and 240 scoring events that exist only on this phone will be deleted. This can't be undone.",
+      "2 items will be replaced. 3 matches and 240 scoring events recorded only on this phone will be deleted. This can't be undone.",
     );
     expect(replaceConfirmation(importPreview({ conflicts: [conflict()] }))).toBe(
-      "1 item on this phone will be replaced by the version in the file. Nothing recorded only on this phone will be lost. This can't be undone.",
+      "1 item will be replaced. This can't be undone.",
     );
   });
 });

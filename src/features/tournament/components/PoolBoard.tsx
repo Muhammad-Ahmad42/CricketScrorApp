@@ -1,6 +1,6 @@
 import type { ReactElement } from 'react';
 import { FlatList, SectionList, StyleSheet, View } from 'react-native';
-import { ListRow, Text, space, useLayoutClass, useScreenList } from '@/ui';
+import { Inset, ListRow, Text, useGutter, useLayoutClass, useScreenList } from '@/ui';
 import type { PoolMemberVM } from '../selectors/pools';
 
 export interface PoolBoardPool {
@@ -32,11 +32,11 @@ const COLUMN_INITIAL_ROWS = 3;
 
 function PoolHeader({ pool, testID }: { readonly pool: PoolBoardPool; readonly testID: string }) {
   return (
-    <View style={styles.header} testID={testID}>
+    <Inset top="lg" bottom="xs" testID={testID}>
       <Text variant="label" tone="secondary" accessibilityRole="header">
         {pool.summary ? `${pool.name} · ${pool.summary}` : pool.name}
       </Text>
-    </View>
+    </Inset>
   );
 }
 
@@ -71,9 +71,11 @@ function MemberRow({ member, position, pool, rowTestIDPrefix, onMemberActions }:
 
 function EmptyPool({ text }: { readonly text: string }) {
   return (
-    <Text variant="callout" tone="muted" style={styles.empty}>
-      {text}
-    </Text>
+    <Inset top="sm" bottom="sm">
+      <Text variant="callout" tone="muted">
+        {text}
+      </Text>
+    </Inset>
   );
 }
 
@@ -87,6 +89,7 @@ function chunk<T>(items: readonly T[], size: number): readonly (readonly T[])[] 
 
 export function PoolBoard({ pools, rowTestIDPrefix, onMemberActions, emptyPoolText = 'No teams yet', header = null, footer = null, testID }: PoolBoardProps) {
   const layout = useLayoutClass();
+  const gutter = useGutter();
   const list = useScreenList();
   const wide = layout.width === 'medium' || layout.width === 'expanded';
   const perRow = Math.min(pools.length, layout.width === 'expanded' ? 3 : 2);
@@ -98,7 +101,7 @@ export function PoolBoard({ pools, rowTestIDPrefix, onMemberActions, emptyPoolTe
         data={rows}
         keyExtractor={(row) => row.map((pool) => pool.poolId).join('|')}
         renderItem={({ item }) => (
-          <View style={styles.columns}>
+          <View style={[styles.columns, { gap: gutter }]}>
             {item.map((pool) => (
               <View key={pool.poolId} style={styles.column}>
                 <PoolHeader pool={pool} testID={`${rowTestIDPrefix}-${pool.key}`} />
@@ -175,8 +178,6 @@ export function PoolBoard({ pools, rowTestIDPrefix, onMemberActions, emptyPoolTe
 
 const styles = StyleSheet.create({
   fill: { flex: 1 },
-  columns: { flexDirection: 'row', gap: space.md },
+  columns: { flexDirection: 'row' },
   column: { flex: 1, minWidth: 0 },
-  header: { paddingHorizontal: space.md, paddingTop: space.lg, paddingBottom: space.xs },
-  empty: { paddingHorizontal: space.md, paddingVertical: space.sm },
 });

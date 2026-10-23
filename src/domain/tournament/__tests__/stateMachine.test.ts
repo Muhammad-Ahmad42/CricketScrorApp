@@ -239,7 +239,7 @@ describe('canTransitionMatch', () => {
 
   it('U-SM-03 walkover or award only before play', () => {
     expect(reason(canTransitionMatch('scheduled', 'completed', { hasDeliveries: true }))).toBe(
-      'A walkover or an award without play is only possible before the first ball.',
+      'Too late for a walkover or award. Play has started.',
     );
     expect(canTransitionMatch('postponed', 'completed', { hasDeliveries: true }).ok).toBe(false);
     expect(canTransitionMatch('live', 'completed', { hasDeliveries: true }).ok).toBe(true);

@@ -2,6 +2,7 @@ import type { Player, PlayerId, TeamId } from '@/domain/types';
 import type { MatchSetupDraft } from '@/stores/contracts';
 import { openingBattingTeam } from '@/domain/scoring/battingOrder';
 import { BUILTIN_FORMAT_PRESETS, getBuiltinPreset, OVERS_QUICK_PICKS } from '@/domain/scoring/presets';
+import type { WidthClass } from '@/ui';
 import { hasBlockingIssue, rulesIssues } from './rules';
 
 export type WizardStep = 'index' | 'teams' | 'players' | 'toss' | 'openers';
@@ -33,16 +34,36 @@ export const FORMAT_CHIPS: readonly FormatChip[] = [...BUILTIN_FORMAT_PRESETS.ma
 
 export const QUICK_OVERS: readonly number[] = OVERS_QUICK_PICKS;
 
+export const GRID_FONT_SCALE_MAX = 1.15;
+
+export function choiceColumns(kind: 'format' | 'overs', width: WidthClass, fontScale: number): number | undefined {
+  if (fontScale > GRID_FONT_SCALE_MAX) {
+    return undefined;
+  }
+  if (kind === 'format') {
+    return width === 'compact-s' ? undefined : width === 'compact' ? 3 : 4;
+  }
+  if (width === 'compact-s') {
+    return undefined;
+  }
+  return width === 'compact' ? 4 : 5;
+}
+
 export function formatTitle(draft: MatchSetupDraft): string {
   const preset = getBuiltinPreset(draft.formatId);
   if (preset === null) {
     return 'Custom';
   }
-  return JSON.stringify(preset.rules) === JSON.stringify(draft.rules) ? preset.label : `${preset.label} (edited)`;
+  return formatEdited(draft) ? `${preset.label} (edited)` : preset.label;
+}
+
+export function formatEdited(draft: MatchSetupDraft): boolean {
+  const preset = getBuiltinPreset(draft.formatId);
+  return preset !== null && JSON.stringify(preset.rules) !== JSON.stringify(draft.rules);
 }
 
 export function oversError(overs: number | null): string | null {
-  return overs === null || !Number.isInteger(overs) || overs < 1 || overs > 999 ? 'Enter the number of overs (1 or more)' : null;
+  return overs === null || !Number.isInteger(overs) || overs < 1 || overs > 999 ? 'Enter 1 or more overs' : null;
 }
 
 export function canLeaveInfo(draft: MatchSetupDraft): boolean {

@@ -134,6 +134,7 @@ function noteFor(ranked: RankedTeam, below: RankedTeam | undefined): TieBreakNot
     separatedBy: ranked.separatedBy === 'points' ? null : ranked.separatedBy,
     aboveTeamId: below.teamId,
     detail: ranked.detail,
+    headline: ranked.headline,
   };
 }
 

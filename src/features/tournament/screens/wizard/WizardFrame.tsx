@@ -2,7 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { NavHeader } from '@/features/shared';
-import { Button, Screen, Text, space, useTheme } from '@/ui';
+import { Button, Inset, Screen, Text, space, useTheme } from '@/ui';
 import { useTournamentWizardStore, type TournamentWizardStep } from '@/stores';
 import { showError, showToast } from '../../hooks/toast';
 import { routes } from '../../routes';
@@ -20,7 +20,7 @@ export interface WizardFrameProps {
   readonly nextHint?: string | null;
 }
 
-export const DRAFT_SAVED_MESSAGE = 'Your draft is saved. Continue it from Tournaments.';
+export const DRAFT_SAVED_MESSAGE = 'Draft saved';
 
 function StepRule({ current }: { readonly current: number }) {
   const theme = useTheme();
@@ -94,7 +94,7 @@ export function WizardFrame({
     setAdvancing(false);
     if (!ok) {
       if (!onNext) {
-        showError(useTournamentWizardStore.getState().error, "Couldn't save this step. Your earlier steps are still saved.");
+        showError(useTournamentWizardStore.getState().error, "Couldn't save this step.");
       }
       return;
     }
@@ -109,16 +109,15 @@ export function WizardFrame({
     <Screen
       testID="screen-tournament-new"
       scroll={scroll}
-      fullWidth
       header={
         <View>
           <NavHeader title={stepTitle(step)} onBack={close} backIcon="x" backLabel="Close" />
-          <View style={styles.stepLine}>
+          <Inset top="xs" bottom="xs" gap="xxs">
             <Text variant="footnote" tone="secondary" testID="twiz-text-step">
               {`Step ${number} of ${WIZARD_STEPS.length}`}
             </Text>
             <StepRule current={number} />
-          </View>
+          </Inset>
         </View>
       }
       footer={
@@ -129,10 +128,10 @@ export function WizardFrame({
             </Text>
           ) : null}
           <View style={styles.buttons}>
-            <View style={styles.flex}>
+            <View style={styles.back}>
               <Button label={previous === null ? 'Cancel' : 'Back'} variant="secondary" onPress={back} fullWidth testID="twiz-btn-back" />
             </View>
-            <View style={styles.flex}>
+            <View style={styles.next}>
               <Button
                 label={nextLabel}
                 onPress={() => void next()}
@@ -154,10 +153,10 @@ export function WizardFrame({
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
-  stepLine: { paddingHorizontal: space.md, paddingVertical: space.xs, gap: space.xxs },
-  rule: { flexDirection: 'row', gap: 2 },
-  segment: { flex: 1, height: 4 },
+  rule: { flexDirection: 'row', gap: space.xxs },
+  segment: { flex: 1, height: space.xxs },
   footer: { gap: space.xs },
   buttons: { flexDirection: 'row', gap: space.xs },
-  flex: { flex: 1 },
+  back: { flexGrow: 0, flexShrink: 0, minWidth: 104 },
+  next: { flex: 1 },
 });

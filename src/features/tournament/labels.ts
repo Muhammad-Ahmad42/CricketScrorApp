@@ -84,6 +84,8 @@ export const NO_RESULT_LABEL: { readonly [K in KnockoutConfig['noResult']]: stri
   shared: 'Shared',
 };
 
+export const REPEAT_DRAW_LABEL = 'Repeat a draw';
+
 export const SETUP_STATUSES: readonly TournamentStatus[] = ['draft', 'registration', 'structure_configured', 'pools_configured'];
 
 export function isSetupStatus(status: TournamentStatus): boolean {

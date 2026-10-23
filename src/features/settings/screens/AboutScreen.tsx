@@ -1,44 +1,36 @@
 import { useState } from 'react';
-import { StyleSheet, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { ListRow, Screen, SectionHeader, Text, space, useTheme } from '@/ui';
+import { NavHeader } from '@/features/shared';
+import { ExplainedText, ListRow, Screen, SectionHeader, Text } from '@/ui';
+import { Block } from '../components/Block';
 import { PRIVACY_POINTS, PrivacyList } from '../components/PrivacyList';
-import { StackHeader } from '../components/StackHeader';
 import { SETTINGS_ROUTES } from '../constants';
 import { COPY } from '../copy';
 import { readAppInfo } from '../platform/appInfo';
 
 export function AboutScreen() {
   const router = useRouter();
-  const theme = useTheme();
   const [app] = useState(readAppInfo);
   return (
-    <Screen testID="screen-about" ambient header={<StackHeader title="About & privacy" onBack={() => router.back()} />}>
-      <View style={[styles.block, { backgroundColor: theme.color.surface }]}>
+    <Screen testID="screen-about" header={<NavHeader title="About & privacy" onBack={() => router.back()} />}>
+      <Block>
         <Text variant="title2" accessibilityRole="header">
           Scorebook
         </Text>
         <Text variant="body" tone="secondary" testID="about-text-version">
           {`Version ${app.version}`}
         </Text>
-        <Text variant="body">An offline cricket scorebook and tournament manager.</Text>
-        <Text variant="footnote" tone="secondary" testID="about-text-privacy">
-          {COPY.privacyLine}
+        <Text variant="body" testID="about-text-tagline">
+          {COPY.appTagline}
         </Text>
-      </View>
+      </Block>
       <SectionHeader title="Your privacy" />
       <PrivacyList points={PRIVACY_POINTS} />
       <SectionHeader title="Your data" />
-      <View style={[styles.block, { backgroundColor: theme.color.surface }]}>
-        <Text variant="body">
-          Everything you record is kept in a database on this phone. Uninstalling the app deletes it, so export a backup to keep a copy or to move to another phone.
-        </Text>
-      </View>
-      <ListRow title="Backup & import" trailing={{ kind: 'chevron' }} onPress={() => router.push(SETTINGS_ROUTES.backup)} testID="about-btn-backup" />
+      <Block separator>
+        <ExplainedText headline={COPY.uninstallWarning} supporting={COPY.uninstallAction} testID="about-text-your-data" />
+      </Block>
+      <ListRow title="Backup & import" trailing={{ kind: 'chevron' }} onPress={() => router.push(SETTINGS_ROUTES.backup)} separator={false} testID="about-btn-backup" />
     </Screen>
   );
 }
-
-const styles = StyleSheet.create({
-  block: { paddingHorizontal: space.md, paddingVertical: space.sm, gap: space.xxs },
-});

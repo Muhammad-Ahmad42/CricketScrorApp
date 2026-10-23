@@ -31,11 +31,11 @@ function superOverPlayersFailure(setup: MatchSetup, state: MatchState, event: In
   const dismissed = dismissedInEarlierSuperOvers(state, round);
   for (const opener of [event.strikerId, event.nonStrikerId]) {
     if (dismissed.has(opener)) {
-      return fail('PLAYER_INELIGIBLE_SUPER_OVER', `${playerName(setup, opener)} was dismissed in an earlier super over and can't bat again.`);
+      return fail('PLAYER_INELIGIBLE_SUPER_OVER', `${playerName(setup, opener)} can't bat again. They were out in an earlier super over.`);
     }
   }
   if (previousSuperOverBowlers(state, round).has(event.bowlerId)) {
-    return fail('PLAYER_INELIGIBLE_SUPER_OVER', `${playerName(setup, event.bowlerId)} bowled the previous super over and can't bowl this one.`);
+    return fail('PLAYER_INELIGIBLE_SUPER_OVER', `${playerName(setup, event.bowlerId)} bowled the previous super over. Choose another bowler.`);
   }
   return null;
 }
@@ -86,7 +86,7 @@ export function validateInningsStarted(setup: MatchSetup, state: MatchState, eve
   if (battingSquad(setup, event.battingTeamId).length < playersInSide(setup, event.battingTeamId)) {
     warnings.push({
       code: 'SQUAD_EXHAUSTED',
-      message: `${teamName(setup, event.battingTeamId)} has fewer players in the squad than the side size.`,
+      message: `${teamName(setup, event.battingTeamId)} has fewer players than the side size.`,
     });
   }
   return pass(warnings);
@@ -99,17 +99,17 @@ export function validateSuperOverStarted(setup: MatchSetup, state: MatchState, e
   }
   const natural = state.naturalResult;
   if (natural === null || natural.type !== 'tie' || natural.decider !== null) {
-    return fail('RESULT_NOT_TIED', 'A super over can only be played when the match is tied.');
+    return fail('RESULT_NOT_TIED', "The match isn't tied. A super over needs a tie.");
   }
   const expectedRound = (state.superOverRound ?? 0) + 1;
   if (!isInt(event.round) || event.round !== expectedRound) {
     return fail('WRONG_INNINGS_INDEX', `The next super over is round ${expectedRound}.`);
   }
   if (event.round >= 2 && rule.ifTiedAgain !== 'repeat') {
-    return fail('SUPER_OVER_NOT_ALLOWED', 'Another super over is not allowed when the super over is tied.');
+    return fail('SUPER_OVER_NOT_ALLOWED', 'No more super overs. Decide the tie another way.');
   }
   if (rule.maxRounds !== null && event.round > rule.maxRounds) {
-    return fail('SUPER_OVER_LIMIT_REACHED', 'The maximum number of super overs has been played.');
+    return fail('SUPER_OVER_LIMIT_REACHED', 'Super over limit reached. Decide the tie another way.');
   }
   return pass();
 }

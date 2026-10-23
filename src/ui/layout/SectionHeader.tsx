@@ -4,6 +4,7 @@ import type { StateAction } from '../primitives/EmptyState';
 import { space } from '../theme';
 import { Text } from '../typography';
 import { BoundaryRule } from './BoundaryRule';
+import { useGutter } from './gutter';
 
 export interface SectionHeaderProps {
   readonly title: string;
@@ -13,10 +14,11 @@ export interface SectionHeaderProps {
 }
 
 export function SectionHeader({ title, action, ruled = false, testID }: SectionHeaderProps) {
+  const gutter = useGutter();
   return (
     <View testID={testID}>
       {ruled ? <BoundaryRule /> : null}
-      <View style={styles.row}>
+      <View style={[styles.row, { paddingHorizontal: gutter }]}>
         <Text variant="label" tone="secondary" accessibilityRole="header" style={styles.title}>
           {title}
         </Text>
@@ -35,7 +37,6 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingTop: space.xl,
     paddingBottom: space.xs,
-    paddingHorizontal: space.md,
     minHeight: 44,
   },
   title: { flexShrink: 1 },

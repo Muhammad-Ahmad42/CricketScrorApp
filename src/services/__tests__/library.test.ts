@@ -23,6 +23,7 @@ describe('team, player and venue library (§27)', () => {
     expect(detail.players.map((player) => player.name).sort()).toEqual(['Babar', 'Shaheen']);
     expect(team.captainId).toBe(detail.players.find((player) => player.name === 'Babar')?.id);
     expect(detail.players.find((player) => player.name === 'Shaheen')).toMatchObject({ role: 'unknown', jerseyNumber: null });
+    expect(await harness.app.teams.playerCounts?.()).toEqual({ ok: true, value: { [team.id]: 2 } });
   });
 
   it('rejects invalid input without writing anything', async () => {

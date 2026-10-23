@@ -1,5 +1,5 @@
 import { isFixtureReplay } from '@/domain/tournament';
-import type { AuditAction, AuditEntityType, FixtureSide, Id, MatchId, ProposedChange, TeamId, TournamentSnapshot } from '@/domain/types';
+import type { AuditAction, AuditEntityType, FixtureId, FixtureSide, Id, MatchId, ProposedChange, StageId, TeamId, TournamentSnapshot } from '@/domain/types';
 
 export interface ChangeAudit {
   readonly action: AuditAction;
@@ -55,6 +55,23 @@ function fixtureLabel(snapshot: TournamentSnapshot, fixtureId: string): string {
 
 const SCHEDULE_KEYS = ['scheduledDate', 'scheduledTime', 'venueId'];
 
+function countText(count: number, one: string, many: string): string {
+  return `${count} ${count === 1 ? one : many}`;
+}
+
+export function fixturesReplaceSummary(snapshot: TournamentSnapshot, stageId: StageId, nextIds: readonly FixtureId[]): string {
+  const name = stageName(snapshot, stageId);
+  const existing = snapshot.fixtures.filter((fixture) => fixture.stageId === stageId).map((fixture) => fixture.id);
+  if (existing.length === 0) {
+    return `${countText(nextIds.length, 'fixture was', 'fixtures were')} generated for ${name}.`;
+  }
+  const next = new Set(nextIds);
+  const before = new Set(existing);
+  const removed = existing.filter((id) => !next.has(id)).length;
+  const created = nextIds.filter((id) => !before.has(id)).length;
+  return `${name} fixtures regenerated: ${removed} removed, ${created} created.`;
+}
+
 export function auditForChange(snapshot: TournamentSnapshot, change: ProposedChange): ChangeAudit {
   const tournamentId = snapshot.tournament.id;
   switch (change.kind) {
@@ -109,7 +126,7 @@ export function auditForChange(snapshot: TournamentSnapshot, change: ProposedCha
         action: 'fixtures_generated',
         entityType: 'stage',
         entityId: change.stageId,
-        summary: `${change.fixtures.length} fixtures were generated for ${stageName(snapshot, change.stageId)}.`,
+        summary: fixturesReplaceSummary(snapshot, change.stageId, change.fixtures.map((fixture) => fixture.id)),
       };
     case 'match_result_change':
       return { action: 'result_corrected', entityType: 'match', entityId: change.matchId, summary: 'A match result was corrected.' };

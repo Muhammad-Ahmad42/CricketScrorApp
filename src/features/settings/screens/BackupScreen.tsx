@@ -2,18 +2,17 @@ import { useState } from 'react';
 import { useRouter } from 'expo-router';
 import type { TournamentId } from '@/domain/types';
 import { useTournamentListStore } from '@/stores';
+import { NavHeader } from '@/features/shared';
 import { Screen } from '@/ui';
 import { ExportSection } from '../components/ExportSection';
 import { ImportPreviewAction, ImportPreviewView } from '../components/ImportPreviewView';
 import { ImportReportAction, ImportReportView } from '../components/ImportReportView';
 import { ImportStart } from '../components/ImportStart';
-import { StackHeader, StackIntro } from '../components/StackHeader';
-import { COPY } from '../copy';
 import { useBackupExport } from '../hooks/useBackupExport';
 import { useBackupImport } from '../hooks/useBackupImport';
 import { exportedFileText, tournamentTargets } from '../selectors/exportTargets';
 import { replaceConfirmation, selectImportPreview } from '../selectors/importPreview';
-import { importReportText } from '../selectors/importReport';
+import { importReportLines } from '../selectors/importReport';
 import { ReplaceImportDialog } from '../sheets/ReplaceImportDialog';
 import { TournamentExportSheet, type TournamentListState } from '../sheets/TournamentExportSheet';
 
@@ -51,8 +50,7 @@ export function BackupScreen() {
   };
 
   return (
-    <Screen testID="screen-backup" ambient header={<StackHeader title="Backup & import" onBack={() => router.back()} />} footer={footer}>
-      <StackIntro text={COPY.backupIntro} testID="backup-text-intro" />
+    <Screen testID="screen-backup" header={<NavHeader title="Backup & import" onBack={() => router.back()} />} footer={footer}>
       <ExportSection
         phase={exporter.phase}
         savedText={exporter.fileUri ? exportedFileText(exporter.fileUri) : null}
@@ -67,10 +65,11 @@ export function BackupScreen() {
         hasFile={importer.preview !== null}
         problem={importer.problem}
         disabled={exportBusy}
+        followedByPreview={previewVM !== null && importer.report === null}
         onChoose={() => void importer.choose()}
       />
       {importer.report ? (
-        <ImportReportView text={importReportText(importer.report)} />
+        <ImportReportView lines={importReportLines(importer.report)} />
       ) : previewVM ? (
         <ImportPreviewView
           vm={previewVM}

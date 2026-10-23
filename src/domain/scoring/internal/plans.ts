@@ -132,7 +132,7 @@ function bowlerPlan(state: MatchState, intent: Extract<ScoringIntent, { readonly
   }
   const innings = inProgressInnings(state);
   if (innings !== null && innings.currentOver !== null) {
-    return refused('BOWLER_CHANGE_REASON_INVALID', 'This over has already started. Choose injury or suspension as the reason for a change.');
+    return refused('BOWLER_CHANGE_REASON_INVALID', 'This over has started. Choose injury or suspension as the reason.');
   }
   return planned({ kind: 'bowler_selected', bowlerId: intent.bowlerId, reason: 'over_start' });
 }
@@ -175,7 +175,7 @@ function revisionPlan(setup: MatchSetup, intent: Extract<ScoringIntent, { readon
     return planned(current);
   }
   if (intent.inningsIndex !== 0) {
-    return refused('INVALID_OVERS_REVISION', 'Both innings can only be revised from the first innings.');
+    return refused('INVALID_OVERS_REVISION', 'Revise both innings from the first innings.');
   }
   const chase: MatchEventInput = { kind: 'overs_revised', inningsIndex: 1, maxBalls, target: null, ...optional, terminal: false, reason: intent.reason };
   return planned(chase, current);

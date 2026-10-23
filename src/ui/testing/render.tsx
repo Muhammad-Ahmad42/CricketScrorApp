@@ -12,13 +12,14 @@ export interface ThemedRenderOptions {
   readonly mode?: ThemeMode;
   readonly reducedMotion?: ReducedMotionPreference;
   readonly metrics?: Metrics;
+  readonly reduceTransparency?: boolean;
 }
 
-export function themedWrapper({ mode = 'light', reducedMotion = 'off', metrics = TEST_METRICS }: ThemedRenderOptions = {}) {
+export function themedWrapper({ mode = 'light', reducedMotion = 'off', metrics = TEST_METRICS, reduceTransparency = false }: ThemedRenderOptions = {}) {
   return function ThemedTestProviders({ children }: { readonly children: ReactNode }) {
     return (
       <SafeAreaProvider initialMetrics={metrics}>
-        <ThemeProvider mode={mode} reducedMotion={reducedMotion}>
+        <ThemeProvider mode={mode} reducedMotion={reducedMotion} reduceTransparency={reduceTransparency}>
           {children}
         </ThemeProvider>
       </SafeAreaProvider>

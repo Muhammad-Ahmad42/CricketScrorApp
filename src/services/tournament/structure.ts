@@ -173,10 +173,10 @@ export function createStructureOperations(ctx: ServiceContext): StructureOperati
         inTransaction(ctx, async (repos) => {
           const { snapshot, evaluation, policy } = await readEvaluated(ctx, repos, tournamentId);
           if (policy.stages === 'forbidden') {
-            throw failure('FORBIDDEN_STATE', "This tournament's structure can't be changed in its current state.");
+            throw failure('FORBIDDEN_STATE', "The structure can't be changed at this stage.");
           }
           if (guardContext(snapshot, evaluation).matchesStarted > 0) {
-            throw failure('FORBIDDEN_STATE', 'Matches have started. Change the structure through a previewed change instead.');
+            throw failure('FORBIDDEN_STATE', 'Matches have started. Review the impact of this change first.');
           }
           validateStructure(snapshot, structure);
           const now = ctx.clock.now();

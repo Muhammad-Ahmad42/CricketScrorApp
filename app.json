@@ -9,17 +9,32 @@
     "userInterfaceStyle": "automatic",
     "ios": {
       "icon": "./assets/expo.icon",
-      "bundleIdentifier": "pk.harris.scorebook"
+      "bundleIdentifier": "com.ahmadkhan.scorebook",
+      "buildNumber": "1"
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#1F5C3A",
+        "backgroundColor": "#070E12",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "pk.harris.scorebook"
+      "package": "com.ahmadkhan.scorebook",
+      "versionCode": 1,
+      "permissions": [
+        "android.permission.VIBRATE"
+      ],
+      "blockedPermissions": [
+        "android.permission.INTERNET",
+        "android.permission.SYSTEM_ALERT_WINDOW",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.MODIFY_AUDIO_SETTINGS",
+        "android.permission.FOREGROUND_SERVICE",
+        "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK"
+      ]
     },
     "web": {
       "output": "single",
@@ -30,14 +45,61 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#1F5C3A",
+          "backgroundColor": "#070E12",
           "image": "./assets/images/splash-icon.png",
-          "imageWidth": 76
+          "imageWidth": 120
         }
       ],
       "expo-sqlite",
       "expo-sharing",
-      "expo-audio"
+      [
+        "@react-native-community/datetimepicker",
+        {
+          "android": {
+            "datePicker": {
+              "colorAccent": {
+                "light": "#00606F",
+                "dark": "#00C2E0"
+              },
+              "colorControlActivated": {
+                "light": "#00606F",
+                "dark": "#00C2E0"
+              },
+              "textColorPrimary": {
+                "light": "#0B232B",
+                "dark": "#F2F7F9"
+              },
+              "windowBackground": {
+                "light": "#FFFFFF",
+                "dark": "#132129"
+              }
+            },
+            "timePicker": {
+              "headerBackground": {
+                "light": "#00606F",
+                "dark": "#132129"
+              },
+              "numbersSelectorColor": {
+                "light": "#00606F",
+                "dark": "#00C2E0"
+              }
+            }
+          }
+        }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "enableMinifyInReleaseBuilds": true,
+            "enableShrinkResourcesInReleaseBuilds": true
+          }
+        }
+      ],
+      "./plugins/withAndroidImageDecoders",
+      "./plugins/withAndroidEnglishOnly",
+      "./plugins/withDebugInternet",
+      "./plugins/withUploadSigning"
     ],
     "experiments": {
       "typedRoutes": true,

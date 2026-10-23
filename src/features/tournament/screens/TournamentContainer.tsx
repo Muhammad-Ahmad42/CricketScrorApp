@@ -5,9 +5,12 @@ import type { TournamentId } from '@/domain/types';
 import { NavHeader } from '@/features/shared';
 import { ErrorState, Screen, Skeleton, space } from '@/ui';
 import { useTournamentStore } from '@/stores';
+import { errorHeadline } from '../hooks/toast';
 import { useTournamentView } from '../hooks/useTournamentView';
 import { routes } from '../routes';
 import type { TournamentIndex } from '../selectors/names';
+
+export type TournamentScreenWidth = 'column' | 'wide';
 
 export interface TournamentContainerProps {
   readonly tournamentId: TournamentId;
@@ -18,7 +21,7 @@ export interface TournamentContainerProps {
   readonly trailing?: (index: TournamentIndex) => ReactNode;
   readonly controls?: (index: TournamentIndex) => ReactNode;
   readonly scroll?: boolean;
-  readonly ambient?: boolean;
+  readonly width?: TournamentScreenWidth;
   readonly footer?: (index: TournamentIndex) => ReactNode;
   readonly backTo?: Href;
   readonly children: (index: TournamentIndex) => ReactNode;
@@ -44,7 +47,7 @@ export function TournamentContainer({
   trailing,
   controls,
   scroll = true,
-  ambient = false,
+  width = 'wide',
   footer,
   backTo,
   children,
@@ -63,7 +66,7 @@ export function TournamentContainer({
       return (
         <ErrorState
           title="Couldn't open this tournament"
-          body={error?.message}
+          body={errorHeadline(error)}
           onRetry={() => void useTournamentStore.getState().open(tournamentId)}
           testID="tournament-error"
         />
@@ -78,8 +81,7 @@ export function TournamentContainer({
     <Screen
       testID={testID}
       scroll={!ready || scroll}
-      fullWidth
-      ambient={ambient}
+      wide={width === 'wide'}
       header={
         <View>
           <NavHeader

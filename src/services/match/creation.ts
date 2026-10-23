@@ -1,4 +1,4 @@
-import { initialMatchState, validateRules } from '@/domain/scoring';
+import { checkSquadSizes, initialMatchState, validateRules, type SquadSizeSide } from '@/domain/scoring';
 import type { IsoDateTime, Match, MatchEventInput, MatchId, NewMatchInput, Team } from '@/domain/types';
 import type { Repositories } from '@/db';
 import type { ServiceContext } from '../core/context';
@@ -43,6 +43,25 @@ export function validateNewMatch(input: NewMatchInput): void {
       }
       seen.add(entry.playerId);
     }
+  }
+}
+
+export async function assertSquadSizes(repos: Repositories, input: NewMatchInput): Promise<void> {
+  const sides: SquadSizeSide[] = [];
+  for (const [teamId, sideSize, fallback] of [
+    [input.teamAId, input.teamAPlayers, 'Team A'],
+    [input.teamBId, input.teamBPlayers, 'Team B'],
+  ] as const) {
+    const entries = input.squads.filter((squad) => squad.teamId === teamId).flatMap((squad) => squad.players);
+    if (entries.length === 0) {
+      continue;
+    }
+    const team = await repos.teams.get(teamId);
+    sides.push({ teamId, teamName: team?.name ?? fallback, selected: entries.filter((entry) => !entry.isSubstitute).length, sideSize });
+  }
+  const tooLarge = checkSquadSizes(input.rules, sides).find((issue) => issue.code === 'SQUAD_TOO_LARGE');
+  if (tooLarge !== undefined) {
+    throw failure('VALIDATION', tooLarge.message, { domainCode: tooLarge.code });
   }
 }
 

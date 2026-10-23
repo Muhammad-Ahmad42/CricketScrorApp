@@ -42,7 +42,7 @@ export function createMembershipOperations(ctx: ServiceContext): MembershipOpera
             throw failure('FORBIDDEN_STATE', "Teams can't be added to this tournament any more.");
           }
           if (policy.addTeams === 'confirm') {
-            throw failure('CONFIRMATION_REQUIRED', 'Results already exist. Replace a team instead, so the change can be previewed first.');
+            throw failure('CONFIRMATION_REQUIRED', 'Results already exist. Replace a team instead.');
           }
           const ids = teams.map((entry) => entry.teamId);
           if (new Set(ids).size !== ids.length) {
@@ -92,7 +92,7 @@ export function createMembershipOperations(ctx: ServiceContext): MembershipOpera
         inTransaction(ctx, async (repos) => {
           const { snapshot, policy } = await readEvaluated(ctx, repos, tournamentId);
           if (policy.removeTeams === 'forbidden') {
-            throw failure('FORBIDDEN_STATE', "Teams can't be removed from this tournament any more.");
+            throw failure('FORBIDDEN_STATE', "Teams can't be removed any more.");
           }
           const now = ctx.clock.now();
           const removed = new Set(teamIds);
@@ -113,7 +113,7 @@ export function createMembershipOperations(ctx: ServiceContext): MembershipOpera
             }
             const name = await teamName(repos, teamId);
             if (snapshot.fixtures.some((fixture) => isTeam(fixture.sideA, teamId) || isTeam(fixture.sideB, teamId))) {
-              throw failure('FORBIDDEN_STATE', `${name} already have fixtures. Withdraw the team instead, so their results are handled.`);
+              throw failure('FORBIDDEN_STATE', `${name} already have fixtures. Withdraw the team instead.`);
             }
             await repos.tournaments.deleteTournamentTeam(membership.id);
             await writeAudit(

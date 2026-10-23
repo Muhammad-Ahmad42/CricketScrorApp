@@ -1,51 +1,41 @@
-import { Pressable, StyleSheet, View } from 'react-native';
-import { Icon, Text, space, useTheme } from '@/ui';
+import { StyleSheet, View } from 'react-native';
+import { Icon, PressableRow, Text, space } from '@/ui';
 
 export interface PickerRowProps {
   readonly label: string;
   readonly value: string;
   readonly onPress?: () => void;
   readonly placeholder?: boolean;
+  readonly required?: boolean;
+  readonly expanded?: boolean;
+  readonly inset?: boolean;
   readonly testID?: string;
 }
 
-export function PickerRow({ label, value, onPress, placeholder = false, testID }: PickerRowProps) {
-  const theme = useTheme();
-  const interactive = onPress !== undefined;
+export function PickerRow({ label, value, onPress, placeholder = false, required = false, expanded = false, inset = true, testID }: PickerRowProps) {
+  const missing = placeholder && required;
   return (
-    <Pressable
+    <PressableRow
       testID={testID}
-      accessibilityRole={interactive ? 'button' : 'text'}
-      accessibilityLabel={`${label}, ${value}`}
-      accessibilityHint={interactive ? 'Opens a list to choose from' : undefined}
-      disabled={!interactive}
+      accessibilityLabel={`${label}, ${value}${missing ? ', required' : ''}`}
+      accessibilityHint={onPress ? 'Opens a list to choose from' : undefined}
       onPress={onPress}
-      style={({ pressed }) => [
-        styles.row,
-        {
-          minHeight: theme.size.rowCompact,
-          borderBottomWidth: theme.borderWidth.hairline,
-          borderBottomColor: theme.color.border,
-          backgroundColor: pressed ? theme.color.surfaceSunken : 'transparent',
-        },
-      ]}
+      inset={inset}
+      transparent
     >
-      <Text variant="subhead" tone="secondary" style={styles.label}>
-        {label}
-      </Text>
-      <View style={styles.value}>
-        <Text variant="bodyStrong" tone={placeholder ? 'muted' : 'primary'} numberOfLines={1} style={styles.valueText}>
+      <View style={styles.text}>
+        <Text variant="footnote" tone="secondary">
+          {missing ? `${label} · required` : label}
+        </Text>
+        <Text variant={placeholder ? 'body' : 'bodyStrong'} tone={placeholder ? 'secondary' : 'primary'}>
           {value}
         </Text>
-        {interactive ? <Icon name="chevron-down" size={20} color="textMuted" /> : null}
       </View>
-    </Pressable>
+      {onPress ? <Icon name={expanded ? 'chevron-up' : 'chevron-down'} size={20} color="textSecondary" /> : null}
+    </PressableRow>
   );
 }
 
 const styles = StyleSheet.create({
-  row: { flexDirection: 'row', alignItems: 'center', gap: space.sm, minWidth: 44 },
-  label: { width: 112 },
-  value: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: space.xs },
-  valueText: { flexShrink: 1 },
+  text: { flex: 1, minWidth: 0, gap: space.xxs },
 });

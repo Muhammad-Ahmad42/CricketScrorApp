@@ -1,9 +1,8 @@
 import { useState } from 'react';
-import { StyleSheet, View } from 'react-native';
 import type { TeamId, TossDecision } from '@/domain/types';
-import { Button, SectionHeader, SegmentedControl, Text, space } from '@/ui';
+import { Inset, RadioList, SectionHeader, SegmentedControl, Text } from '@/ui';
 import { useMatchSetupStore, useTeamLibraryStore, type MatchSetupDraft } from '@/stores';
-import { OptionButton } from '@/features/scoring/components/common/OptionButton';
+import { TextAction } from '@/features/scoring/components/common/TextAction';
 import { battingFirstOf, battingOrderPatch } from '../selectors/wizard';
 import { WizardScreen } from './WizardScreen';
 
@@ -40,35 +39,29 @@ export function TossStep() {
   };
 
   return (
-    <WizardScreen step="toss" nextDisabled={batting === null}>
+    <WizardScreen step="toss" nextDisabled={batting === null} nextReason={batting !== null ? null : notRecorded ? 'Choose who bats first' : 'Record the toss'}>
       {notRecorded ? (
         <>
           <SectionHeader title="Who bats first?" />
-          <View style={styles.list}>
-            {sides.map((side) => (
-              <OptionButton
-                key={side.id}
-                label={side.name}
-                selected={draft.battingFirstTeamId === side.id}
-                onPress={() => setBattingOrder({ toss: null, battingFirstTeamId: side.id })}
-                testID={`setup-bats-first-${side.id}`}
-              />
-            ))}
-          </View>
-          <View style={styles.link}>
-            <Button label="Record the toss" variant="tertiary" size="sm" onPress={switchToRecorded} testID="setup-toss-record" />
-          </View>
+          <RadioList
+            accessibilityLabel="Who bats first"
+            value={draft.battingFirstTeamId ?? null}
+            onChange={(teamId) => setBattingOrder({ toss: null, battingFirstTeamId: teamId })}
+            choices={sides.map((side) => ({ value: side.id, label: side.name, testID: `setup-bats-first-${side.id}` }))}
+          />
+          <TextAction label="Record the toss" onPress={switchToRecorded} testID="setup-toss-record" />
         </>
       ) : (
         <>
           <SectionHeader title="Who won the toss?" />
-          <View style={styles.list}>
-            {sides.map((side) => (
-              <OptionButton key={side.id} label={side.name} selected={draft.toss?.winnerTeamId === side.id} onPress={() => pickWinner(side.id)} testID={`setup-toss-winner-${side.id}`} />
-            ))}
-          </View>
+          <RadioList
+            accessibilityLabel="Who won the toss"
+            value={draft.toss?.winnerTeamId ?? null}
+            onChange={pickWinner}
+            choices={sides.map((side) => ({ value: side.id, label: side.name, testID: `setup-toss-winner-${side.id}` }))}
+          />
           <SectionHeader title="Elected to" />
-          <View style={styles.list}>
+          <Inset>
             <SegmentedControl
               options={[
                 { value: 'bat', label: 'Bat', testID: 'setup-toss-bat' },
@@ -79,21 +72,15 @@ export function TossStep() {
               disabled={draft.toss === null}
               accessibilityLabel="Toss decision"
             />
-          </View>
-          <View style={styles.link}>
-            <Button label="Toss not recorded" variant="tertiary" size="sm" onPress={switchToNotRecorded} testID="setup-toss-none" />
-          </View>
+          </Inset>
+          <TextAction label="Toss not recorded" onPress={switchToNotRecorded} testID="setup-toss-none" />
         </>
       )}
       {battingName !== null ? (
-        <Text variant="callout" style={styles.sentence} testID="setup-toss-summary">{`${battingName} will bat first.`}</Text>
+        <Inset top="md">
+          <Text variant="callout" testID="setup-toss-summary">{`${battingName} will bat first.`}</Text>
+        </Inset>
       ) : null}
     </WizardScreen>
   );
 }
-
-const styles = StyleSheet.create({
-  list: { paddingHorizontal: space.md, gap: space.xs },
-  link: { alignItems: 'flex-start', paddingHorizontal: space.xs, paddingTop: space.xs },
-  sentence: { paddingHorizontal: space.md, paddingTop: space.md },
-});

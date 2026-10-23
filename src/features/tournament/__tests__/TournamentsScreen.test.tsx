@@ -17,7 +17,7 @@ describe('TournamentsScreen', () => {
     await renderWithTheme(<TournamentsScreen />);
     expect(screen.getByTestId('tournaments-text-empty')).toBeOnTheScreen();
     expect(screen.getByText('No tournaments yet')).toBeOnTheScreen();
-    expect(screen.getByText('Create a tournament and manage teams, fixtures, standings and finals in one place.')).toBeOnTheScreen();
+    expect(screen.getByText('Create a tournament to get started.')).toBeOnTheScreen();
     await fireEvent.press(screen.getByTestId('tournaments-btn-empty-create'));
     expect(useTournamentWizardStore.getState().reset).toHaveBeenCalled();
     expect(mockRouter.push).toHaveBeenCalledWith('/tournament/new');
@@ -38,7 +38,7 @@ describe('TournamentsScreen', () => {
     await renderWithTheme(<TournamentsScreen />);
     expect(screen.getByText('City Cup 2026')).toBeOnTheScreen();
     expect(screen.getByTestId('tournaments-text-status-1')).toHaveTextContent('Active');
-    expect(screen.getByText('· 24/48 played')).toBeOnTheScreen();
+    expect(screen.getByText('· 24 of 48 played')).toBeOnTheScreen();
     expect(screen.getByTestId('tournaments-text-status-2')).toHaveTextContent('Completed');
     expect(screen.getByTestId('tournaments-text-champion-2')).toHaveTextContent('Tigers');
     expect(screen.getByTestId('tournaments-row-1')).toHaveProp('accessibilityLabel', expect.stringContaining('24 of 48 matches played'));
@@ -56,7 +56,8 @@ describe('TournamentsScreen', () => {
     await fireEvent.press(screen.getByTestId('tournaments-chip-drafts'));
     expect(screen.getByText('Draft Cup')).toBeOnTheScreen();
     expect(screen.queryByText('Active Cup')).not.toBeOnTheScreen();
-    expect(screen.getByText('Continue setup')).toBeOnTheScreen();
+    expect(screen.queryByText('Continue setup')).not.toBeOnTheScreen();
+    expect(screen.getByTestId('tournaments-row-1')).toHaveProp('accessibilityHint', 'Continues the setup where you left off');
     await fireEvent.press(screen.getByTestId('tournaments-chip-completed'));
     expect(screen.getByText('Old Cup')).toBeOnTheScreen();
     expect(screen.getByTestId('tournaments-text-status-1')).toHaveTextContent('Archived');
@@ -88,6 +89,13 @@ describe('TournamentsScreen', () => {
     await fireEvent.press(screen.getByTestId('tournaments-btn-create'));
     expect(useTournamentWizardStore.getState().reset).toHaveBeenCalled();
     expect(mockRouter.push).toHaveBeenCalledWith('/tournament/new');
+  });
+
+  it('says a filter is empty in a short empty state', async () => {
+    useTournamentListStore.setState({ items: [listItem()] });
+    await renderWithTheme(<TournamentsScreen />);
+    await fireEvent.press(screen.getByTestId('tournaments-chip-drafts'));
+    expect(screen.getByTestId('tournaments-text-filter-empty')).toHaveTextContent('No drafts');
   });
 
   it('virtualises a long list of tournaments', async () => {

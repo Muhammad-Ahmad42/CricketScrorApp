@@ -19,6 +19,12 @@ export const BREAKPOINTS = {
   largeTextScale: 1.3,
 } as const;
 
+export const FONT_SCALE_EPSILON = 0.001;
+
+export function isLargeText(fontScale: number): boolean {
+  return fontScale + FONT_SCALE_EPSILON >= BREAKPOINTS.largeTextScale;
+}
+
 export function widthClassFor(width: number): WidthClass {
   if (width < BREAKPOINTS.compact) {
     return 'compact-s';
@@ -47,7 +53,7 @@ export function layoutClassFor(width: number, height: number, fontScale = 1): La
     width: widthClassFor(width),
     height: heightClassFor(height),
     isLandscape: width > height,
-    largeText: fontScale >= BREAKPOINTS.largeTextScale,
+    largeText: isLargeText(fontScale),
   };
 }
 

@@ -27,7 +27,7 @@ describe('WhatIfScreen (§48)', () => {
   it('states that it is a simulation and lists the remaining fixtures', async () => {
     loadTournament(playGroups(cupSnapshot(), 5));
     await renderWithTheme(<WhatIfScreen tournamentId="t1" />);
-    expect(screen.getByTestId('whatif-text-banner')).toHaveTextContent('Simulation only. Nothing in the tournament changes.');
+    expect(screen.getByTestId('whatif-text-banner')).toHaveTextContent('Simulation only · nothing is saved');
     expect(screen.getByTestId(`whatif-row-${remainingMatchNumber()}`)).toBeOnTheScreen();
     expect(screen.getByTestId('whatif-btn-run')).toBeDisabled();
   });

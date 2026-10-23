@@ -143,7 +143,7 @@ function powerplayIssues(rules: MatchRules): readonly RulesIssue[] {
       phase.toOver <= rules.oversPerInnings,
   );
   if (!valid) {
-    issues.push(error('POWERPLAY_INVALID', 'Each powerplay needs a name and a first and last over within the innings.'));
+    issues.push(error('POWERPLAY_INVALID', 'Check the powerplays. Each needs a name and overs within the innings.'));
     return issues;
   }
   const sorted = rules.powerplays.slice().sort((a, b) => a.fromOver - b.fromOver);
@@ -167,7 +167,7 @@ function quotaIssues(rules: MatchRules): readonly RulesIssue[] {
       {
         code: 'BOWLER_QUOTA_TOO_LOW',
         severity: 'warning',
-        message: 'With this limit per bowler the fielding side cannot bowl all the overs.',
+        message: "Too few overs per bowler. The fielding side couldn't bowl all the overs.",
       },
     ];
   }

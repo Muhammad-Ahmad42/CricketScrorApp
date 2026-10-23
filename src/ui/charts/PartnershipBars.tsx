@@ -4,11 +4,13 @@ import { space, useTheme } from '../theme';
 import { Text } from '../typography';
 import { ChartFrame } from './ChartFrame';
 import type { PartnershipBarItem } from './chartData';
+import { SERIES_TOKENS } from './chartTheme';
 
 export interface PartnershipBarsProps {
   readonly rows: readonly PartnershipBarItem[];
   readonly accessibilityLabel: string;
   readonly title?: string;
+  readonly series?: number;
   readonly testID?: string;
 }
 
@@ -25,8 +27,14 @@ const COLUMNS: readonly TableColumn<PartnershipBarItem>[] = [
   { key: 'balls', header: 'B', kind: 'numeric', width: 40, value: (row) => String(row.balls) },
 ];
 
-export function PartnershipBars({ rows, accessibilityLabel, title = 'Partnerships', testID }: PartnershipBarsProps) {
+export function seriesToken(series: number): (typeof SERIES_TOKENS)[number] {
+  const index = Math.max(0, Math.min(SERIES_TOKENS.length - 1, Math.floor(series)));
+  return SERIES_TOKENS[index] ?? SERIES_TOKENS[0];
+}
+
+export function PartnershipBars({ rows, accessibilityLabel, title = 'Partnerships', series = 0, testID }: PartnershipBarsProps) {
   const theme = useTheme();
+  const barColor = theme.color[seriesToken(series)];
   const max = rows.reduce((m, row) => Math.max(m, row.runs), 0);
   const chart = (
     <View style={styles.list}>
@@ -44,7 +52,7 @@ export function PartnershipBars({ rows, accessibilityLabel, title = 'Partnership
                 styles.bar,
                 {
                   width: `${barFraction(row.runs, max) * 100}%`,
-                  backgroundColor: theme.color.chartSeries1,
+                  backgroundColor: barColor,
                   borderRadius: theme.radius.xs,
                 },
               ]}

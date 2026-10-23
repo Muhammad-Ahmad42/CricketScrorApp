@@ -33,6 +33,7 @@ export const SILENT_FEEDBACK: ScoringFeedback = { cue: () => undefined };
 export function hapticSteps(cue: FeedbackCue): readonly HapticStep[] {
   switch (cue) {
     case 'run':
+    case 'tab':
       return [{ kind: 'impact', strength: 'light', delayMs: 0 }];
     case 'four':
       return [{ kind: 'impact', strength: 'medium', delayMs: 0 }];
@@ -73,6 +74,7 @@ export function soundFor(cue: FeedbackCue): SoundName | null {
     case 'undo':
     case 'error':
     case 'confirm':
+    case 'tab':
       return null;
     default: {
       const unreachable: never = cue;

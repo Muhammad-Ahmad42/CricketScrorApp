@@ -1,8 +1,21 @@
+import { formatDisplayLabel } from '@/domain/scoring/format';
+import { tournamentProgress, type TournamentProgressSummary } from '@/domain/tournament/progress';
 import type { ChampionResult, Fixture, StageEvaluation } from '@/domain/types';
 import { joinList, plural } from '@/features/shared';
-import { STRUCTURE_KIND_LABEL, TOURNAMENT_STATUS_LABEL, isSetupStatus } from '../labels';
-import { fixtureResultText, fixtureRow, liveFixtures, nextFixture, recentResults, type FixtureRowVM, type VenueLookup } from './fixtures';
+import { TOURNAMENT_STATUS_LABEL, isSetupStatus } from '../labels';
+import {
+  fixtureResultText,
+  fixtureRow,
+  fixtureScoreline,
+  liveFixtures,
+  nextFixture,
+  recentResults,
+  type FixtureRowVM,
+  type ScorelineVM,
+  type VenueLookup,
+} from './fixtures';
 import type { TournamentIndex } from './names';
+import { structureShortLabel } from './stages';
 import { cachedStageStandings, type StandingsTableVM } from './standings';
 
 export interface DashboardStandingsVM {
@@ -15,6 +28,15 @@ export interface DashboardChampionVM {
   readonly basis: string;
 }
 
+export interface DashboardResultVM {
+  readonly key: string;
+  readonly fixtureId: string;
+  readonly label: string;
+  readonly result: string;
+  readonly text: string;
+  readonly scoreline: ScorelineVM | null;
+}
+
 export interface DashboardVM {
   readonly name: string;
   readonly season: string | null;
@@ -25,11 +47,12 @@ export interface DashboardVM {
   readonly stageName: string | null;
   readonly progressText: string;
   readonly progressLabel: string;
+  readonly progressDetail: string | null;
   readonly progressRatio: number;
   readonly live: readonly FixtureRowVM[];
   readonly next: FixtureRowVM | null;
   readonly standings: DashboardStandingsVM | null;
-  readonly recent: readonly { readonly key: string; readonly fixtureId: string; readonly text: string }[];
+  readonly recent: readonly DashboardResultVM[];
   readonly champion: DashboardChampionVM | null;
   readonly unresolvedTies: readonly string[];
   readonly stale: boolean;
@@ -50,8 +73,8 @@ function metaLine(index: TournamentIndex): string {
   if (pools > 1) {
     parts.push(plural(pools, 'pool'));
   }
-  parts.push(STRUCTURE_KIND_LABEL[snapshot.tournament.structureKind]);
-  parts.push(snapshot.rules.defaultFormatId);
+  parts.push(structureShortLabel(index.stages, snapshot.tournament.structureKind));
+  parts.push(formatDisplayLabel(snapshot.rules.defaultFormatId, snapshot.rules.defaultMatchRules.oversPerInnings));
   return parts.join(' · ');
 }
 
@@ -97,19 +120,38 @@ function excerpt(index: TournamentIndex, focus: Fixture | null): DashboardStandi
   if (!table) {
     return null;
   }
-  const explained = table.rows.find((row) => row.qualification?.state === 'qualified') ?? table.rows.find((row) => row.qualification !== null);
-  return { table, explanation: explained?.qualification?.explanation ?? null };
+  const informative = (row: (typeof table.rows)[number]) => row.qualification !== null && row.qualification.condition !== null;
+  const explained =
+    table.rows.find((row) => row.qualification?.state === 'qualified') ??
+    table.rows.find((row) => row.qualification?.state === 'in_contention' && informative(row)) ??
+    table.rows.find((row) => row.qualification?.state === 'eliminated');
+  const qualification = explained?.qualification ?? null;
+  if (!explained || qualification === null) {
+    return { table, explanation: null };
+  }
+  if (qualification.headline !== null) {
+    return { table, explanation: `${explained.team}: ${qualification.headline}` };
+  }
+  const explanation =
+    qualification.state === 'in_contention' && qualification.condition !== null && qualification.condition !== qualification.explanation
+      ? `${explained.team}: ${qualification.condition}`
+      : qualification.condition ?? qualification.explanation;
+  return { table, explanation };
+}
+
+function repeatsCount(summary: TournamentProgressSummary): boolean {
+  return summary.current === null || summary.stages.filter((stage) => stage.total > 0).length <= 1;
 }
 
 export function dashboardVM(index: TournamentIndex, venueName: VenueLookup = () => null): DashboardVM {
   const { snapshot, evaluation } = index;
   const tournament = snapshot.tournament;
-  const progress = evaluation?.progress ?? { done: 0, total: snapshot.fixtures.length };
+  const summary = tournamentProgress(snapshot, evaluation);
+  const progress = summary.overall;
   const live = liveFixtures(index).map((fixture) => fixtureRow(index, fixture, venueName));
   const nextRaw = nextFixture(index);
   const focus = liveFixtures(index)[0] ?? nextRaw;
   const champion = evaluation?.champion ?? null;
-  const currentStage = evaluation?.currentStageId ? index.stage(evaluation.currentStageId) : undefined;
   const ties = (evaluation?.stages ?? []).flatMap((stage) => cachedStageStandings(index, stage).tables.flatMap((table) => table.unresolvedTies));
   return {
     name: tournament.name,
@@ -118,18 +160,25 @@ export function dashboardVM(index: TournamentIndex, venueName: VenueLookup = () 
     statusLabel: TOURNAMENT_STATUS_LABEL[tournament.status],
     setup: isSetupStatus(tournament.status),
     archived: tournament.status === 'archived',
-    stageName: currentStage?.name ?? null,
-    progressText: `${progress.done}/${progress.total}`,
-    progressLabel: `${progress.done} of ${plural(progress.total, 'match', 'matches')} played`,
-    progressRatio: progress.total === 0 ? 0 : progress.done / progress.total,
+    stageName: summary.label,
+    progressText: summary.countText,
+    progressLabel: summary.current !== null ? `${summary.label}: ${summary.countText} played` : `${progress.done} of ${plural(progress.total, 'match', 'matches')} played`,
+    progressDetail: repeatsCount(summary) ? null : summary.detail,
+    progressRatio: summary.ratio,
     live,
     next: nextRaw ? fixtureRow(index, nextRaw, venueName) : null,
     standings: excerpt(index, focus),
-    recent: recentResults(index, 3).map((fixture) => ({
-      key: fixture.id,
-      fixtureId: fixture.id,
-      text: `${index.fixtureLabel(fixture)} · ${fixtureResultText(index, fixture) ?? 'Completed'}`,
-    })),
+    recent: recentResults(index, 3).map((fixture) => {
+      const result = fixtureResultText(index, fixture) ?? 'Completed';
+      return {
+        key: fixture.id,
+        fixtureId: fixture.id,
+        label: index.fixtureLabel(fixture),
+        result,
+        text: `${index.fixtureLabel(fixture)} · ${result}`,
+        scoreline: fixtureScoreline(index, fixture),
+      };
+    }),
     champion:
       champion && champion.teamIds.length > 0
         ? { names: joinList(champion.teamIds.map((teamId) => index.teamName(teamId))), basis: championBasis(index, champion) }

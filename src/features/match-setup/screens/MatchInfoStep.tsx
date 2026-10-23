@@ -1,23 +1,24 @@
 import { useEffect, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet, View, useWindowDimensions } from 'react-native';
 import { router } from 'expo-router';
 import { getBuiltinPreset, rulesForOvers } from '@/domain/scoring/presets';
-import { ErrorState, SectionHeader, Skeleton, Text, TextField, space } from '@/ui';
+import { ChipGroup, ChoiceSheet, DateField, ErrorState, Inset, SectionHeader, Skeleton, TextField, TimeField, space, useFormChain, useLayoutClass } from '@/ui';
 import { useMatchSetupStore, useTeamLibraryStore, type MatchSetupDraft } from '@/stores';
 import { PickerRow } from '@/features/scoring/components/common/PickerRow';
-import { ChoiceSheet } from '@/features/scorecard/components/ChoiceSheet';
-import { dateError, timeError } from '@/features/scorecard/sheets/DetailsSheet';
-import { ChipRow } from '../components/ChipRow';
 import { RulesEditor } from '../components/RulesEditor';
 import { rulesIssues } from '../selectors/rules';
-import { canLeaveInfo, FORMAT_CHIPS, formatTitle, oversError, QUICK_OVERS } from '../selectors/wizard';
+import { canLeaveInfo, choiceColumns, FORMAT_CHIPS, formatEdited, oversError, QUICK_OVERS } from '../selectors/wizard';
 import { VenueSheet } from '../sheets/VenueSheet';
-import { WizardScreen } from './WizardScreen';
+import { goToStep, WizardScreen } from './WizardScreen';
+import { errorHeadline } from '@/features/scoring/selectors/scannable';
+import { plural } from '@/features/shared';
 
 export interface MatchInfoStepProps {
   readonly tournamentId?: string | null;
   readonly fixtureId?: string | null;
 }
+
+const FIELDS = ['title', 'overs'] as const;
 
 function FixtureGate({ tournamentId, fixtureId }: { readonly tournamentId: string; readonly fixtureId: string }) {
   const draftFixture = useMatchSetupStore((s) => s.draft.fixtureId);
@@ -34,7 +35,7 @@ function FixtureGate({ tournamentId, fixtureId }: { readonly tournamentId: strin
         if (ok) {
           router.replace('/match/new/players');
         } else {
-          setFailed(useMatchSetupStore.getState().error?.message ?? "Couldn't prepare this fixture.");
+          setFailed(errorHeadline(useMatchSetupStore.getState().error, "Couldn't prepare this fixture."));
         }
       });
   }, [draftFixture, fixtureId, tournamentId]);
@@ -50,6 +51,9 @@ export function MatchInfoStep({ tournamentId = null, fixtureId = null }: MatchIn
   const teams = useTeamLibraryStore((s) => s.teams);
   const [customOvers, setCustomOvers] = useState(QUICK_OVERS.includes(draft.rules.oversPerInnings) ? '' : `${draft.rules.oversPerInnings}`);
   const [picker, setPicker] = useState<'venue' | 'new_venue' | null>(null);
+  const chain = useFormChain(FIELDS, { onSubmit: () => submitInfo() });
+  const layout = useLayoutClass();
+  const { fontScale } = useWindowDimensions();
 
   useEffect(() => {
     void useTeamLibraryStore.getState().load();
@@ -72,9 +76,14 @@ export function MatchInfoStep({ tournamentId = null, fixtureId = null }: MatchIn
   const teamNames = [draft.teamAId, draft.teamBId].map((id) => teams.find((team) => team.id === id)?.name ?? null);
   const placeholder = teamNames[0] !== null && teamNames[1] !== null ? `${teamNames[0]} v ${teamNames[1]}` : 'Team A v Team B';
   const venueName = draft.venueId === null ? 'No venue' : venues.find((venue) => venue.id === draft.venueId)?.name ?? 'Venue';
-  const date = draft.scheduledDate ?? '';
-  const time = draft.scheduledTime ?? '';
+  const blockingRules = issues.some((issue) => issue.severity === 'error');
+  const nextReason = typedError ?? (blockingRules ? 'Fix the rules marked below' : null);
 
+  const submitInfo = () => {
+    if (canLeaveInfo(useMatchSetupStore.getState().draft) && typedError === null) {
+      goToStep('teams');
+    }
+  };
   const pickVenue = (venueId: string | null) => {
     setPicker(null);
     update({ venueId });
@@ -94,31 +103,44 @@ export function MatchInfoStep({ tournamentId = null, fixtureId = null }: MatchIn
   };
 
   return (
-    <WizardScreen step="index" nextDisabled={!canLeaveInfo(draft) || typedError !== null}>
-      <View style={styles.block}>
-        <TextField label="Title (optional)" value={draft.title} onChangeText={(title) => update({ title })} placeholder={placeholder} testID="setup-title" />
-      </View>
-      <SectionHeader title={`Format · ${formatTitle(draft)}`} />
-      <ChipRow
-        options={FORMAT_CHIPS.map((chip) => ({ key: chip.id, label: chip.label }))}
-        selected={preset === null ? 'custom' : `${preset.id}`}
-        onSelect={chooseFormat}
-        accessibilityLabel="Match format"
-        testIDPrefix="setup-format"
-      />
-      <SectionHeader title="Overs per innings" />
-      <ChipRow
-        options={QUICK_OVERS.map((value) => ({ key: `${value}`, label: `${value}`, accessibilityLabel: `${value} overs` }))}
-        selected={customOvers.trim() === '' ? `${overs}` : null}
-        onSelect={(key) => {
-          setCustomOvers('');
-          chooseOvers(Number(key));
-        }}
-        accessibilityLabel="Overs per innings"
-        testIDPrefix="setup-overs"
-      />
-      <View style={styles.block}>
+    <WizardScreen step="index" nextDisabled={!canLeaveInfo(draft) || typedError !== null} nextReason={nextReason}>
+      <Inset top="sm">
         <TextField
+          {...chain.field('title')}
+          label="Title (optional)"
+          value={draft.title}
+          onChangeText={(title) => update({ title })}
+          placeholder={placeholder}
+          autoCapitalize="sentences"
+          testID="setup-title"
+        />
+      </Inset>
+      <SectionHeader title={formatEdited(draft) ? 'Format · edited' : 'Format'} />
+      <Inset>
+        <ChipGroup
+          options={FORMAT_CHIPS.map((chip) => ({ value: chip.id, label: chip.label, testID: `setup-format-${chip.id}` }))}
+          value={preset === null ? 'custom' : `${preset.id}`}
+          onChange={chooseFormat}
+          columns={choiceColumns('format', layout.width, fontScale)}
+          accessibilityLabel="Match format"
+          testID="setup-format-group"
+        />
+      </Inset>
+      <SectionHeader title="Overs per innings" />
+      <Inset gap="sm">
+        <ChipGroup
+          options={QUICK_OVERS.map((value) => ({ value: `${value}`, label: `${value}`, accessibilityLabel: plural(value, 'over'), testID: `setup-overs-${value}` }))}
+          value={customOvers.trim() === '' ? `${overs}` : null}
+          onChange={(key) => {
+            setCustomOvers('');
+            chooseOvers(Number(key));
+          }}
+          columns={choiceColumns('overs', layout.width, fontScale)}
+          accessibilityLabel="Overs per innings"
+          testID="setup-overs-group"
+        />
+        <TextField
+          {...chain.field('overs')}
           label="Other number of overs"
           value={customOvers}
           onChangeText={(text) => {
@@ -129,40 +151,55 @@ export function MatchInfoStep({ tournamentId = null, fixtureId = null }: MatchIn
             }
           }}
           numeric
-          placeholder="17"
+          maxLength={3}
+          placeholder="e.g. 12"
           error={typedError}
           testID="setup-overs-custom"
         />
-        <View style={styles.pair}>
-          <View style={styles.flex}>
-            <TextField label="Date" value={date} onChangeText={(text) => update({ scheduledDate: text.trim() === '' ? null : text })} placeholder="2026-09-12" error={dateError(date)} testID="setup-date" />
+      </Inset>
+      <SectionHeader title="When and where" />
+      <Inset bottom="xs">
+        <View style={styles.when}>
+          <View style={styles.whenField}>
+            <DateField
+              label="Date"
+              value={draft.scheduledDate}
+              optional
+              onChange={(scheduledDate) => update(scheduledDate === null ? { scheduledDate: null, scheduledTime: null } : { scheduledDate })}
+              testID="setup-date"
+            />
           </View>
-          <View style={styles.flex}>
-            <TextField label="Time" value={time} onChangeText={(text) => update({ scheduledTime: text.trim() === '' ? null : text })} placeholder="14:00" error={timeError(time)} testID="setup-time" />
-          </View>
+          {draft.scheduledDate !== null ? (
+            <View style={styles.whenField}>
+              <TimeField label="Start time" value={draft.scheduledTime} optional onChange={(scheduledTime) => update({ scheduledTime })} testID="setup-time" />
+            </View>
+          ) : null}
         </View>
-        <PickerRow label="Venue" value={venueName} placeholder={draft.venueId === null} onPress={() => setPicker('venue')} testID="setup-venue" />
-      </View>
+      </Inset>
+      <PickerRow label="Venue" value={venueName} placeholder={draft.venueId === null} onPress={() => setPicker('venue')} testID="setup-venue" />
       <RulesEditor
         rules={draft.rules}
         issues={issues}
         onChange={(rules) => update({ rules })}
         action={preset !== null ? { label: `Reset to ${preset.label}`, onPress: () => update({ rules: preset.rules }), testID: 'setup-rules-reset' } : undefined}
       />
-      {issues.length === 0 ? null : (
-        <Text variant="footnote" tone="secondary" style={styles.block}>
-          Fix the rules marked above to continue.
-        </Text>
-      )}
+
       <ChoiceSheet
         visible={picker === 'venue'}
         title="Venue"
         onClose={() => setPicker(null)}
         testID="sheet-setup-venue"
         choices={[
-          { key: 'none', title: 'No venue', onPress: () => pickVenue(null) },
-          ...venues.map((venue) => ({ key: venue.id, title: venue.name, subtitle: venue.location ?? undefined, onPress: () => pickVenue(venue.id) })),
-          { key: 'new', title: 'Add a venue', icon: 'plus' as const, onPress: () => setPicker('new_venue') },
+          { key: 'none', title: 'No venue', kind: 'option', selected: draft.venueId === null, onPress: () => pickVenue(null) },
+          ...venues.map((venue) => ({
+            key: venue.id,
+            title: venue.name,
+            subtitle: venue.location ?? undefined,
+            kind: 'option' as const,
+            selected: draft.venueId === venue.id,
+            onPress: () => pickVenue(venue.id),
+          })),
+          { key: 'new', title: 'Add a venue', icon: 'plus' as const, kind: 'action' as const, onPress: () => setPicker('new_venue') },
         ]}
       />
       {picker === 'new_venue' ? (
@@ -179,7 +216,6 @@ export function MatchInfoStep({ tournamentId = null, fixtureId = null }: MatchIn
 }
 
 const styles = StyleSheet.create({
-  block: { paddingHorizontal: space.md, paddingTop: space.sm, gap: space.sm },
-  pair: { flexDirection: 'row', gap: space.sm },
-  flex: { flex: 1 },
+  when: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm },
+  whenField: { flexGrow: 1, flexBasis: 160, minWidth: 0 },
 });

@@ -5,6 +5,8 @@ import { indexSnapshot } from './evaluation/snapshotIndex';
 import { countedMatches } from './evaluation/statsMatches';
 import { aggregateTeams } from './evaluation/teamStats';
 
+export { recordHolderText, recordHoldersText, recordValueText, type RecordNames } from './evaluation/records';
+
 export function computeTournamentStats(snapshot: TournamentSnapshot, evaluation: TournamentEvaluation): TournamentStats {
   const matches = countedMatches(snapshot);
   const innings = matches.flatMap((match) => match.summary.innings);

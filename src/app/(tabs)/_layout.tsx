@@ -1,11 +1,12 @@
 import { Tabs } from 'expo-router/js-tabs';
+import { tabChangeFeedback } from '@/stores';
 import { RouterTabBar, TAB_ITEMS, TabChrome, useTabScreenOptions } from '@/ui';
 
 export default function TabsLayout() {
   const screenOptions = useTabScreenOptions();
   return (
     <TabChrome>
-      <Tabs tabBar={(props) => <RouterTabBar {...props} />} screenOptions={screenOptions}>
+      <Tabs tabBar={(props) => <RouterTabBar {...props} onSelectionChange={tabChangeFeedback} />} screenOptions={screenOptions}>
         {TAB_ITEMS.map((tab) => (
           <Tabs.Screen key={tab.route} name={tab.route} options={{ title: tab.label, tabBarButtonTestID: tab.testID }} />
         ))}

@@ -1,18 +1,19 @@
 import { StyleSheet, View } from 'react-native';
 import { useRouter, type Href } from 'expo-router';
 import type { TournamentId } from '@/domain/types';
-import { Notice } from '@/features/shared';
-import { BoundaryRule, Button, Dialog, IconButton, ListRow, SectionHeader, Separator, Text, space, useLayoutClass } from '@/ui';
+import { fitsInline } from '@/features/shared';
+import { Banner, Button, Dialog, IconButton, Inset, ListRow, PressableRow, SectionHeader, Separator, Text, TwoPane, space } from '@/ui';
 import { useTournamentWizardStore } from '@/stores';
 import { FixtureRow } from '../components/FixtureRow';
 import { ProgressRule } from '../components/ProgressRule';
+import { Scoreline } from '../components/Scoreline';
 import { StandingsTable } from '../components/StandingsTable';
-import { useStartFixtureMatch } from '../hooks/useStartFixtureMatch';
+import { PROVISIONAL_START_TITLE, useStartFixtureMatch } from '../hooks/useStartFixtureMatch';
 import { showError } from '../hooks/toast';
 import { useTournamentView } from '../hooks/useTournamentView';
 import { useVenues, venueLookup } from '../hooks/useLibrary';
 import { routes } from '../routes';
-import { dashboardVM, type DashboardVM } from '../selectors/dashboard';
+import { dashboardVM, type DashboardResultVM, type DashboardVM } from '../selectors/dashboard';
 import type { TournamentIndex } from '../selectors/names';
 import { TournamentContainer } from './TournamentContainer';
 
@@ -44,6 +45,21 @@ function sectionIndex(tournamentId: TournamentId): readonly IndexEntry[] {
   ];
 }
 
+function RecentResultRow({ result, onPress, testID }: { readonly result: DashboardResultVM; readonly onPress: () => void; readonly testID: string }) {
+  const spoken = result.scoreline ? `${result.text}. ${result.scoreline.spoken}` : result.text;
+  return (
+    <PressableRow testID={testID} accessibilityLabel={spoken} onPress={onPress} chevron align="start">
+      <Text variant="tableNumeric" tone="secondary" style={styles.resultLabel}>
+        {result.label}
+      </Text>
+      <View style={styles.flex}>
+        <Text variant="callout">{result.result}</Text>
+        {result.scoreline ? <Scoreline scoreline={result.scoreline} /> : null}
+      </View>
+    </PressableRow>
+  );
+}
+
 interface DashboardBodyProps {
   readonly tournamentId: TournamentId;
   readonly index: TournamentIndex;
@@ -52,8 +68,6 @@ interface DashboardBodyProps {
 
 function DashboardBody({ tournamentId, index, vm }: DashboardBodyProps) {
   const router = useRouter();
-  const layout = useLayoutClass();
-  const twoPane = layout.width === 'expanded';
   const start = useStartFixtureMatch(tournamentId, index);
   const next = vm.next;
 
@@ -67,19 +81,23 @@ function DashboardBody({ tournamentId, index, vm }: DashboardBodyProps) {
   };
 
   const progressBlock = vm.setup ? null : (
-    <View style={styles.block} accessible accessibilityLabel={`${vm.stageName ?? 'Tournament'}: ${vm.progressLabel}`}>
-      <View style={styles.progressLine}>
-        <Text variant="label" tone="secondary" style={styles.flex} testID="dash-text-stage">
-          {vm.stageName ?? 'All stages'}
-        </Text>
-        <Text variant="scoreMedium" testID="dash-text-progress">
-          {vm.progressText}
-        </Text>
-      </View>
-      <ProgressRule ratio={vm.progressRatio} width="100%" />
-      <Text variant="footnote" tone="secondary">
-        {vm.progressLabel}
-      </Text>
+    <View style={styles.block} accessible accessibilityLabel={[vm.progressLabel, vm.progressDetail].filter(Boolean).join('. ')}>
+      <Inset gap="xs">
+        <View style={styles.progressLine}>
+          <Text variant="label" tone="secondary" style={styles.flex} testID="dash-text-stage">
+            {vm.stageName ?? 'Tournament'}
+          </Text>
+          <Text variant="headline" testID="dash-text-progress">
+            {`${vm.progressText} played`}
+          </Text>
+        </View>
+        <ProgressRule ratio={vm.progressRatio} width="100%" />
+        {vm.progressDetail ? (
+          <Text variant="footnote" tone="secondary" testID="dash-text-progress-detail">
+            {vm.progressDetail}
+          </Text>
+        ) : null}
+      </Inset>
     </View>
   );
 
@@ -138,13 +156,15 @@ function DashboardBody({ tournamentId, index, vm }: DashboardBodyProps) {
         <Separator />
         <SectionHeader
           title={`Standings · ${vm.standings.table.title}`}
-          action={{ label: 'Full', onPress: () => router.push(routes.standings(tournamentId)), testID: 'dash-btn-standings-full' }}
+          action={{ label: 'See all', onPress: () => router.push(routes.standings(tournamentId)), testID: 'dash-btn-standings-full' }}
         />
         <StandingsTable table={vm.standings.table} compact testIDPrefix="dash-standings" maxRows={8} />
-        {vm.standings.explanation ? (
-          <Text variant="footnote" style={styles.explanation} testID="dash-text-qualification">
-            {vm.standings.explanation}
-          </Text>
+        {vm.standings.explanation && fitsInline(vm.standings.explanation) ? (
+          <Inset top="xs">
+            <Text variant="footnote" tone="secondary" testID="dash-text-qualification">
+              {vm.standings.explanation}
+            </Text>
+          </Inset>
         ) : null}
       </View>
     );
@@ -155,13 +175,12 @@ function DashboardBody({ tournamentId, index, vm }: DashboardBodyProps) {
         <Separator />
         <SectionHeader
           title="Recent results"
-          action={{ label: 'All', onPress: () => router.push(routes.fixtures(tournamentId)), testID: 'dash-btn-results-all' }}
+          action={{ label: 'See all', onPress: () => router.push(routes.fixtures(tournamentId)), testID: 'dash-btn-results-all' }}
         />
         {vm.recent.map((result, position) => (
-          <ListRow
+          <RecentResultRow
             key={result.key}
-            title={result.text}
-            compact
+            result={result}
             onPress={() => router.push(routes.fixture(tournamentId, result.fixtureId))}
             testID={`dash-row-result-${position + 1}`}
           />
@@ -171,9 +190,8 @@ function DashboardBody({ tournamentId, index, vm }: DashboardBodyProps) {
 
   return (
     <View>
-      <BoundaryRule />
       {vm.unresolvedTies.map((text, position) => (
-        <Notice
+        <Banner
           key={text}
           tone="warning"
           message={text}
@@ -181,49 +199,50 @@ function DashboardBody({ tournamentId, index, vm }: DashboardBodyProps) {
           testID={`dash-text-tie-${position + 1}`}
         />
       ))}
-      {vm.stale ? <Notice tone="info" message="Some results are being recalculated." testID="dash-text-stale" /> : null}
-      {vm.archived ? <Notice tone="info" message="Archived: read only. Unarchive in Tournament settings." testID="dash-text-archived" /> : null}
+      {vm.stale ? <Banner tone="info" message="Updating results…" testID="dash-text-stale" /> : null}
+      {vm.archived ? <Banner tone="info" message="Archived · read only" testID="dash-text-archived" /> : null}
       {vm.setup ? (
         <View style={styles.block}>
-          <Text variant="headline">Setup in progress</Text>
-          <Text variant="callout" tone="secondary">
-            Finish the setup to generate fixtures and start scoring.
-          </Text>
-          <Button label="Continue setup" onPress={() => void continueSetup()} testID="dash-btn-continue-setup" />
+          <Inset gap="sm">
+            <Text variant="headline">Setup in progress</Text>
+            <View style={styles.start}>
+              <Button label="Continue setup" onPress={() => void continueSetup()} testID="dash-btn-continue-setup" />
+            </View>
+          </Inset>
         </View>
       ) : null}
       {vm.champion ? (
         <View style={styles.block} accessible accessibilityLabel={`Champion: ${vm.champion.names}. ${vm.champion.basis}`}>
-          <Text variant="label" tone="secondary">
-            Champion
-          </Text>
-          <Text variant="title1" testID="dash-text-champion">
-            {vm.champion.names}
-          </Text>
-          <Text variant="callout" tone="secondary">
-            {vm.champion.basis}
-          </Text>
+          <Inset gap="xs">
+            <Text variant="label" tone="secondary">
+              Champion
+            </Text>
+            <Text variant="title1" testID="dash-text-champion">
+              {vm.champion.names}
+            </Text>
+            <Text variant="callout" tone="secondary">
+              {vm.champion.basis}
+            </Text>
+          </Inset>
         </View>
       ) : null}
-      {twoPane ? (
-        <View style={styles.panes}>
-          <View style={styles.paneStart}>
+      <TwoPane
+        ratio={0.45}
+        primary={
+          <View>
             {progressBlock}
             {liveBlock}
             {nextBlock}
+          </View>
+        }
+        secondary={
+          <View>
+            {standingsBlock}
             {recentBlock}
           </View>
-          <View style={styles.paneEnd}>{standingsBlock}</View>
-        </View>
-      ) : (
-        <View>
-          {progressBlock}
-          {liveBlock}
-          {nextBlock}
-          {standingsBlock}
-          {recentBlock}
-        </View>
-      )}
+        }
+        testID="dash-panes"
+      />
       <Separator />
       <SectionHeader title="Tournament" />
       {sectionIndex(tournamentId)
@@ -233,7 +252,7 @@ function DashboardBody({ tournamentId, index, vm }: DashboardBodyProps) {
         ))}
       <Dialog
         visible={start.prompt !== null}
-        title="Start anyway?"
+        title={PROVISIONAL_START_TITLE}
         message={start.prompt?.message}
         cancel={{ label: 'Cancel', onPress: start.dismiss }}
         confirm={{ label: 'Start anyway', onPress: start.confirm, loading: start.busy }}
@@ -257,7 +276,6 @@ export function DashboardScreen({ tournamentId }: DashboardScreenProps) {
       subtitle={() => vm?.metaLine ?? null}
       titleTestID="dash-text-name"
       backTo={routes.tournaments()}
-      ambient
       trailing={() => (
         <IconButton icon="settings" accessibilityLabel="Tournament settings" onPress={() => router.push(routes.manage(tournamentId))} testID="dash-btn-settings" />
       )}
@@ -268,11 +286,9 @@ export function DashboardScreen({ tournamentId }: DashboardScreenProps) {
 }
 
 const styles = StyleSheet.create({
-  block: { paddingHorizontal: space.md, paddingVertical: space.md, gap: space.xs },
-  progressLine: { flexDirection: 'row', alignItems: 'baseline', gap: space.sm },
-  flex: { flex: 1 },
-  explanation: { paddingHorizontal: space.md, paddingTop: space.xs },
-  panes: { flexDirection: 'row', gap: space.md },
-  paneStart: { flex: 45 },
-  paneEnd: { flex: 55 },
+  block: { paddingVertical: space.md },
+  progressLine: { flexDirection: 'row', alignItems: 'baseline', flexWrap: 'wrap', gap: space.sm },
+  flex: { flex: 1, minWidth: 0 },
+  start: { alignSelf: 'flex-start' },
+  resultLabel: { minWidth: space['3xl'] },
 });

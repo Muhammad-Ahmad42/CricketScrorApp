@@ -15,3 +15,4 @@ export * from './template';
 export * from './backup';
 export * from './settings';
 export * from './readModels';
+export * from './copy';

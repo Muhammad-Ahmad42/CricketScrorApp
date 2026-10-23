@@ -1,4 +1,5 @@
-import type { InningsLine, MatchListItem, MatchListQuery, MatchResult, MatchStatus } from '@/domain/types';
+import { listChase } from '@/domain/scoring/listChase';
+import type { InningsLine, ListChase, MatchListItem, MatchListQuery, MatchResult, MatchStatus } from '@/domain/types';
 import { INNINGS_COLUMNS, inningsLineFromRow, type InningsRow } from '../mappers/projection';
 import { parseJsonOrNull } from '../mappers/values';
 import type { SqlExecutor, SqlValue } from '../types';
@@ -16,6 +17,8 @@ interface MatchListRow {
   readonly tournament_name: string | null;
   readonly resume_dismissed_at: string | null;
   readonly updated_at: string;
+  readonly started_at: string | null;
+  readonly completed_at: string | null;
   readonly team_a_id: string;
   readonly team_a_name: string;
   readonly team_a_short: string;
@@ -25,7 +28,7 @@ interface MatchListRow {
 }
 
 const LIST_SELECT = `SELECT m.id, m.title, m.status, m.result_json, m.overs_per_innings, m.scheduled_date, m.tournament_id,
-  t.name AS tournament_name, m.resume_dismissed_at, m.updated_at,
+  t.name AS tournament_name, m.resume_dismissed_at, m.updated_at, m.started_at, m.completed_at,
   ta.id AS team_a_id, ta.name AS team_a_name, ta.short_name AS team_a_short,
   tb.id AS team_b_id, tb.name AS team_b_name, tb.short_name AS team_b_short
 FROM matches m
@@ -49,16 +52,22 @@ JOIN teams ta ON ta.id = m.team_a_id
 JOIN teams tb ON tb.id = m.team_b_id`;
 
 const SORTS: Readonly<Record<NonNullable<MatchListQuery['sort']>, string>> = {
-  recent: 'm.created_at DESC, m.rowid DESC',
-  oldest: 'm.created_at ASC, m.rowid ASC',
+  recent: 'COALESCE(m.started_at, m.completed_at, m.created_at) DESC, m.created_at DESC, m.rowid DESC',
+  oldest: 'COALESCE(m.started_at, m.completed_at, m.created_at) ASC, m.created_at ASC, m.rowid ASC',
   scheduled:
     'm.scheduled_date IS NULL, m.scheduled_date ASC, m.scheduled_time IS NULL, m.scheduled_time ASC, m.created_at ASC, m.rowid ASC',
 };
 
-async function inningsByMatch(db: SqlExecutor, matchIds: readonly string[]): Promise<ReadonlyMap<string, InningsLine[]>> {
+interface MatchInnings {
+  readonly lines: ReadonlyMap<string, InningsLine[]>;
+  readonly chases: ReadonlyMap<string, ListChase>;
+}
+
+async function inningsByMatch(db: SqlExecutor, matchIds: readonly string[]): Promise<MatchInnings> {
   const grouped = new Map<string, InningsLine[]>();
+  const chases = new Map<string, ListChase>();
   if (matchIds.length === 0) {
-    return grouped;
+    return { lines: grouped, chases };
   }
   const rows = await db.getAllAsync<InningsRow>(
     `SELECT ${INNINGS_COLUMNS} FROM innings WHERE match_id ${IN_JSON_LIST} ORDER BY match_id, innings_index`,
@@ -68,8 +77,19 @@ async function inningsByMatch(db: SqlExecutor, matchIds: readonly string[]): Pro
     const lines = grouped.get(row.match_id) ?? [];
     lines.push(inningsLineFromRow(row));
     grouped.set(row.match_id, lines);
+    const chase = listChase({ status: row.status, target: row.target, runs: row.runs, legalBalls: row.legal_balls, maxBalls: row.max_balls });
+    if (chase === null) {
+      chases.delete(row.match_id);
+    } else {
+      chases.set(row.match_id, chase);
+    }
   }
-  return grouped;
+  return { lines: grouped, chases };
+}
+
+function chaseOf(chases: ReadonlyMap<string, ListChase>, matchId: string, status: MatchStatus): { readonly chase?: ListChase } {
+  const chase = status === 'live' || status === 'paused' ? chases.get(matchId) : undefined;
+  return chase === undefined ? {} : { chase };
 }
 
 async function listItems(db: SqlExecutor, sql: string, params: readonly SqlValue[]): Promise<MatchListItem[]> {
@@ -86,12 +106,15 @@ async function listItems(db: SqlExecutor, sql: string, params: readonly SqlValue
     teamA: { id: row.team_a_id, name: row.team_a_name, shortName: row.team_a_short },
     teamB: { id: row.team_b_id, name: row.team_b_name, shortName: row.team_b_short },
     oversPerInnings: row.overs_per_innings,
-    innings: innings.get(row.id) ?? [],
+    innings: innings.lines.get(row.id) ?? [],
     scheduledDate: row.scheduled_date,
     tournamentId: row.tournament_id,
     tournamentName: row.tournament_name,
     resumeDismissedAt: row.resume_dismissed_at,
     updatedAt: row.updated_at,
+    startedAt: row.started_at,
+    completedAt: row.completed_at,
+    ...chaseOf(innings.chases, row.id, row.status),
   }));
 }
 

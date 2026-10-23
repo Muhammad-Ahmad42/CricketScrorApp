@@ -2,11 +2,12 @@ import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import type { PoolAssignment } from '@/domain/tournament/pools';
 import type { PoolId, StageId, TournamentId } from '@/domain/types';
-import { ImpactSheet, Notice } from '@/features/shared';
-import { Button, Dialog, EmptyState, SegmentedControl, Sheet, Text, TextField, space, useScreenList } from '@/ui';
+import { ImpactSheet, plural } from '@/features/shared';
+import { Banner, Button, Dialog, Disclosure, EmptyState, Inset, SegmentedControl, Sheet, TextField, space, useScreenList } from '@/ui';
 import { useTeamLibraryStore } from '@/stores';
 import { PoolBoard } from '../components/PoolBoard';
 import { showToast } from '../hooks/toast';
+import { REPEAT_DRAW_LABEL } from '../labels';
 import { useChangeFlow, type ChangeBuilder } from '../hooks/useChangeFlow';
 import { useLibraryLoaded } from '../hooks/useLibrary';
 import { freshSeed, newId } from '../ids';
@@ -45,14 +46,14 @@ function PoolsStagePicker({ index, stageId, onChange }: { readonly index: Tourna
     return null;
   }
   return (
-    <View style={styles.picker}>
+    <Inset bottom="xs">
       <SegmentedControl
         options={stageIds.map((candidate) => ({ value: candidate, label: index.stageName(candidate) }))}
         value={stageId}
         onChange={onChange}
         accessibilityLabel="Stage"
       />
-    </View>
+    </Inset>
   );
 }
 
@@ -66,7 +67,7 @@ function PoolsBody({ index, stageId }: { readonly index: TournamentIndex; readon
   if (stageId === null) {
     return (
       <View style={{ paddingTop: list.contentInset.paddingTop }}>
-        <EmptyState icon="trophy" title="No pools" body="This tournament has no stage with pools." testID="pools-empty" />
+        <EmptyState icon="trophy" title="No pools" testID="pools-empty" />
       </View>
     );
   }
@@ -92,7 +93,7 @@ function PoolsBody({ index, stageId }: { readonly index: TournamentIndex; readon
         const drawn = drawRandom(members, current.pools.map((pool) => ({ poolId: pool.poolId, name: pool.name })), seed, sizes);
         return poolsReplaceChange(stageId, drawn);
       },
-      `Pools drawn (seed ${seed})`,
+      `Pools drawn (no. ${seed})`,
       () => {
         if (previous) {
           offerUndo(previous);
@@ -123,14 +124,13 @@ function PoolsBody({ index, stageId }: { readonly index: TournamentIndex; readon
   const boardHeader = (
     <View>
       {locked ? (
-        <Notice tone="info" message="Pools can't be changed any more in this tournament." testID="pools-text-locked" />
+        <Banner tone="info" message="Pools are locked" testID="pools-text-locked" />
       ) : (
-        <View style={styles.padded}>
-          <Button label="Re-draw pools" variant="secondary" icon="arrow-left-right" onPress={() => setMode({ kind: 'redraw' })} testID="pools-btn-redraw" />
-          <Text variant="footnote" tone="secondary">
-            Every change shows what will change before anything is saved. Played matches are never touched.
-          </Text>
-        </View>
+        <Inset top="sm">
+          <View style={styles.start}>
+            <Button label="Re-draw pools" variant="secondary" icon="arrow-left-right" onPress={() => setMode({ kind: 'redraw' })} testID="pools-btn-redraw" />
+          </View>
+        </Inset>
       )}
     </View>
   );
@@ -152,14 +152,14 @@ function PoolsBody({ index, stageId }: { readonly index: TournamentIndex; readon
         actions={
           mode.kind === 'actions'
             ? [
-                { key: 'move', label: 'Move to pool…', icon: 'arrow-left-right', testID: 'pools-btn-move', onPress: () => setMode({ ...mode, kind: 'move' }) },
+                { key: 'move', label: 'Move to pool…', icon: 'redo-2', testID: 'pools-btn-move', onPress: () => setMode({ ...mode, kind: 'move' }) },
                 { key: 'swap', label: 'Swap with…', icon: 'arrow-left-right', testID: 'pools-btn-swap', onPress: () => setMode({ ...mode, kind: 'swap' }) },
                 ...(mode.member.isSlot
                   ? []
                   : [
                       {
                         key: 'replace',
-                        label: 'Replace with another team…',
+                        label: 'Replace with…',
                         icon: 'pencil-line' as const,
                         testID: 'pools-btn-replace',
                         onPress: () => setMode({ kind: 'replace', member: mode.member }),
@@ -171,10 +171,11 @@ function PoolsBody({ index, stageId }: { readonly index: TournamentIndex; readon
       />
       <PickerSheet
         visible={mode.kind === 'move'}
-        title={mode.kind === 'move' ? `Move ${mode.member.label} to` : ''}
+        title="Move to pool"
+        subtitle={mode.kind === 'move' ? mode.member.label : undefined}
         options={
           mode.kind === 'move'
-            ? pools.filter((pool) => pool.poolId !== mode.poolId).map((pool) => ({ key: pool.poolId, title: pool.name, subtitle: `${pool.members.length} teams` }))
+            ? pools.filter((pool) => pool.poolId !== mode.poolId).map((pool) => ({ key: pool.poolId, title: pool.name, subtitle: plural(pool.members.length, 'team') }))
             : []
         }
         testIDPrefix="pools-target"
@@ -182,13 +183,14 @@ function PoolsBody({ index, stageId }: { readonly index: TournamentIndex; readon
         onPick={(poolId) => {
           if (mode.kind === 'move') {
             const member = mode.member;
-            startChange((fresh) => poolMoveChange(fresh, stageId, member.side, poolId, newId),`${member.label} moved to ${index.poolName(poolId) ?? 'the pool'}`);
+            startChange((fresh) => poolMoveChange(fresh, stageId, member.side, poolId, newId), `${member.label} moved to ${index.poolName(poolId) ?? 'the pool'}`);
           }
         }}
       />
       <PickerSheet
         visible={mode.kind === 'swap'}
-        title={mode.kind === 'swap' ? `Swap ${mode.member.label} with` : ''}
+        title="Swap with"
+        subtitle={mode.kind === 'swap' ? mode.member.label : undefined}
         options={mode.kind === 'swap' ? memberOptions(mode.poolId) : []}
         testIDPrefix="pools-swap"
         onClose={close}
@@ -227,14 +229,17 @@ function PoolsBody({ index, stageId }: { readonly index: TournamentIndex; readon
       ) : null}
       <Sheet visible={mode.kind === 'redraw'} title="Re-draw pools" onClose={close} testID="sheet-redraw">
         <View style={styles.sheetBody}>
-          <TextField
-            label="Seed (optional)"
-            value={seedText}
-            onChangeText={setSeedText}
-            helper="Leave empty for a new random draw. Enter a seed, e.g. 847291, to reproduce a draw."
-            numeric
-            testID="pools-input-seed"
-          />
+          <Disclosure label={REPEAT_DRAW_LABEL} defaultExpanded={seedText !== ''} testID="pools-btn-repeat-draw">
+            <TextField
+              label="Draw number"
+              value={seedText}
+              onChangeText={setSeedText}
+              numeric
+              returnKeyType="done"
+              onSubmitEditing={() => setMode({ kind: 'confirm-redraw', seedText })}
+              testID="pools-input-seed"
+            />
+          </Disclosure>
           <Button label="Draw pools" onPress={() => setMode({ kind: 'confirm-redraw', seedText })} fullWidth testID="pools-btn-draw" />
         </View>
       </Sheet>
@@ -277,7 +282,6 @@ export function PoolsScreen({ tournamentId }: PoolsScreenProps) {
 
 const styles = StyleSheet.create({
   fill: { flex: 1 },
-  padded: { paddingHorizontal: space.md, paddingTop: space.sm, gap: space.xs },
-  picker: { paddingHorizontal: space.md, paddingBottom: space.xs },
+  start: { alignSelf: 'flex-start' },
   sheetBody: { gap: space.md },
 });

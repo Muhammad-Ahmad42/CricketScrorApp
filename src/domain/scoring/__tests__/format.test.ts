@@ -1,12 +1,16 @@
 import type { BallRecord, DismissalRecord, DismissalType } from '../../types';
 import {
   ballToken,
+  builtinFormatOvers,
   dismissalText,
   formatBowlingFigures,
+  formatDisplayLabel,
   formatNrr,
+  formatPresetName,
   formatOvers,
   formatRate,
   formatRequirement,
+  formatRequirementCompact,
   formatScore,
 } from '../format';
 import { battingAverage, ballsToOvers, economyRate, requiredRunRate, runRate, strikeRate } from '../stats';
@@ -67,11 +71,26 @@ describe('number formatting (U-FMT-01..06)', () => {
 
   it('U-FMT-04 net run rate with explicit sign and no negative zero', () => {
     expect(formatNrr(1.2344)).toBe('+1.234');
-    expect(formatNrr(-0.5674)).toBe('-0.567');
+    expect(formatNrr(-0.5674)).toBe('−0.567');
     expect(formatNrr(0)).toBe('0.000');
     expect(formatNrr(null)).toBe('–');
     expect(formatNrr(3.254902)).toBe('+3.255');
     expect(formatNrr(-0.00001)).toBe('0.000');
+  });
+
+  it('writes negative net run rate with a true minus sign, so tabular figures show no gap after it', () => {
+    expect(formatNrr(-1.907)).toBe('−1.907');
+    expect(formatNrr(-1.907)).not.toContain('-');
+  });
+
+  it('names a built-in format only while its overs still match the preset', () => {
+    expect(builtinFormatOvers('T20')).toBe(20);
+    expect(builtinFormatOvers('custom')).toBeNull();
+    expect(formatDisplayLabel('T20', 20)).toBe('T20');
+    expect(formatDisplayLabel('T20', 5)).toBe('5 ov');
+    expect(formatDisplayLabel('custom', 17)).toBe('17 ov');
+    expect(formatPresetName('T10', 10)).toBe('T10');
+    expect(formatPresetName('T10', 8)).toBe('Custom');
   });
 
   it('U-FMT-05 bowling figures', () => {
@@ -81,6 +100,8 @@ describe('number formatting (U-FMT-01..06)', () => {
 
   it('U-FMT-06 requirement', () => {
     expect(formatRequirement(23, 14)).toBe('Need 23 from 14 balls');
+    expect(formatRequirementCompact(23, 14)).toBe('Need 23 off 14');
+    expect(formatRequirementCompact(1, 1)).toBe('Need 1 off 1');
     expect(formatRequirement(1, 1)).toBe('Need 1 run from 1 ball');
     expect(formatRequirement(10, 12)).toBe('Need 10 from 12 balls');
   });

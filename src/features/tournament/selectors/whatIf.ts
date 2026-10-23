@@ -1,5 +1,7 @@
 import type {
+  Explained,
   Fixture,
+  HypotheticalMargin,
   HypotheticalOutcome,
   HypotheticalResult,
   HypotheticalScore,
@@ -8,7 +10,7 @@ import type {
 } from '@/domain/types';
 import { fixtureRow, isUnplayed, sortFixtures, type FixtureRowVM } from './fixtures';
 import type { TournamentIndex } from './names';
-import { standingRowVM, type StandingRowVM } from './standings';
+import { standingRowVM, type StandingRowVM, type StandingsTableVM } from './standings';
 
 export const OUTCOME_KEYS: { readonly [K in HypotheticalOutcome]: string } = {
   side_a_win: 'side-a',
@@ -103,6 +105,53 @@ export interface WhatIfTableVM {
   readonly key: string;
   readonly title: string;
   readonly rows: readonly WhatIfTableRow[];
+  readonly table: StandingsTableVM;
+}
+
+export interface WhatIfLineVM {
+  readonly key: string;
+  readonly headline: string;
+  readonly detail: string | null;
+}
+
+function lineItems(lines: readonly string[], items: readonly Explained[] | undefined): readonly WhatIfLineVM[] {
+  if (items !== undefined) {
+    return items.map((item, position) => ({ key: `${position}:${item.headline}`, headline: item.headline, detail: item.detail ?? null }));
+  }
+  return lines.map((line, position) => ({ key: `${position}:${line}`, headline: line, detail: null }));
+}
+
+export function whatIfNarrative(result: WhatIfResult): readonly WhatIfLineVM[] {
+  return lineItems(result.narrative, result.narrativeItems);
+}
+
+export interface WhatIfNrrVM {
+  readonly simulated: boolean;
+  readonly header: string | undefined;
+  readonly notes: readonly WhatIfLineVM[];
+  readonly legend: string | null;
+  readonly headline: string | null;
+}
+
+export function whatIfNrr(result: WhatIfResult): WhatIfNrrVM {
+  const nrr = result.nrr;
+  if (!nrr) {
+    return { simulated: true, header: undefined, notes: [], legend: null, headline: null };
+  }
+  const uncertain = nrr.nrrUncertainTeamIds.length > 0;
+  const partial = !nrr.simulated && nrr.estimatedFixtureIds.length > 0;
+  const dagger = uncertain ? ' † Places decided on NRR may change.' : '';
+  return {
+    simulated: nrr.simulated,
+    header: nrr.simulated ? undefined : partial ? 'NRR est.' : 'NRR now',
+    notes: lineItems(nrr.notes, nrr.noteItems),
+    legend: nrr.simulated
+      ? null
+      : partial
+        ? `NRR est. uses the margins you entered. Other results add points only.${dagger}`
+        : `NRR now is each team's current net run rate.${dagger}`,
+    headline: nrr.simulated ? (nrr.notes.length > 0 ? 'About net run rate' : null) : partial ? 'Net run rate partly estimated' : 'Net run rate not simulated',
+  };
 }
 
 function deltaText(change: StandingChange | undefined): string {
@@ -125,21 +174,66 @@ export function whatIfTables(index: TournamentIndex, result: WhatIfResult): read
     .filter((table) => touched.has(`${table.stageId}:${table.poolId ?? ''}`))
     .map((table) => {
       const key = table.poolId ? index.poolKey(table.poolId) : 'overall';
+      const uncertain = new Set(result.nrr && !result.nrr.simulated ? result.nrr.nrrUncertainTeamIds : []);
+      const rows = table.rows.map((row) => {
+        const delta = deltaText(
+          result.standingChanges.find((change) => change.stageId === table.stageId && change.poolId === table.poolId && change.teamId === row.teamId),
+        );
+        const vm = standingRowVM(index, row, key);
+        return { row: { ...vm, delta, nrrUncertain: row.teamId !== null && uncertain.has(row.teamId) }, delta };
+      });
+      const title = (table.poolId ? index.poolName(table.poolId) : null) ?? index.stageName(table.stageId);
       return {
         key: `${table.stageId}:${key}`,
-        title: (table.poolId ? index.poolName(table.poolId) : null) ?? index.stageName(table.stageId),
-        rows: table.rows.map((row) => ({
-          row: standingRowVM(index, row, key),
-          delta: deltaText(
-            result.standingChanges.find(
-              (change) => change.stageId === table.stageId && change.poolId === table.poolId && change.teamId === row.teamId,
-            ),
-          ),
-        })),
+        title,
+        rows,
+        table: {
+          key,
+          title,
+          poolId: table.poolId,
+          rows: rows.map((entry) => entry.row),
+          showTies: table.rows.some((row) => row.tied > 0),
+          complete: table.complete,
+          chain: '',
+          unresolvedTies: [],
+        },
       };
     });
 }
 
-export function hypothetical(fixtureId: string, outcome: HypotheticalOutcome, score: HypotheticalScore | null, tieWinner: 'side_a' | 'side_b' | null): HypotheticalResult {
-  return { fixtureId, outcome, score, tieWinner: outcome === 'tie' ? tieWinner : null };
+export type MarginKind = 'none' | 'runs' | 'wickets';
+
+export interface MarginInput {
+  readonly kind: MarginKind;
+  readonly runs: string;
+  readonly wickets: string;
+  readonly ballsLeft: string;
+}
+
+export function marginFromInput(input: MarginInput): HypotheticalMargin | null | 'invalid' {
+  if (input.kind === 'none') {
+    return null;
+  }
+  if (input.kind === 'runs') {
+    const runs = parseRuns(input.runs);
+    return runs === null || runs < 1 ? 'invalid' : { kind: 'runs', runs };
+  }
+  const wickets = parseRuns(input.wickets);
+  const balls = input.ballsLeft.trim().length === 0 ? 0 : parseRuns(input.ballsLeft);
+  if (wickets === null || wickets < 1 || wickets > 10 || balls === null) {
+    return 'invalid';
+  }
+  return { kind: 'wickets', wickets, ballsRemaining: balls };
+}
+
+export function hypothetical(
+  fixtureId: string,
+  outcome: HypotheticalOutcome,
+  score: HypotheticalScore | null,
+  tieWinner: 'side_a' | 'side_b' | null,
+  margin: HypotheticalMargin | null = null,
+): HypotheticalResult {
+  const base = { fixtureId, outcome, score, tieWinner: outcome === 'tie' ? tieWinner : null };
+  const decided = outcome === 'side_a_win' || outcome === 'side_b_win';
+  return margin !== null && score === null && decided ? { ...base, margin } : base;
 }

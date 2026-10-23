@@ -1,5 +1,6 @@
 import type {
   ChangePlan,
+  Explained,
   Fixture,
   FixtureImpact,
   ImpactSeverity,
@@ -18,12 +19,15 @@ import {
   standingChanges,
   standingSentence,
 } from '../evaluation/diff';
+import { explain, splitExplained } from '../../text';
 import { joinNames, plural, possessive } from '../evaluation/format';
 import { countedSummaryOf } from '../evaluation/sides';
 import type { SnapshotIndex } from '../evaluation/snapshotIndex';
 import { fixtureTeamsVia } from '../evaluation/stageTables';
 import { isFixtureReplay } from '../fixtureReplay';
 import { deepEqual } from './equality';
+import { labelFixtureImpacts, labelQualificationChanges, labelStandingChanges } from './impactLabels';
+import { slotShortfalls } from './slotShortfalls';
 
 interface Evaluated {
   readonly snapshot: TournamentSnapshot;
@@ -42,6 +46,19 @@ function sideName(side: Evaluated, fixture: Fixture, which: 'a' | 'b'): string {
 
 function fixtureLabel(side: Evaluated, fixture: Fixture): string {
   return `Match ${fixture.matchNumber} · ${sideName(side, fixture, 'a')} v ${sideName(side, fixture, 'b')}`;
+}
+
+interface Said {
+  readonly lines: readonly string[];
+  readonly items: readonly Explained[];
+}
+
+const NOTHING_SAID: Said = { lines: [], items: [] };
+
+function labelParts(label: string | null): { readonly match: string | null; readonly teams: string | null } {
+  if (label === null) return { match: null, teams: null };
+  const cut = label.indexOf(' · ');
+  return cut === -1 ? { match: label, teams: null } : { match: label.slice(0, cut), teams: label.slice(cut + 3) };
 }
 
 function updateKind(before: Fixture, after: Fixture): FixtureImpact['change'] | null {
@@ -102,35 +119,52 @@ function playedResultsOf(snapshot: TournamentSnapshot, teamId: string): number {
   ).length;
 }
 
-function replayLines(change: ProposedChange, plan: ChangePlan, before: Evaluated): readonly string[] {
-  if (change.kind !== 'fixture_update') return [];
+function replayLines(change: ProposedChange, plan: ChangePlan, before: Evaluated): Said {
+  if (change.kind !== 'fixture_update') return NOTHING_SAID;
   const old = before.index.fixtureById.get(change.fixtureId);
   const next = plan.fixtures.update.find((fixture) => fixture.id === change.fixtureId);
-  if (!old || !next || !isFixtureReplay(old, change.patch) || old.matchId === null || next.matchId !== null) return [];
+  if (!old || !next || !isFixtureReplay(old, change.patch) || old.matchId === null || next.matchId !== null) return NOTHING_SAID;
   const counted = countedSummaryOf(before.snapshot.summaries, old) !== null;
-  return [
-    `${fixtureLabel(before, old)} will be replayed as a new match.`,
-    counted
-      ? 'The abandoned match stays on record, but its no result stops counting in the standings, net run rate and statistics.'
-      : 'The abandoned match stays on record.',
-  ];
+  const stays = counted ? 'The abandoned match stays on record but no longer counts.' : 'The abandoned match stays on record.';
+  return {
+    lines: [`${fixtureLabel(before, old)} will be replayed as a new match.`, stays],
+    items: [explain(`Match ${old.matchNumber} will be replayed`, stays)],
+  };
 }
 
-function resultLines(change: ProposedChange, plan: ChangePlan, before: Evaluated): { readonly lines: readonly string[]; readonly affected: number } {
+interface ResultSaid extends Said {
+  readonly affected: number;
+}
+
+function removedFromStandings(owner: string, count: number): Said {
+  const results = plural(count, 'result');
+  return {
+    lines: [`${owner} ${results} ${count === 1 ? 'is' : 'are'} removed from the standings.`],
+    items: [explain(`${owner} ${results} removed`, `${count === 1 ? 'It no longer counts' : 'They no longer count'} in the standings.`)],
+  };
+}
+
+function resultLines(change: ProposedChange, plan: ChangePlan, before: Evaluated): ResultSaid {
   const name = (teamId: string) => before.index.teamNames.get(teamId) ?? teamId;
   if (change.kind === 'team_replace') {
     const count = playedResultsOf(before.snapshot, change.outTeamId);
-    if (count === 0) return { lines: [], affected: 0 };
+    if (count === 0) return { ...NOTHING_SAID, affected: 0 };
     const results = plural(count, 'result');
     const out = possessive(name(change.outTeamId));
     const one = count === 1;
     switch (change.priorResults) {
-      case 'transfer_to_replacement':
-        return { lines: [`${out} ${results} ${one ? 'transfers' : 'transfer'} to ${name(change.inTeamId)}.`], affected: count };
+      case 'transfer_to_replacement': {
+        const line = `${out} ${results} ${one ? 'transfers' : 'transfer'} to ${name(change.inTeamId)}.`;
+        return { lines: [line], items: [explain(line)], affected: count };
+      }
       case 'keep_for_opponents':
-        return { lines: [`${out} ${results} ${one ? 'stays' : 'stay'} in the table for their opponents.`], affected: 0 };
+        return {
+          lines: [`${out} ${results} ${one ? 'stays' : 'stay'} in the table for their opponents.`],
+          items: [explain(`${out} ${results} kept for opponents`, `${one ? 'It stays' : 'They stay'} in the table for their opponents.`)],
+          affected: 0,
+        };
       case 'expunge':
-        return { lines: [`${out} ${results} ${one ? 'is' : 'are'} removed from the standings.`], affected: count };
+        return { ...removedFromStandings(out, count), affected: count };
       default: {
         const never: never = change.priorResults;
         return never;
@@ -139,21 +173,27 @@ function resultLines(change: ProposedChange, plan: ChangePlan, before: Evaluated
   }
   if (change.kind === 'team_withdraw') {
     const lines: string[] = [];
+    const items: Explained[] = [];
     const count = change.remainingFixtures === 'walkover' ? plan.matchesToCreate.length : plan.fixtures.update.length;
     if (count > 0) {
-      lines.push(
-        change.remainingFixtures === 'walkover'
-          ? `${plural(count, 'remaining match', 'remaining matches')} become walkovers for the opponents.`
-          : `${plural(count, 'remaining match', 'remaining matches')} will be cancelled.`,
-      );
+      const matches = plural(count, 'remaining match', 'remaining matches');
+      if (change.remainingFixtures === 'walkover') {
+        lines.push(`${matches} become walkovers for the opponents.`);
+        items.push(explain(`${matches} become walkovers`, 'The opponents get the wins.'));
+      } else {
+        lines.push(`${matches} will be cancelled.`);
+        items.push(explain(`${matches} cancelled`));
+      }
     }
     const played = playedResultsOf(before.snapshot, change.teamId);
     if (change.expungeResults && played > 0) {
-      lines.push(`${possessive(name(change.teamId))} ${plural(played, 'result')} ${played === 1 ? 'is' : 'are'} removed from the standings.`);
+      const removed = removedFromStandings(possessive(name(change.teamId)), played);
+      lines.push(...removed.lines);
+      items.push(...removed.items);
     }
-    return { lines, affected: change.expungeResults ? played : 0 };
+    return { lines, items, affected: change.expungeResults ? played : 0 };
   }
-  return { lines: [], affected: 0 };
+  return { ...NOTHING_SAID, affected: 0 };
 }
 
 function fixtureLines(change: ProposedChange, impacts: readonly FixtureImpact[], before: Evaluated): readonly string[] {
@@ -177,29 +217,43 @@ function fixtureLines(change: ProposedChange, impacts: readonly FixtureImpact[],
   phrase('teams_changed', 'changes teams', 'change teams');
   phrase('rescheduled', 'will be rescheduled');
   phrase('status_changed', 'changes status', 'change status');
-  if (change.kind === 'match_result_change') lines.push('A match result changes.');
   return lines;
 }
 
-function championLine(before: Evaluated, after: Evaluated): string | null {
+function resultChangeLine(withdrawn: boolean, impacts: readonly FixtureImpact[]): Said {
+  const label = impacts.find((impact) => impact.change === 'result_changed')?.label ?? null;
+  const { match, teams } = labelParts(label);
+  if (withdrawn) {
+    return {
+      lines: [label === null ? 'A match result no longer counts until the match is finished again.' : `The result of ${label} no longer counts until the match is finished again.`],
+      items: [explain(`${match ?? 'A'} result no longer counts`, `It counts again once ${teams ?? 'the match'} is finished.`)],
+    };
+  }
+  return {
+    lines: [label === null ? 'A match result changes.' : `The result of ${label} changes.`],
+    items: [explain(`${match ?? 'A match'} result changes`, teams)],
+  };
+}
+
+function championLine(before: Evaluated, after: Evaluated): Said {
   const names = (evaluated: Evaluated) =>
     evaluated.evaluation.champion ? joinNames(evaluated.evaluation.champion.teamIds.map((teamId) => evaluated.index.teamNames.get(teamId) ?? teamId), '&') : null;
   const previous = names(before);
   const next = names(after);
-  if (previous === next) return null;
-  if (previous && next) return `The champion changes from ${previous} to ${next}.`;
-  if (next) return `${next} become champion.`;
-  return `${previous} are no longer champion.`;
+  if (previous === next) return NOTHING_SAID;
+  if (previous && next) return { lines: [`The champion changes from ${previous} to ${next}.`], items: [explain(`New champion: ${next}`, `Was ${previous}.`)] };
+  if (next) return { lines: [`${next} become champion.`], items: [explain(`${next} become champion`)] };
+  return { lines: [`${previous} are no longer champion.`], items: [explain(`${previous} no longer champion`)] };
 }
 
 function headline(impacts: readonly FixtureImpact[], standingsTeams: number, qualificationCount: number, planTouches: boolean): string {
   if (impacts.length > 0) {
     const completed = impacts.filter((impact) => impact.hasMatchData).length;
-    return `This change affects ${plural(impacts.length, 'fixture')}${completed > 0 ? `, ${completed} of them completed` : ''}.`;
+    return `${plural(impacts.length, 'fixture')} affected${completed > 0 ? `, ${completed} completed` : ''}`;
   }
-  if (standingsTeams > 0) return `This change affects the standings of ${plural(standingsTeams, 'team')}.`;
-  if (qualificationCount > 0) return 'This change affects qualification.';
-  return planTouches ? "This change doesn't affect any results or fixtures." : 'Nothing in the tournament changes.';
+  if (standingsTeams > 0) return `Standings change for ${plural(standingsTeams, 'team')}`;
+  if (qualificationCount > 0) return 'Qualification changes';
+  return planTouches ? 'No effect on results or fixtures' : 'Nothing changes';
 }
 
 function planTouches(plan: ChangePlan): boolean {
@@ -233,26 +287,47 @@ export function summarizeImpact(
   const standings = standingChanges(before.evaluation, after.evaluation);
   const qualification = qualificationChanges(before.evaluation, after.evaluation);
   const slots = slotChanges(before.snapshot, after.snapshot, before.evaluation, after.evaluation);
+  const shortfalls = slotShortfalls(before, after);
   const nrrTeams = nrrChangedTeams(standings);
   const results = resultLines(change, plan, before);
   const detached = fixtures.filter((impact) => impact.hasMatchData && impact.change !== 'result_changed' && impact.change !== 'rescheduled');
   const completedData = new Set(fixtures.filter((impact) => impact.hasMatchData).map((impact) => impact.fixtureId)).size + results.affected;
   const champion = championLine(before, after);
+  const resultChange = change.kind === 'match_result_change' ? resultChangeLine(change.summary === null, fixtures) : NOTHING_SAID;
+  const replay = replayLines(change, plan, before);
+  const keyLines = [
+    ...(blocked ? [blocked] : []),
+    ...shortfalls.map((shortfall) => shortfall.message),
+    ...resultChange.lines,
+    ...replay.lines,
+    ...results.lines,
+    ...champion.lines,
+  ];
+  const keyItems: readonly Explained[] = [
+    ...(blocked ? [splitExplained(blocked)] : []),
+    ...shortfalls.map((shortfall) => explain(shortfall.headline ?? shortfall.message, shortfall.detail)),
+    ...resultChange.items,
+    ...replay.items,
+    ...results.items,
+    ...champion.items,
+  ];
   const lines = [
     ...(blocked ? [blocked] : []),
+    ...shortfalls.map((shortfall) => shortfall.message),
+    ...resultChange.lines,
     ...fixtureLines(change, fixtures, before),
-    ...replayLines(change, plan, before),
+    ...replay.lines,
     ...results.lines,
     ...slots.map((slot) => slotSentence(indexes, before.snapshot, slot)),
     ...standings.map((line) => standingSentence(indexes, line)).filter((line): line is string => line !== null),
     ...qualification.map((line) => qualificationSentence(indexes, line)).filter((line): line is string => line !== null),
     ...(nrrTeams.length > 0 ? [`Net run rate changes for ${plural(nrrTeams.length, 'team')}.`] : []),
-    ...(champion ? [champion] : []),
+    ...champion.lines,
   ];
-  const evaluationChanged = standings.length > 0 || qualification.length > 0 || slots.length > 0 || nrrTeams.length > 0 || champion !== null;
+  const evaluationChanged = standings.length > 0 || qualification.length > 0 || slots.length > 0 || nrrTeams.length > 0 || champion.lines.length > 0;
   const severity = severityOf(
     detached.length > 0 || results.affected > 0,
-    evaluationChanged || plan.summaryChanges.length > 0,
+    evaluationChanged || plan.summaryChanges.length > 0 || shortfalls.length > 0,
     fixtures.length > 0 || planTouches(plan),
   );
   const historical = change.kind === 'match_result_change' || completedData > 0;
@@ -260,14 +335,18 @@ export function summarizeImpact(
     severity,
     headline: headline(fixtures, new Set(standings.map((line) => line.teamId)).size, qualification.length, planTouches(plan)),
     lines,
-    fixtures,
-    standings,
-    qualification,
+    fixtures: labelFixtureImpacts(before.snapshot, plan, fixtures),
+    standings: labelStandingChanges(indexes, standings),
+    qualification: labelQualificationChanges(indexes, qualification),
     slots,
     nrrChanged: nrrTeams.length > 0,
     completedMatchesAffected: completedData,
-    requiresConfirmation: completedData > 0 || standings.length > 0 || qualification.length > 0 || nrrTeams.length > 0 || severity === 'destructive',
+    requiresConfirmation:
+      completedData > 0 || standings.length > 0 || qualification.length > 0 || nrrTeams.length > 0 || shortfalls.length > 0 || severity === 'destructive',
     requiresReason: historical || change.kind === 'override_apply' || change.kind === 'override_revoke',
     blocked: blocked ? { reason: blocked } : null,
+    slotShortfalls: shortfalls,
+    keyLines,
+    keyItems,
   };
 }

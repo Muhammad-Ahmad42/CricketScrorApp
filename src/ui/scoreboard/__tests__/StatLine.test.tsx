@@ -34,6 +34,15 @@ describe('StatLine', () => {
     expect(onPress).toHaveBeenCalledTimes(1);
   });
 
+  it('wraps a long name instead of cutting it off, keeping the figures on the row', async () => {
+    const name = 'Alexander Montgomery Fairweather-Smythe';
+    await renderWithTheme(<StatLine kind="batter" name={name} figure="7" secondary="(9)" accessibilityLabel={`Non-striker: ${name}, 7 from 9`} testID="score-row-non-striker" />);
+    const text = screen.getByText(name, { includeHiddenElements: true });
+    expect(text).not.toHaveProp('numberOfLines');
+    expect(text.parent).toHaveStyle({ flexShrink: 1, minWidth: 0 });
+    expect(screen.getByText('7', { includeHiddenElements: true })).toBeOnTheScreen();
+  });
+
   it('keeps the non-striker plain', async () => {
     await renderWithTheme(<StatLine kind="batter" name="Ahmed Shah" figure="31" secondary="(27)" accessibilityLabel="Non-striker: Ahmed Shah, 31 from 27" testID="score-row-non-striker" />);
     const row = screen.getByTestId('score-row-non-striker');

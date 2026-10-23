@@ -1,19 +1,20 @@
 import { StyleSheet, View } from 'react-native';
 import type { ImpactSummary } from '@/domain/types';
-import { Banner, BoundaryRule, SectionHeader, Text, space, useTheme } from '@/ui';
-import { ImpactSections, impactViewModel } from '@/features/shared';
+import { Banner, BoundaryRule, Disclosure, ExplainedText, InlineNotice, Inset, SectionHeader, Text, space, useGutter, useTheme } from '@/ui';
+import { hasImpactSections, ImpactSections, impactDetailsLabel, impactViewModel } from '@/features/shared';
 import type { ChangeRowVM, EditPreviewVM } from '../selectors/historyEdit';
 
 function ChangeRow({ row }: { readonly row: ChangeRowVM }) {
   const theme = useTheme();
+  const gutter = useGutter();
   return (
     <View
-      style={[styles.row, { borderBottomWidth: theme.borderWidth.hairline, borderBottomColor: theme.color.border }]}
+      style={[styles.row, { paddingHorizontal: gutter, borderBottomWidth: theme.borderWidth.hairline, borderBottomColor: theme.color.border }]}
       accessible
       accessibilityLabel={row.changed ? `${row.label}: ${row.before} changes to ${row.after}` : `${row.label}: ${row.after}`}
       testID={`change-${row.key}`}
     >
-      <Text variant="subhead" tone="secondary" style={styles.label} numberOfLines={1}>
+      <Text variant="subhead" tone="secondary" style={styles.label}>
         {row.label}
       </Text>
       <Text variant={row.changed ? 'bodyStrong' : 'body'} style={styles.value}>
@@ -33,13 +34,35 @@ export function ImpactBlock({ impact, teamName }: ImpactBlockProps) {
   return (
     <View testID="edit-impact">
       <SectionHeader title="Tournament" />
-      <View style={styles.impact}>
-        <ImpactSections vm={vm} />
-        {impact.completedMatchesAffected > 0 ? (
-          <Text variant="footnote" tone="secondary">{`Completed matches affected: ${impact.completedMatchesAffected}`}</Text>
+      <Inset gap="xs">
+        <Text variant="headline" testID="edit-impact-headline">
+          {vm.headline}
+        </Text>
+        {vm.keyItems.map((item, index) => (
+          <ExplainedText
+            key={item.key}
+            headline={item.headline}
+            supporting={item.detail}
+            headlineVariant="callout"
+            tone="secondary"
+            testID={`edit-impact-line-${index + 1}`}
+          />
+        ))}
+        {vm.severityNotice !== null ? (
+          <Text variant="footnote" tone="secondary" testID="edit-impact-notice">
+            {vm.severityNotice}
+          </Text>
         ) : null}
-        {vm.blockedReason !== null ? <Banner tone="danger" message={vm.blockedReason} testID="edit-impact-blocked" /> : null}
-      </View>
+        {vm.shortfalls.map((line) => (
+          <InlineNotice key={line.key} tone="warning" headline={line.text} detail={line.detail ?? null} testID={`edit-impact-shortfall-${line.key}`} />
+        ))}
+        {vm.blockedReason !== null ? <InlineNotice tone="danger" headline={vm.blockedReason} testID="edit-impact-blocked" /> : null}
+        {hasImpactSections(vm) ? (
+          <Disclosure label={impactDetailsLabel(vm)} testID="edit-impact-details">
+            <ImpactSections vm={vm} showShortfalls={false} />
+          </Disclosure>
+        ) : null}
+      </Inset>
     </View>
   );
 }
@@ -56,28 +79,54 @@ export function WhatWillChange({ vm, impact, notes, teamName }: WhatWillChangePr
     <View testID="edit-preview">
       <BoundaryRule />
       <SectionHeader title="What will change" />
+      {vm.warning !== null ? (
+        <Banner
+          tone="warning"
+          message={vm.warning.headline}
+          supporting={vm.warning.detail ?? null}
+          testID={vm.reopensMatch ? 'edit-reopens' : vm.resultChanged ? 'edit-result-change' : 'edit-warning'}
+        />
+      ) : null}
+      {vm.consequences.length > 0 ? (
+        <Inset top="xs" gap="xs" testID="edit-consequences">
+          {vm.consequences.map((item) => (
+            <ExplainedText key={`line:${item.headline}`} headline={item.headline} supporting={item.detail ?? null} headlineVariant="callout" />
+          ))}
+        </Inset>
+      ) : null}
       {vm.rows.map((row) => (
         <ChangeRow key={row.key} row={row} />
       ))}
-      {vm.resultChanged ? (
-        <Banner tone="warning" message={`Result changes: ${vm.result.before} → ${vm.result.after}`} testID="edit-result-change" />
-      ) : (
-        <ChangeRow row={vm.result} />
-      )}
-      {notes.map((note) => (
-        <Text key={note} variant="footnote" tone="secondary" style={styles.note}>
-          {note}
-        </Text>
-      ))}
+      {vm.rows.length === 0 ? (
+        <Inset top="xs">
+          <Text variant="callout" tone="secondary" testID="edit-no-score-change">
+            No totals or figures change
+          </Text>
+        </Inset>
+      ) : null}
+      {vm.resultLine !== null ? (
+        <Inset top="xs">
+          <Text variant="callout" testID="edit-result-unchanged">
+            {vm.resultLine}
+          </Text>
+        </Inset>
+      ) : null}
+      {notes.length > 0 ? (
+        <Inset top="xs" gap="xxs">
+          {notes.map((note) => (
+            <Text key={note} variant="footnote" tone="secondary">
+              {note}
+            </Text>
+          ))}
+        </Inset>
+      ) : null}
       {impact !== null ? <ImpactBlock impact={impact} teamName={teamName} /> : null}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  row: { flexDirection: 'row', alignItems: 'center', gap: space.sm, paddingHorizontal: space.md, minHeight: 44, paddingVertical: space.xxs },
-  label: { width: 120 },
-  value: { flex: 1, fontVariant: ['tabular-nums'] },
-  impact: { paddingHorizontal: space.md, gap: space.xs },
-  note: { paddingHorizontal: space.md, paddingTop: space.xs },
+  row: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', columnGap: space.sm, rowGap: space.xxs, minHeight: 44, paddingVertical: space.xxs },
+  label: { flexGrow: 1, flexShrink: 1, flexBasis: '30%', minWidth: 0 },
+  value: { flexGrow: 2, flexShrink: 1, flexBasis: '55%', minWidth: 0, fontVariant: ['tabular-nums'] },
 });

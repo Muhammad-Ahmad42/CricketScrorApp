@@ -1,6 +1,6 @@
 import type { BallRecord, MatchEvent, MatchEventInput, MatchState } from '@/domain/types';
 
-export type FeedbackCue = 'run' | 'four' | 'six' | 'wicket' | 'over_end' | 'result' | 'undo' | 'error' | 'confirm';
+export type FeedbackCue = 'run' | 'four' | 'six' | 'wicket' | 'over_end' | 'result' | 'undo' | 'error' | 'confirm' | 'tab';
 
 function committedBall(state: MatchState, eventId: string): BallRecord | null {
   for (let index = state.innings.length - 1; index >= 0; index -= 1) {

@@ -3,6 +3,7 @@ import type { LiveMatch } from '@/services/contracts';
 import { boundaryCounts, manhattan, worm } from '@/domain/scoring/stats';
 import { formatOvers, formatRate, formatScore } from '@/domain/scoring/format';
 import { teamShortName } from '@/features/scoring/selectors/names';
+import { plural } from '@/features/shared/text';
 import { selectInningsCard } from './innings';
 
 export interface SummaryRowVM {
@@ -17,7 +18,7 @@ export interface AnalyticsVM {
   readonly wormLabel: string;
   readonly manhattan: readonly ManhattanInnings[];
   readonly manhattanLabel: string;
-  readonly partnerships: readonly { readonly key: string; readonly title: string; readonly rows: readonly PartnershipBarItem[] }[];
+  readonly partnerships: readonly { readonly key: string; readonly title: string; readonly series: number; readonly rows: readonly PartnershipBarItem[] }[];
   readonly teams: readonly string[];
   readonly summary: readonly SummaryRowVM[];
 }
@@ -27,23 +28,26 @@ export function selectAnalytics(live: LiveMatch): AnalyticsVM {
   const bpo = setup.rules.ballsPerOver;
   const regular = state.innings.filter((innings) => innings.kind === 'regular');
   const wormLines = worm(state);
-  const wormSeries: WormSeries[] = wormLines.map((line) => {
-    const innings = regular.find((entry) => entry.index === line.inningsIndex);
+  const wormInnings = wormLines.map((line) => regular.find((entry) => entry.index === line.inningsIndex));
+  const wormSeries: WormSeries[] = wormLines.map((line, position) => {
+    const innings = wormInnings[position];
     const bars = innings === undefined ? [] : manhattan(innings);
     return {
       label: teamShortName(setup, line.teamId),
-      points: bars.map((bar, position) => ({ over: bar.overIndex + 1, runs: line.points[position + 1]?.runs ?? 0, wickets: bar.wickets })),
+      points: bars.map((bar, at) => ({ over: bar.overIndex + 1, runs: line.points[at + 1]?.runs ?? 0, wickets: bar.wickets })),
     };
   });
   const manhattanInnings: ManhattanInnings[] = regular.map((innings) => ({
     label: teamShortName(setup, innings.battingTeamId),
     overs: manhattan(innings).map((bar) => ({ over: bar.overIndex + 1, runs: bar.runs, wickets: bar.wickets })),
   }));
+  const battingOrder = [...new Set(regular.map((innings) => innings.battingTeamId))];
   const partnerships = regular.map((innings) => {
     const card = selectInningsCard(setup, state, innings, 'zero');
     return {
       key: `${innings.index}`,
       title: `Partnerships · ${teamShortName(setup, innings.battingTeamId)}`,
+      series: Math.max(0, battingOrder.indexOf(innings.battingTeamId)),
       rows: card.partnerships.map((partnership) => ({
         key: partnership.key,
         wicketLabel: partnership.wicketLabel,
@@ -65,19 +69,22 @@ export function selectAnalytics(live: LiveMatch): AnalyticsVM {
     { key: 'sixes', metric: 'Sixes', values: teams.map((id) => `${counts(id)?.sixes ?? 0}`) },
     { key: 'extras', metric: 'Extras received', values: teams.map((id) => { const innings = inningsOf(id); return innings === undefined ? '–' : `${innings.extras.total}`; }) },
   ];
-  const describe = (series: readonly WormSeries[]) =>
-    series
-      .map((line) => {
-        const last = line.points[line.points.length - 1];
-        return last === undefined ? `${line.label} no overs yet` : `${line.label} ${last.runs} after ${last.over} ${last.over === 1 ? 'over' : 'overs'}`;
-      })
-      .join(', ');
+  const describe = wormSeries
+    .map((line, position) => {
+      const last = line.points[line.points.length - 1];
+      const innings = wormInnings[position];
+      if (last === undefined || innings === undefined) {
+        return `${line.label} no overs yet`;
+      }
+      return `${line.label} ${last.runs} after ${plural(formatOvers(innings.legalBalls, bpo), 'over')}`;
+    })
+    .join(', ');
   return {
     hasData: regular.some((innings) => innings.balls.length > 0),
     worm: wormSeries,
-    wormLabel: `Runs by over: ${describe(wormSeries)}`,
+    wormLabel: `Runs by over: ${describe}`,
     manhattan: manhattanInnings,
-    manhattanLabel: `Runs per over for ${manhattanInnings.map((entry) => `${entry.label}, ${entry.overs.length} overs`).join(' and ')}`,
+    manhattanLabel: `Runs per over for ${manhattanInnings.map((entry) => `${entry.label}, ${plural(entry.overs.length, 'over')}`).join(' and ')}`,
     partnerships,
     teams: setup.teams.map((team) => team.shortName),
     summary,

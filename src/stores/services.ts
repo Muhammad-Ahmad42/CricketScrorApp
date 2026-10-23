@@ -31,3 +31,7 @@ export function setScoringFeedback(next: ScoringFeedback): void {
 export function getScoringFeedback(): ScoringFeedback {
   return feedback;
 }
+
+export function tabChangeFeedback(): void {
+  feedback.cue('tab');
+}

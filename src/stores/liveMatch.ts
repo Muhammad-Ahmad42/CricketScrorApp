@@ -9,9 +9,9 @@ import { createSerialQueue } from './internal/serialQueue';
 import { getScoringFeedback } from './services';
 import { useTournamentStore } from './tournament';
 
-type LiveState = Pick<LiveMatchStore, 'matchId' | 'status' | 'live' | 'redoStack' | 'error' | 'warnings'>;
+type LiveState = Pick<LiveMatchStore, 'matchId' | 'status' | 'live' | 'redoStack' | 'error' | 'warnings' | 'editConflict'>;
 
-const INITIAL: LiveState = { matchId: null, status: 'idle', live: null, redoStack: [], error: null, warnings: [] };
+const INITIAL: LiveState = { matchId: null, status: 'idle', live: null, redoStack: [], error: null, warnings: [], editConflict: null };
 
 const NO_MATCH = storeError('NOT_FOUND', 'Open a match first.');
 
@@ -217,24 +217,44 @@ export const useLiveMatchStore = create<LiveMatchStore>()((set, get) => {
       set({ error: null });
     },
 
+    clearEditConflict() {
+      const conflict = get().editConflict ?? null;
+      const error = get().error;
+      set({ editConflict: null, error: conflict !== null && error?.domainCode === conflict.code ? null : error });
+    },
+
     async previewHistoryEdit(ops) {
       const { matchId } = get();
       if (matchId === null) {
-        set({ error: NO_MATCH });
+        set({ error: NO_MATCH, editConflict: null });
         return null;
       }
-      const result = await call((services) => services.matches.previewHistoryEdit(matchId, ops));
+      const result = await call((services) => services.matches.planHistoryEdit(matchId, ops));
+      if (get().matchId !== matchId) {
+        return null;
+      }
       if (!result.ok) {
-        set({ error: result.error });
+        set({ error: result.error, editConflict: null });
         return null;
       }
-      return result.value;
+      if (result.value.status === 'conflict') {
+        const conflict = result.value.conflict;
+        const text = conflict.headline === undefined ? undefined : { headline: conflict.headline, detail: conflict.detail };
+        set({ error: storeError('VALIDATION', conflict.message, conflict.code, text), editConflict: conflict });
+        return null;
+      }
+      set({ editConflict: null });
+      return result.value.preview;
     },
 
     applyHistoryEdit(ops, reason, preview) {
+      const previewed = preview.ops ?? ops;
       return mutate(
-        (services, matchId) => services.matches.applyHistoryEdit(matchId, ops, reason, preview.baseFingerprint),
-        (value) => value,
+        (services, matchId) => services.matches.applyHistoryEdit(matchId, previewed, reason, preview.baseFingerprint),
+        (value) => {
+          set({ editConflict: null });
+          return value;
+        },
         { clearRedo: true, refresh: true, success: 'confirm' },
       );
     },

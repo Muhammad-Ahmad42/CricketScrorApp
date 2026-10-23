@@ -86,7 +86,8 @@ describe('live scoring glass chrome (§106)', () => {
     const content = middle.props.contentContainerStyle;
     const flat = Object.assign({}, ...(Array.isArray(content) ? content : [content]));
     expect(flat.paddingTop).toBeGreaterThanOrEqual(TEST_METRICS.insets.top);
-    expect(flat.justifyContent).toBe('flex-end');
+    expect(flat.justifyContent).toBe('flex-start');
+    expect(middle).toHaveProp('showsVerticalScrollIndicator', false);
   });
 
   it('anchors toasts under the score band so they never cover the keys', async () => {
@@ -99,15 +100,19 @@ describe('live scoring glass chrome (§106)', () => {
   it('uses the secondary ink, never the muted one, on the score band', async () => {
     setLive(liveMatch([OPEN, '1']));
     await show(<ScoringScreen />);
-    expect(screen.getByTestId('score-text-overs-of')).toHaveStyle({ color: lightColors.textSecondary });
+    expect(screen.getByTestId('score-text-overs-of')).not.toHaveStyle({ color: lightColors.textMuted });
   });
 
-  it('replaces the dock with the solid pending panel while the score band stays on glass', async () => {
+  it('shows the pending panel in the same glass dock slot as the pad, with the innings summary under the band', async () => {
     setLive(liveMatch(FIRST_INNINGS));
     await show(<ScoringScreen />);
-    expect(screen.getByTestId('prompt-start-innings')).toBeOnTheScreen();
-    expect(screen.queryByTestId('score-column-footer')).not.toBeOnTheScreen();
+    const dock = screen.getByTestId('score-column-footer');
+    expect(within(dock).getByTestId('prompt-start-innings')).toBeOnTheScreen();
+    expect(within(dock).queryByTestId('score-btn-1')).not.toBeOnTheScreen();
+    expect(within(dock).getAllByTestId(GLASS_TINT_TEST_ID, { includeHiddenElements: true })[0]).toHaveStyle({ backgroundColor: lightGlass.level.dock.tint });
     expect(within(screen.getByTestId('score-column-header')).getByTestId('score-band')).toBeOnTheScreen();
+    expect(within(screen.getByTestId('score-middle')).getByTestId('score-innings-summary')).toBeOnTheScreen();
+    expect(screen.getByTestId('score-innings-summary-0')).toHaveTextContent(/Lions · 1st innings18\/03 ov/);
   });
 
   it('renders the band and dock opaque with the same tint when transparency is reduced', async () => {
@@ -148,5 +153,12 @@ describe('match chrome on other screens (§106)', () => {
     expect(within(footer).getByTestId('wizard-btn-back')).toBeOnTheScreen();
     expect(within(footer).getByTestId('wizard-btn-next')).toBeOnTheScreen();
     expect(within(footer).getAllByTestId(GLASS_TINT_TEST_ID, { includeHiddenElements: true })[0]).toHaveStyle({ backgroundColor: lightGlass.level.dock.tint });
+    expect(screen.getByTestId('wizard-teams-ambient', { includeHiddenElements: true })).toBeOnTheScreen();
+  });
+
+  it('puts the §107 ambient atmosphere behind the live scoring column', async () => {
+    setLive(liveMatch([OPEN, '1']));
+    await show(<ScoringScreen />);
+    expect(screen.getByTestId('score-column-ambient', { includeHiddenElements: true })).toBeOnTheScreen();
   });
 });

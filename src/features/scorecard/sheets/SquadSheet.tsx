@@ -27,7 +27,7 @@ export function SquadSheet({ visible, teamName, players, canRemove, onRemove, on
       subtitle={`${players.filter((player) => !player.isSubstitute).length} players · ${players.filter((player) => player.isSubstitute).length} substitutes`}
       onClose={onClose}
       testID="sheet-squad"
-      footer={<Button label="Add player or substitute" icon="plus" variant="secondary" size="lg" fullWidth onPress={onAdd} testID="squad-add" />}
+      footer={<Button label="Add player" icon="plus" variant="secondary" size="lg" fullWidth onPress={onAdd} testID="squad-add" />}
     >
       <View>
         {players.map((player) => (
@@ -39,7 +39,7 @@ export function SquadSheet({ visible, teamName, players, canRemove, onRemove, on
             <Text variant="tableNumeric" tone="muted" style={styles.order}>
               {player.battingOrder === null ? '' : `${player.battingOrder}`}
             </Text>
-            <Text variant="body" style={styles.flex} numberOfLines={1}>
+            <Text variant="body" style={styles.flex}>
               {player.name}
             </Text>
             <Text variant="footnote" tone="secondary">
@@ -63,6 +63,6 @@ export function SquadSheet({ visible, teamName, players, canRemove, onRemove, on
 
 const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: space.sm, minHeight: 48 },
-  order: { width: 24 },
-  flex: { flex: 1 },
+  order: { minWidth: 24 },
+  flex: { flex: 1, minWidth: 0 },
 });

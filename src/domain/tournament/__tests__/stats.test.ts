@@ -2,7 +2,7 @@ import { endMatch, m3Setup, playScript } from '@/domain/scoring/testing';
 import { buildMatchSummary } from '@/domain/scoring/summary';
 import type { MatchSummary, TournamentSnapshot } from '@/domain/types';
 import { evaluateTournament } from '../evaluate';
-import { computeTournamentStats } from '../stats';
+import { computeTournamentStats, recordHolderText, recordHoldersText, recordValueText } from '../stats';
 import { cupSnapshot } from './standingsKit/cup';
 import { deepFreeze, inningsOf, played, simpleWin, summaryOf } from './standingsKit/summaries';
 import { entry, fixture, makeSnapshot, pool, stage, team, withResult } from './standingsKit/tournament';
@@ -75,12 +75,35 @@ describe('computeTournamentStats', () => {
 
     it('U-TST-02 totals and records', () => {
       expect(stats).toMatchObject({ totalMatches: 1, completedMatches: 1, totalRuns: 55, totalWickets: 2, totalFours: 4, totalSixes: 2 });
-      expect(stats.highestTeamScore).toEqual({ matchId: 'M1', teamId: 'TIG', playerId: null, value: 28, detail: 'Tigers 28/1 (2.2 ov) v Lions' });
-      expect(stats.highestIndividualScore).toEqual({ matchId: 'M1', teamId: 'TIG', playerId: 'T1', value: 17, detail: '17 (7 balls) v Lions' });
-      expect(stats.bestBowling).toEqual({ matchId: 'M1', teamId: 'TIG', playerId: 'T8', value: 1, detail: '1/5 v Lions' });
-      expect(stats.highestPartnership).toEqual({ matchId: 'M1', teamId: 'TIG', playerId: 'T1', value: 19, detail: '19 runs (9 balls) v Lions' });
-      expect(stats.mostSixes).toMatchObject({ value: 1, playerId: 'L2', detail: '1 six in 1 match' });
-      expect(stats.mostFours).toMatchObject({ value: 2, playerId: 'T1', detail: '2 fours in 1 match' });
+      expect(stats.highestTeamScore).toEqual({ matchId: 'M1', teamId: 'TIG', playerId: null, value: 28, detail: 'Tigers 28/1 (2.2 ov) v Lions', valueText: '28/1' });
+      expect(stats.highestIndividualScore).toEqual({ matchId: 'M1', teamId: 'TIG', playerId: 'T1', value: 17, detail: '17 (7 balls) v Lions', playerIds: ['T1'], valueText: '17' });
+      expect(stats.bestBowling).toEqual({ matchId: 'M1', teamId: 'TIG', playerId: 'T8', value: 1, detail: '1/5 v Lions', playerIds: ['T8'], valueText: '1 wicket' });
+      expect(stats.highestPartnership).toEqual({
+        matchId: 'M1',
+        teamId: 'TIG',
+        playerId: 'T1',
+        value: 19,
+        detail: '19 runs (9 balls) v Lions',
+        playerIds: ['T1', 'T2'],
+        valueText: '19 runs',
+      });
+      expect(stats.mostSixes).toMatchObject({ value: 1, playerId: 'L2', detail: '1 six in 1 match', playerIds: ['L2'], valueText: '1 six' });
+      expect(stats.mostFours).toMatchObject({ value: 2, playerId: 'T1', detail: '2 fours in 1 match', playerIds: ['T1'], valueText: '2 fours' });
+    });
+
+    it('wave-3 bug #8: record holders name both batters of a partnership and pluralise correctly', () => {
+      const names = { player: (id: string) => ({ T1: 'Rizwan', T2: 'Shan', T8: 'Shaheen' })[id] ?? id, team: (id: string) => (id === 'TIG' ? 'TIG' : id) };
+      const partnership = stats.highestPartnership;
+      const bowling = stats.bestBowling;
+      if (partnership === null || bowling === null) {
+        throw new Error('records expected');
+      }
+      expect(recordHolderText(partnership, names)).toBe('Rizwan & Shan (TIG)');
+      expect(recordHolderText(bowling, names)).toBe('Shaheen (TIG)');
+      expect(recordValueText(bowling)).toBe('1 wicket');
+      expect(recordHolderText({ ...partnership, playerIds: undefined }, names)).toBe('Rizwan (TIG)');
+      expect(recordHolderText({ ...partnership, playerId: null, playerIds: undefined }, names)).toBe('TIG');
+      expect(recordValueText({ ...bowling, valueText: undefined })).toBe('1');
     });
 
     it('U-TST-03 matches come from the squads', () => {
@@ -110,6 +133,41 @@ describe('computeTournamentStats', () => {
     const second = simpleWin('early', 'TIG', 'LIO');
     const stats = statsOf(league([first, second], [9, 2]));
     expect(stats.highestTeamScore).toMatchObject({ matchId: 'early', teamId: 'TIG', value: 150 });
+    expect(stats.highestTeamScore?.detail).toMatch(/\(\d+ ov\)/);
+    expect(stats.highestTeamScore?.detail).not.toMatch(/\.0 ov/);
+    expect(stats.highestTeamScore?.detail).toBe('Tigers 150/5 (20 ov) v Lions');
+    expect(stats.highestTeamScore?.tiedWith).toEqual([expect.objectContaining({ matchId: 'late', teamId: 'LIO', value: 150 })]);
+  });
+
+  it('wave-3 review: every tied record holder is returned in the order they reached it', () => {
+    const line = (playerId: string, fours: number, sixes: number) => ({ playerId, runs: fours * 4 + sixes * 6, balls: 10, fours, sixes, out: true, dismissalType: 'bowled' as const });
+    const first = played(
+      'm1',
+      { team: 'LIO', runs: 150, balls: 120, wickets: 5, fours: 2, sixes: 1, batting: [line('L1', 1, 0), line('L2', 1, 1)] },
+      { team: 'TIG', runs: 140, balls: 120, wickets: 8, fours: 1, sixes: 0, batting: [line('T1', 1, 0)] },
+    );
+    const second = played('m2', { team: 'TIG', runs: 150, balls: 120, wickets: 5, fours: 1, batting: [line('T2', 1, 0)] }, { team: 'LIO', runs: 140, balls: 120, wickets: 8 });
+    const squads = (summary: MatchSummary, lions: readonly string[], tigers: readonly string[]): MatchSummary => ({
+      ...summary,
+      squads: [
+        { teamId: 'LIO', playerIds: lions },
+        { teamId: 'TIG', playerIds: tigers },
+      ],
+    });
+    const stats = statsOf(league([squads(first, ['L1', 'L2'], ['T1']), squads(second, ['L1', 'L2'], ['T2'])]));
+    expect(stats.mostFours).toMatchObject({ playerId: 'L1', value: 1, valueText: '1 four' });
+    expect(stats.mostFours?.tiedWith?.map((holder) => holder.playerId)).toEqual(['L2', 'T1', 'T2']);
+    expect(stats.mostSixes).toMatchObject({ playerId: 'L2', value: 1 });
+    expect(stats.mostSixes?.tiedWith).toBeUndefined();
+    const names = { player: (id: string) => ({ L1: 'Babar', L2: 'Fakhar', T1: 'Rizwan', T2: 'Shan' })[id] ?? id, team: (id: string) => id };
+    const mostFours = stats.mostFours;
+    const mostSixes = stats.mostSixes;
+    if (mostFours === null || mostSixes === null) {
+      throw new Error('records expected');
+    }
+    expect(recordHoldersText(mostFours, names)).toBe('Babar (LIO) +3 others');
+    expect(recordHoldersText({ ...mostFours, tiedWith: mostFours.tiedWith?.slice(0, 1) }, names)).toBe('Babar (LIO) +1 other');
+    expect(recordHoldersText(mostSixes, names)).toBe('Fakhar (LIO)');
   });
 
   it('U-TST-06 super-over runs are excluded everywhere', () => {

@@ -35,6 +35,7 @@ function AnalyticsBody() {
               key={entry.key}
               rows={entry.rows}
               title={entry.title}
+              series={entry.series}
               accessibilityLabel={`${entry.title}: ${entry.rows.map((row) => row.accessibilityLabel).join('. ')}`}
               testID={`analytics-partnerships-${entry.key}`}
             />
@@ -51,7 +52,7 @@ function AnalyticsBody() {
           </View>
         </View>
       ) : (
-        <EmptyState title="No overs yet" body="Charts appear once the first ball is bowled." icon="history" testID="analytics-empty" />
+        <EmptyState title="No overs yet" icon="history" testID="analytics-empty" />
       )}
     </Screen>
   );

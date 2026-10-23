@@ -1,10 +1,10 @@
 import type { HypotheticalResult, StandingRow, TournamentSnapshot, WhatIfResult } from '@/domain/types';
 import { DEFAULT_POINTS_SYSTEM } from '../defaults';
 import { evaluateTournament } from '../evaluate';
-import { hypotheticalSummary, simulate } from '../whatif';
+import { hypotheticalSummary, parRunsPerBall, simulate } from '../whatif';
 import { cupSnapshot } from './standingsKit/cup';
 import { deepFreeze } from './standingsKit/summaries';
-import { fixture, makeSnapshot, slot, slotSide, stage, team } from './standingsKit/tournament';
+import { fixture, makeSnapshot, qualificationOverride, slot, slotSide, stage, team } from './standingsKit/tournament';
 
 const midway = () => deepFreeze(cupSnapshot({ playedA: 4 }));
 const row = (tables: WhatIfResult['after']['tables'], teamId: string): StandingRow =>
@@ -146,6 +146,10 @@ describe('simulate', () => {
       'Match 1 has already been played, so its hypothetical result was ignored.',
       'A hypothetical result for a fixture that no longer exists was ignored.',
     ]);
+    expect(result.narrativeItems).toEqual([
+      { headline: 'Match 1 ignored', detail: 'It has already been played.' },
+      { headline: 'A result was ignored', detail: 'Its fixture no longer exists.' },
+    ]);
     expect(result.after).toEqual(result.before);
     expect(result.standingChanges).toEqual([]);
   });
@@ -213,5 +217,119 @@ describe('simulate', () => {
     expect(result.narrative[0]).toMatch(/^If Hawks beat Lions and Eagles beat Tigers, /);
     expect(result.narrative.length).toBeGreaterThan(1);
     expect(result.narrative.every((line) => line.endsWith('.'))).toBe(true);
+  });
+});
+
+describe('what-if net run rate honesty (wave-3 review: hypothetical results carry no margin)', () => {
+  it('a result without a score or margin says NRR is not simulated and flags the places NRR decides', () => {
+    const result = simulate(midway(), [hypo('g-m6', 'side_a_win')]);
+    expect(result.nrr).toEqual({
+      simulated: false,
+      unscoredFixtureIds: ['g-m6'],
+      estimatedFixtureIds: [],
+      parRunsPerOver: null,
+      nrrUncertainTeamIds: ['LIO', 'TIG'],
+      notes: ["NRR isn't simulated for Match 6: no score or margin. Places decided on NRR may change."],
+      noteItems: [{ headline: 'NRR not simulated', detail: 'Match 6 has no score or margin, so NRR stays as it is. Places decided on NRR may change.' }],
+    });
+    expect(row(result.after.tables, 'LIO').tieBreak).toMatchObject({ separatedBy: 'nrr', aboveTeamId: 'TIG' });
+  });
+
+  it('no result, abandonment and walkovers do not need a score; a full score is simulated exactly', () => {
+    const quiet = simulate(midway(), [hypo('g-m5', 'no_result'), hypo('g-m6', 'side_b_walkover')]);
+    expect(quiet.nrr).toMatchObject({ simulated: true, unscoredFixtureIds: [], estimatedFixtureIds: [], notes: [] });
+    const scored = simulate(midway(), [
+      hypo('g-m6', 'side_a_win', { score: { battingFirst: 'side_a', firstInnings: { runs: 30, balls: 12, allOut: false }, secondInnings: { runs: 10, balls: 12, allOut: false } } }),
+    ]);
+    expect(scored.nrr).toMatchObject({ simulated: true, unscoredFixtureIds: [], estimatedFixtureIds: [], parRunsPerOver: null, nrrUncertainTeamIds: [], notes: [] });
+  });
+
+  it('a winning margin in runs builds a par-score innings pair, so NRR moves and the result keeps the margin', () => {
+    const snapshot = midway();
+    const rate = parRunsPerBall(snapshot);
+    if (rate === null) {
+      throw new Error('par expected');
+    }
+    const rules = snapshot.rules.defaultMatchRules;
+    const allotted = rules.oversPerInnings * rules.ballsPerOver;
+    const par = Math.round(rate * allotted);
+    const perOver = Math.round(rate * rules.ballsPerOver * 100) / 100;
+    const result = simulate(snapshot, [hypo('g-m6', 'side_a_win', { margin: { kind: 'runs', runs: 20 } })]);
+    const before = row(result.before.tables, 'TIG');
+    const after = row(result.after.tables, 'TIG');
+    expect(after.runsScored - before.runsScored).toBe(Math.max(par, 20));
+    expect(after.runsConceded - before.runsConceded).toBe(Math.max(par, 20) - 20);
+    expect(after.ballsFaced - before.ballsFaced).toBe(allotted);
+    expect(after.nrr).toBeGreaterThan(before.nrr ?? 0);
+    expect(row(result.after.tables, 'EAG').nrr).toBeLessThan(row(result.before.tables, 'EAG').nrr ?? 0);
+    expect(result.nrr).toMatchObject({ simulated: true, unscoredFixtureIds: [], estimatedFixtureIds: ['g-m6'], parRunsPerOver: perOver });
+    expect(result.nrr?.notes).toEqual([`NRR for Match 6 is estimated from the margin, with a par of ${perOver.toFixed(2)} runs an over.`]);
+    expect(result.nrr?.noteItems).toEqual([{ headline: 'NRR estimated from margins', detail: `Match 6: par score of ${perOver.toFixed(2)} runs an over.` }]);
+    const summary = hypotheticalSummary(
+      fixture('f1', 'groups', 'pA', 7, team('TIG'), team('EAG')),
+      { a: 'TIG', b: 'EAG' },
+      hypo('f1', 'side_a_win', { margin: { kind: 'runs', runs: 20 } }),
+      12,
+      6,
+      par,
+    );
+    expect(summary.result).toEqual({ type: 'win', winnerTeamId: 'TIG', loserTeamId: 'EAG', margin: { kind: 'runs', runs: 20 }, method: 'normal' });
+    expect(summary.innings.map((innings) => [innings.battingTeamId, innings.runs, innings.legalBalls])).toEqual([
+      ['TIG', Math.max(par, 20), 12],
+      ['EAG', Math.max(par, 20) - 20, 12],
+    ]);
+  });
+
+  it('a winning margin in wickets means the winner batted second and chased with balls to spare', () => {
+    const target = fixture('f1', 'groups', 'pA', 7, team('TIG'), team('EAG'));
+    const summary = hypotheticalSummary(target, { a: 'TIG', b: 'EAG' }, hypo('f1', 'side_b_win', { margin: { kind: 'wickets', wickets: 6, ballsRemaining: 3 } }), 12, 6, 20);
+    expect(summary.result).toEqual({ type: 'win', winnerTeamId: 'EAG', loserTeamId: 'TIG', margin: { kind: 'wickets', wickets: 6, ballsRemaining: 3 }, method: 'normal' });
+    expect(summary.innings.map((innings) => [innings.battingTeamId, innings.runs, innings.legalBalls, innings.completion])).toEqual([
+      ['TIG', 20, 12, 'overs_complete'],
+      ['EAG', 21, 9, 'target_reached'],
+    ]);
+    const impossible = hypotheticalSummary(target, { a: 'TIG', b: 'EAG' }, hypo('f1', 'side_b_win', { margin: { kind: 'wickets', wickets: 6, ballsRemaining: 12 } }), 12, 6, 20);
+    expect(impossible.innings).toEqual([]);
+    const zero = simulate(midway(), [hypo('g-m6', 'side_b_win', { margin: { kind: 'runs', runs: 0 } })]);
+    expect(zero.nrr).toMatchObject({ simulated: false, unscoredFixtureIds: ['g-m6'] });
+  });
+
+  it('an explicit score wins over a margin', () => {
+    const score = { battingFirst: 'side_a' as const, firstInnings: { runs: 30, balls: 12, allOut: false }, secondInnings: { runs: 10, balls: 12, allOut: false } };
+    const result = simulate(midway(), [hypo('g-m6', 'side_a_win', { score, margin: { kind: 'runs', runs: 1 } })]);
+    expect(row(result.after.tables, 'TIG').runsScored - row(result.before.tables, 'TIG').runsScored).toBe(30);
+    expect(result.nrr?.estimatedFixtureIds).toEqual([]);
+  });
+});
+
+describe('what-if narrative puts qualification first and never contradicts it (wave-3 review)', () => {
+  it('an eliminated team that still sits in a qualifying place is worded as such, not as a plain move', () => {
+    const override = qualificationOverride('ko', 'LIO', 'eliminate', {}, { reason: 'Withdrew' });
+    const snapshot = deepFreeze(cupSnapshot({ playedA: 4, overrides: [override] }));
+    const result = simulate(snapshot, [
+      hypo('g-m6', 'side_a_win', { score: { battingFirst: 'side_a', firstInnings: { runs: 100, balls: 12, allOut: false }, secondInnings: { runs: 1, balls: 12, allOut: false } } }),
+    ]);
+    expect(result.narrative).toEqual([
+      'If Tigers beat Eagles, Tigers qualify for the Knockouts as Pool A winners.',
+      "Lions would sit 2nd in Pool A for now, but are out of the Knockouts by the organizer's decision.",
+      'Tigers move from 2nd to 1st in Pool A.',
+    ]);
+    expect(result.narrativeItems).toEqual([
+      { headline: 'Tigers qualify', detail: 'For the Knockouts as Pool A winners.' },
+      { headline: 'Lions out despite 2nd place', detail: "Lions would sit 2nd in Pool A for now, but are out of the Knockouts by the organizer's decision." },
+      { headline: 'Tigers: 2nd → 1st', detail: 'In Pool A.' },
+    ]);
+  });
+
+  it('an eliminated team below the qualifying places keeps the plain move sentence after the qualification lines', () => {
+    const result = simulate(midway(), [hypo('g-m6', 'side_b_win')]);
+    expect(result.narrative).toEqual([
+      'If Eagles beat Tigers, Tigers are eliminated from the Knockouts.',
+      'Eagles qualify for the Knockouts.',
+      'Tigers move from 2nd to 3rd in Pool A.',
+      'Eagles move from 3rd to 2nd in Pool A.',
+    ]);
+    expect(result.narrativeItems?.map((item) => item.headline)).toEqual(['Tigers eliminated', 'Eagles qualify', 'Tigers: 2nd → 3rd', 'Eagles: 3rd → 2nd']);
+    expect(result.narrativeItems?.every((item) => item.headline.length <= 40)).toBe(true);
   });
 });

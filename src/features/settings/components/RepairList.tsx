@@ -1,7 +1,8 @@
 import type { MatchId } from '@/domain/types';
-import { ListRow, SectionHeader, Text, space, useTheme } from '@/ui';
-import { StyleSheet, View } from 'react-native';
+import { ListRow, SectionHeader, Text } from '@/ui';
+import { COPY } from '../copy';
 import type { RepairVM } from '../selectors/diagnostics';
+import { Block } from './Block';
 
 export interface RepairListProps {
   readonly repairs: readonly RepairVM[];
@@ -9,18 +10,17 @@ export interface RepairListProps {
 }
 
 export function RepairList({ repairs, onOpen }: RepairListProps) {
-  const theme = useTheme();
   return (
     <>
-      <SectionHeader title="Matches that need repair" />
+      <SectionHeader title="Matches to repair" />
       {repairs.length === 0 ? (
-        <View style={[styles.empty, { backgroundColor: theme.color.surface }]}>
+        <Block compact>
           <Text variant="body" tone="secondary" testID="diag-text-no-repairs">
-            No matches need repair.
+            {COPY.noRepairs}
           </Text>
-        </View>
+        </Block>
       ) : (
-        repairs.map((repair) => (
+        repairs.map((repair, index) => (
           <ListRow
             key={repair.matchId}
             title={repair.title}
@@ -28,6 +28,7 @@ export function RepairList({ repairs, onOpen }: RepairListProps) {
             leading={{ icon: 'circle-alert' }}
             trailing={{ kind: 'chevron' }}
             onPress={() => onOpen(repair.matchId)}
+            separator={index < repairs.length - 1}
             accessibilityHint="Opens the ball log of this match"
             testID={repair.testID}
           />
@@ -36,7 +37,3 @@ export function RepairList({ repairs, onOpen }: RepairListProps) {
     </>
   );
 }
-
-const styles = StyleSheet.create({
-  empty: { paddingHorizontal: space.md, paddingVertical: space.sm },
-});

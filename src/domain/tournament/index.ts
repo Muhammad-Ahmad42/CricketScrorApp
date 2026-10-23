@@ -14,4 +14,5 @@ export * from './evaluate';
 export * from './whatif';
 export * from './impact';
 export * from './stats';
+export * from './progress';
 export * from './fixtureReplay';

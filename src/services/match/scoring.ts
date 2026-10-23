@@ -18,9 +18,9 @@ import { resultLine } from './resultText';
 
 type ScoringOperations = Pick<MatchService, 'record' | 'undo' | 'redo' | 'endMatch'>;
 
-const REASON_TO_REOPEN = 'Reopening a finished tournament match changes the standings. Add a reason to continue.';
-const REASON_TO_CLOSE = 'Recording this tournament result changes the standings. Add a reason to continue.';
-const REASON_TO_END = 'Add a reason for ending this tournament match this way.';
+const REASON_TO_REOPEN = 'Reopening changes the standings. Add a reason to continue.';
+const REASON_TO_CLOSE = 'This result changes the standings. Add a reason to continue.';
+const REASON_TO_END = 'Add a reason for ending this match this way.';
 
 function endsMatch(events: readonly (MatchEvent | MatchEventInput)[]): boolean {
   return events.some((event) => event.kind === 'match_ended');

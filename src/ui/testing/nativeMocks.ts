@@ -35,6 +35,48 @@ jest.mock('lucide-react-native', () => {
   );
 });
 
+const LUCIDE_ICON_MODULES: Readonly<Record<string, string>> = {
+  'arrow-left-right': 'ArrowLeftRight',
+  'calendar-days': 'CalendarDays',
+  check: 'Check',
+  'chevron-down': 'ChevronDown',
+  'chevron-left': 'ChevronLeft',
+  'chevron-right': 'ChevronRight',
+  'chevron-up': 'ChevronUp',
+  'circle-alert': 'CircleAlert',
+  'circle-check': 'CircleCheck',
+  'circle-dot': 'CircleDot',
+  'cloud-rain': 'CloudRain',
+  clock: 'Clock',
+  ellipsis: 'Ellipsis',
+  'file-text': 'FileText',
+  'hard-drive-download': 'HardDriveDownload',
+  'rotate-ccw-clock': 'History',
+  house: 'House',
+  info: 'Info',
+  minus: 'Minus',
+  pause: 'Pause',
+  'pencil-line': 'PencilLine',
+  play: 'Play',
+  plus: 'Plus',
+  'redo-2': 'Redo2',
+  search: 'Search',
+  settings: 'Settings',
+  share: 'Share',
+  trash: 'Trash2',
+  'triangle-alert': 'TriangleAlert',
+  trophy: 'Trophy',
+  'undo-2': 'Undo2',
+  x: 'X',
+};
+
+for (const [mockFile, mockName] of Object.entries(LUCIDE_ICON_MODULES)) {
+  jest.mock(`lucide-react-native/icons/${mockFile}`, () => ({
+    __esModule: true,
+    default: (jest.requireMock('lucide-react-native') as Record<string, unknown>)[mockName],
+  }));
+}
+
 jest.mock('react-native-gifted-charts', () => {
   const react: typeof import('react') = jest.requireActual('react');
   const native: typeof import('react-native') = jest.requireActual('react-native');

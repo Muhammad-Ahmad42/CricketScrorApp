@@ -17,25 +17,44 @@ describe('BracketScreen (§46)', () => {
     loadTournament(cupSnapshot());
     await renderWithTheme(<BracketScreen tournamentId="t1" />);
     expect(screen.getByTestId('screen-bracket')).toBeOnTheScreen();
-    expect(screen.getByTestId('bracket-text-sides-1-0')).toHaveTextContent('A1 v B2');
-    expect(screen.getByTestId('bracket-text-sides-1-1')).toHaveTextContent('B1 v A2');
-    expect(screen.getByTestId('bracket-text-sides-2-0')).toHaveTextContent('Winner SF1 v Winner SF2');
+    expect(screen.getByTestId('bracket-text-side-1-0-a')).toHaveTextContent(/^A1/);
+    expect(screen.getByTestId('bracket-text-side-1-0-b')).toHaveTextContent(/^B2/);
+    expect(screen.getByTestId('bracket-text-side-1-1-a')).toHaveTextContent(/^B1/);
+    expect(screen.getByTestId('bracket-text-side-1-1-b')).toHaveTextContent(/^A2/);
+    expect(screen.getByTestId('bracket-text-side-2-0-a')).toHaveTextContent('Winner SF1');
+    expect(screen.getByTestId('bracket-text-side-2-0-b')).toHaveTextContent('Winner SF2');
     expect(screen.getByTestId('bracket-text-champion')).toHaveTextContent('To be decided');
+  });
+
+  it('gives every semifinal card both teams on their own line, never one sentence that cuts the second team off', async () => {
+    loadTournament(playGroups(cupSnapshot(), 6));
+    await renderWithTheme(<BracketScreen tournamentId="t1" />);
+    const card = screen.getByTestId('bracket-text-sides-1-0');
+    const a = screen.getByTestId('bracket-text-side-1-0-a');
+    const b = screen.getByTestId('bracket-text-side-1-0-b');
+    expect(card).toContainElement(a);
+    expect(card).toContainElement(b);
+    expect(a).not.toHaveTextContent(/·|\(provisional\)/);
+    expect(b).not.toHaveTextContent(/·|\(provisional\)/);
   });
 
   it('fills the sides from the slots once the pools are complete (§92)', async () => {
     loadTournament(playGroups(cupSnapshot()));
     await renderWithTheme(<BracketScreen tournamentId="t1" />);
-    expect(screen.getByTestId('bracket-text-sides-1-0')).toHaveTextContent('Lions v Bears');
-    expect(screen.getByTestId('bracket-text-sides-1-1')).toHaveTextContent('Bulls v Tigers');
-    expect(screen.getByTestId('bracket-text-sides-2-0')).toHaveTextContent('Winner SF1 v Winner SF2');
+    expect(screen.getByTestId('bracket-text-side-1-0-a')).toHaveTextContent(/Lions/);
+    expect(screen.getByTestId('bracket-text-side-1-0-b')).toHaveTextContent(/Bears/);
+    expect(screen.getByTestId('bracket-text-side-1-1-a')).toHaveTextContent(/Bulls/);
+    expect(screen.getByTestId('bracket-text-side-1-1-b')).toHaveTextContent(/Tigers/);
+    expect(screen.getByTestId('bracket-text-side-2-0-a')).toHaveTextContent('Winner SF1');
   });
 
   it('advances winners to the next round', async () => {
     loadTournament(playBracket(playBracket(playGroups(cupSnapshot()), 1, 0, 'a'), 1, 1, 'a'));
     await renderWithTheme(<BracketScreen tournamentId="t1" />);
-    expect(screen.getByTestId('bracket-text-sides-2-0')).toHaveTextContent('Lions v Bulls');
-    expect(screen.getByTestId('bracket-text-winner-1-0')).toHaveTextContent('Lions won');
+    expect(screen.getByTestId('bracket-text-side-2-0-a')).toHaveTextContent(/Lions/);
+    expect(screen.getByTestId('bracket-text-side-2-0-b')).toHaveTextContent(/Bulls/);
+    expect(screen.queryByTestId('bracket-text-winner-1-0')).not.toBeOnTheScreen();
+    expect(screen.getByTestId('bracket-row-1-0').props.accessibilityLabel).toMatch(/Lions won/);
   });
 
   it('names the champion after the final', async () => {
@@ -47,9 +66,9 @@ describe('BracketScreen (§46)', () => {
   it('renders byes for the top seeds with their names', async () => {
     loadTournament(knockoutSnapshot(6));
     await renderWithTheme(<BracketScreen tournamentId="t1" />);
-    const byes = screen.getAllByText('Bye: straight through to the next round');
+    const byes = screen.getAllByText('Bye: straight through');
     expect(byes).toHaveLength(2);
-    expect(screen.getByTestId('bracket-text-byes')).toHaveTextContent('Byes: Seed 1 and Seed 2 go straight through to the next round.');
+    expect(screen.queryByTestId('bracket-text-byes')).not.toBeOnTheScreen();
     expect(screen.getByTestId('bracket-row-1-0')).toHaveProp('accessibilityLabel', 'Seed 1 has a bye and goes straight through to the next round.');
   });
 
@@ -57,7 +76,7 @@ describe('BracketScreen (§46)', () => {
     loadTournament(playGroups(cupSnapshot()));
     await renderWithTheme(<BracketScreen tournamentId="t1" />);
     const box = screen.getByTestId('bracket-row-1-0');
-    expect(box).toHaveProp('accessibilityLabel', expect.stringContaining('A1 Lions'));
+    expect(box).toHaveProp('accessibilityLabel', expect.stringContaining('A1, Lions'));
     await fireEvent.press(box);
     expect(mockRouter.push).toHaveBeenCalledWith(
       expect.objectContaining({ pathname: '/tournament/[tournamentId]/fixtures/[fixtureId]' }),

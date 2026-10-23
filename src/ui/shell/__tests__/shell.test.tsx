@@ -7,6 +7,7 @@ import { StatusBar } from 'expo-status-bar';
 import { renderWithTheme } from '../../testing';
 import { darkColors, lightColors } from '../../theme';
 import {
+  BOOTSTRAP_ERROR_BODY,
   BOOTSTRAP_ERROR_TITLE,
   BOOTSTRAP_SLOW_MS,
   BootstrapGate,
@@ -92,14 +93,14 @@ describe('BootstrapGate', () => {
     const onRetry = jest.fn();
     const user = userEvent.setup();
     await renderWithTheme(
-      <BootstrapGate status="error" error={{ message: 'Nothing has been changed. Close other apps and try again.', detail: 'migration 1 failed: disk I/O error' }} onRetry={onRetry}>
+      <BootstrapGate status="error" error={{ message: BOOTSTRAP_ERROR_BODY, detail: 'migration 1 failed: disk I/O error' }} onRetry={onRetry}>
         <RNText>App</RNText>
       </BootstrapGate>,
       { mode: 'dark' },
     );
     expect(screen.getByTestId('error-screen')).toBeOnTheScreen();
     expect(screen.getByRole('header', { name: BOOTSTRAP_ERROR_TITLE })).toBeOnTheScreen();
-    expect(screen.getByTestId('error-text-message')).toHaveTextContent('Nothing has been changed. Close other apps and try again.');
+    expect(screen.getByTestId('error-text-message')).toHaveTextContent(BOOTSTRAP_ERROR_BODY, { exact: true });
     expect(screen.queryByText('migration 1 failed: disk I/O error')).not.toBeOnTheScreen();
     await user.press(screen.getByTestId('error-btn-retry'));
     expect(onRetry).toHaveBeenCalledTimes(1);

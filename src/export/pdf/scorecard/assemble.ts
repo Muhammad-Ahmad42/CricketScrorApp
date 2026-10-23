@@ -1,4 +1,4 @@
-import { formatResult } from '@/domain/scoring';
+import { formatResult, matchDisplayDate } from '@/domain/scoring';
 import type { Match, MatchLifecycle, MatchRules, MatchSetup, Toss } from '@/domain/types';
 import { formatPrintDate } from '../dates';
 import { standingsDocument } from '../standings';
@@ -65,7 +65,8 @@ function formatLine(rules: MatchRules, setup: MatchSetup): string {
 }
 
 function matchDate(match: Match): string | null {
-  return formatPrintDate(match.scheduledDate ?? match.startedAt);
+  const shown = matchDisplayDate(match);
+  return shown.basis === 'updated' ? null : formatPrintDate(shown.value);
 }
 
 export function scorecardDocument(source: ScorecardSource): ScorecardDocument {

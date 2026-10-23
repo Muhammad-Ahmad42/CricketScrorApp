@@ -75,6 +75,10 @@ export function createTeamService(ctx: ServiceContext): TeamService {
       return attempt(MESSAGES.team, () => withRepositories(ctx, (repos) => repos.teams.list(opts)));
     },
 
+    playerCounts() {
+      return attempt(MESSAGES.team, () => withRepositories(ctx, (repos) => repos.players.countActiveByTeam()));
+    },
+
     get(teamId) {
       return attempt(MESSAGES.team, () =>
         inTransaction(ctx, async (repos) => {

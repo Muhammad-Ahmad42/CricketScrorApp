@@ -1,6 +1,6 @@
 import type { MatchId } from '@/domain/types';
 import type { BootstrapReport, DatabasePragmas, IntegrityReport, ServiceError } from '@/services/contracts';
-import { countOf, formatCount, formatDayTime } from './text';
+import { countOf, formatDayTime } from './text';
 
 export interface AppInfo {
   readonly version: string;
@@ -41,18 +41,20 @@ export interface RepairVM {
 
 export interface CheckResultVM {
   readonly healthy: boolean;
-  readonly message: string;
+  readonly headline: string;
+  readonly supporting: string | null;
   readonly checkedAt: string;
 }
 
 export interface DiagnosticsVM {
   readonly info: readonly InfoLineVM[];
+  readonly technical: readonly InfoLineVM[];
   readonly repairs: readonly RepairVM[];
   readonly check: CheckResultVM | null;
 }
 
-const NOT_AVAILABLE = 'Not available';
-const REPAIR_HINT = 'Open its ball log to correct the event that cannot be replayed.';
+export const NOT_AVAILABLE = 'Not available';
+const REPAIR_HINT = 'Fix it in the ball log.';
 const MATCHES = { one: 'match', many: 'matches' } as const;
 const LINKS = { one: 'broken link', many: 'broken links' } as const;
 
@@ -63,30 +65,32 @@ export function pragmaText(pragmas: DatabasePragmas | null | undefined): string 
   return `foreign_keys=${pragmas.foreignKeys} journal_mode=${pragmas.journalMode.toLowerCase()} synchronous=${pragmas.synchronous}`;
 }
 
-export function infoLines(input: Pick<DiagnosticsInput, 'app' | 'engine' | 'report'>): readonly InfoLineVM[] {
-  const { app, engine, report } = input;
+export function rebuiltText(count: number): string {
+  return count === 0 ? 'None' : countOf(count, MATCHES);
+}
+
+export function infoLines(input: Pick<DiagnosticsInput, 'app'>): readonly InfoLineVM[] {
+  return [{ key: 'app', label: 'App version', value: input.app.version, testID: 'diag-text-app-version' }];
+}
+
+export function technicalLines(input: Pick<DiagnosticsInput, 'engine' | 'report'>): readonly InfoLineVM[] {
+  const { engine, report } = input;
   return [
-    { key: 'app', label: 'App version', value: app.version, testID: 'diag-text-app-version' },
     {
       key: 'schema',
       label: 'Database version',
       value: report ? String(report.schemaVersion) : NOT_AVAILABLE,
       testID: 'diag-text-schema-version',
     },
-    { key: 'engine', label: 'Scoring engine version', value: String(engine.scoringProjection), testID: 'diag-text-engine-version' },
+    { key: 'engine', label: 'Scoring engine', value: String(engine.scoringProjection), testID: 'diag-text-engine-version' },
     { key: 'backup', label: 'Backup format', value: String(engine.backupFormat), testID: 'diag-text-backup-format' },
     {
       key: 'rebuilt',
-      label: 'Results recalculated at start',
-      value: report ? formatCount(report.projectionsRebuilt) : NOT_AVAILABLE,
+      label: 'Scores recalculated at start',
+      value: report ? rebuiltText(report.projectionsRebuilt) : NOT_AVAILABLE,
       testID: 'diag-text-rebuilt',
     },
-    {
-      key: 'pragmas',
-      label: 'Database safety settings',
-      value: pragmaText(report?.pragmas) ?? NOT_AVAILABLE,
-      testID: 'diag-text-pragmas',
-    },
+    { key: 'pragmas', label: 'Database settings', value: pragmaText(report?.pragmas) ?? NOT_AVAILABLE, testID: 'diag-text-pragmas' },
   ];
 }
 
@@ -108,26 +112,31 @@ export function repairEntries(report: BootstrapReport | null, check: IntegrityRe
   });
 }
 
+function needRepair(count: number): string {
+  return `${countOf(count, MATCHES)} ${count === 1 ? 'needs' : 'need'} repair`;
+}
+
 export function checkResult(check: IntegrityReport): CheckResultVM {
   const repairs = check.matchesNeedingRepair.length;
-  const repairText = repairs > 0 ? ` ${countOf(repairs, MATCHES)} ${repairs === 1 ? 'needs' : 'need'} repair; open ${repairs === 1 ? 'it' : 'each one'} below.` : '';
+  const checkedAt = `Last check: ${formatDayTime(check.checkedAt)}`;
   if (check.foreignKeyViolations > 0) {
     return {
       healthy: false,
-      message: `Found ${countOf(check.foreignKeyViolations, LINKS)} between matches, teams and tournaments. Nothing was changed.${repairText} Share the technical details if you need help.`,
-      checkedAt: `Last check: ${formatDayTime(check.checkedAt)}`,
+      headline: `${countOf(check.foreignKeyViolations, LINKS)} found`,
+      supporting: repairs > 0 ? `${needRepair(repairs)}. Share technical details for help.` : 'Share technical details for help.',
+      checkedAt,
     };
   }
-  return {
-    healthy: repairs === 0,
-    message: `All links between matches, teams and tournaments are intact.${repairText}`,
-    checkedAt: `Last check: ${formatDayTime(check.checkedAt)}`,
-  };
+  if (repairs > 0) {
+    return { healthy: false, headline: needRepair(repairs), supporting: 'No broken links.', checkedAt };
+  }
+  return { healthy: true, headline: 'No problems found', supporting: null, checkedAt };
 }
 
 export function selectDiagnostics(input: DiagnosticsInput): DiagnosticsVM {
   return {
     info: infoLines(input),
+    technical: technicalLines(input),
     repairs: repairEntries(input.report, input.check),
     check: input.check ? checkResult(input.check) : null,
   };

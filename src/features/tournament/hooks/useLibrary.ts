@@ -20,3 +20,10 @@ export function venueLookup(venues: readonly Venue[]): VenueLookup {
   const names = new Map(venues.map((venue) => [venue.id, venue.name]));
   return (venueId) => names.get(venueId) ?? null;
 }
+
+export function tournamentVenues(venues: readonly Venue[], chosen: readonly string[], current: string | null = null): readonly Venue[] {
+  if (chosen.length === 0) {
+    return venues;
+  }
+  return venues.filter((venue) => chosen.includes(venue.id) || venue.id === current);
+}

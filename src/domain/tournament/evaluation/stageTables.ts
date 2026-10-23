@@ -1,6 +1,7 @@
 import type { ComparisonTable, Fixture, PoolId, Stage, StandingsTable, TeamId, UnevenPoolNormalization } from '../../types';
 import { computeStandings, effectiveStageRules } from '../standings';
 import type { StandingsInput, StandingsMember } from '../standings';
+import { LEVEL_DECISION } from '../tiebreakers';
 import { comparisonSpecs, poolBoundaries } from './downstream';
 import type { ComparisonSpec } from './downstream';
 import { stageMembers } from './members';
@@ -59,6 +60,12 @@ function levelDetail(detail: string, unresolved: boolean): string {
   return unresolved ? `${base} — organizer decision required` : base;
 }
 
+function levelHeadline(headline: string | undefined, unresolved: boolean): string | undefined {
+  if (headline === undefined) return undefined;
+  const base = headline.replace(LEVEL_DECISION, '');
+  return unresolved ? `${base}${LEVEL_DECISION}` : base;
+}
+
 export function classifyTies(table: StandingsTable, boundaries: ReadonlySet<number>): StandingsTable {
   const unresolved: (readonly TeamId[])[] = [];
   const provisional: (readonly TeamId[])[] = [];
@@ -75,7 +82,12 @@ export function classifyTies(table: StandingsTable, boundaries: ReadonlySet<numb
   }
   const rows = table.rows.map((row) => {
     if (!row.sharedPosition || !row.tieBreak || row.tieBreak.separatedBy !== null || !row.tieBreak.detail.startsWith('Level with')) return row;
-    return { ...row, tieBreak: { ...row.tieBreak, detail: levelDetail(row.tieBreak.detail, row.teamId !== null && unresolvedTeams.has(row.teamId)) } };
+    const unresolvedRow = row.teamId !== null && unresolvedTeams.has(row.teamId);
+    const headline = levelHeadline(row.tieBreak.headline, unresolvedRow);
+    return {
+      ...row,
+      tieBreak: { ...row.tieBreak, detail: levelDetail(row.tieBreak.detail, unresolvedRow), ...(headline === undefined ? {} : { headline }) },
+    };
   });
   return { ...table, rows, unresolvedTies: unresolved, provisionalTies: provisional };
 }

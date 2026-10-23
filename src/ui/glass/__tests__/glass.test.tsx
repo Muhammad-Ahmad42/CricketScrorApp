@@ -5,10 +5,13 @@ import { act, render, screen, waitFor } from '@testing-library/react-native';
 import type { ReactNode } from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { TEST_METRICS, renderWithTheme } from '../../testing';
-import { ThemeProvider, darkColors, darkGlass, lightColors, lightGlass, type ThemeMode } from '../../theme';
+import { ThemeProvider, darkColors, darkGlass, glassRimFor, lightColors, lightGlass, parseColor, type ThemeMode } from '../../theme';
 import {
+  AMBIENT_FALLOFF,
+  AMBIENT_GLOWS,
   AmbientBackground,
   ChromeInsetsProvider,
+  GLASS_FROST_TEST_ID,
   GLASS_TINT_TEST_ID,
   GlassBackdrop,
   GlassBackdropScope,
@@ -17,6 +20,7 @@ import {
   GlassGroup,
   GlassMaterial,
   GlassSurface,
+  ambientStops,
   ANDROID_BLUR_MIN_API,
   ANDROID_BLUR_REDUCTION,
   backdropBlurAvailable,
@@ -24,7 +28,10 @@ import {
   cssBackdropFilterSupported,
   glassTintFor,
   isScrolledUnder,
+  materialOpacity,
   resolveGlassRenderer,
+  restingOpacity,
+  stickyGlassScrollerStyle,
   useChromeInsets,
   useContentInsets,
   useGlassRenderer,
@@ -184,7 +191,7 @@ describe('GlassSurface: frosted blur fallback (iOS < 26, Android, web)', () => {
     expect(hosts(view.container, 'ViewManagerAdapter_ExpoLinearGradient')).toHaveLength(1);
     const rims = view.container.queryAll((node) => flat(node).borderTopColor === lightGlass.rim.top);
     expect(rims.length).toBe(1);
-    expect(flat(rims[0])).toMatchObject({ borderWidth: 1, borderColor: lightGlass.rim.color });
+    expect(flat(rims[0])).toMatchObject({ borderWidth: 1, borderColor: lightGlass.rim.color, borderLeftColor: lightGlass.rim.left });
     expect(screen.getByTestId('surface')).toHaveStyle({ borderRadius: 20, shadowOpacity: lightGlass.shadow.shadowOpacity });
   });
 
@@ -197,8 +204,19 @@ describe('GlassSurface: frosted blur fallback (iOS < 26, Android, web)', () => {
     );
     expect(hosts(view.container, 'ViewManagerAdapter_ExpoBlur')[0].props).toMatchObject({ tint: 'systemUltraThinMaterialDark', intensity: darkGlass.level.dock.blur });
     expect(screen.getByTestId(GLASS_TINT_TEST_ID, { includeHiddenElements: true })).toHaveStyle({ backgroundColor: darkGlass.level.dock.tint });
-    expect(view.container.queryAll((node) => flat(node).borderTopColor === darkGlass.rim.top)).toHaveLength(1);
+    const dockRim = glassRimFor(darkGlass, 'dock');
+    const rims = view.container.queryAll((node) => flat(node).borderTopColor === dockRim.top);
+    expect(rims).toHaveLength(1);
+    expect(flat(rims[0])).toMatchObject({ borderColor: dockRim.color, borderLeftColor: dockRim.left });
     expect(flat(screen.getByTestId('surface')).shadowOpacity).toBeUndefined();
+  });
+
+  it('lights the top-left edge of the cyan dark rim on every other level', async () => {
+    const view = await renderWithTheme(<GlassSurface level="bar" testID="surface" />, { mode: 'dark' });
+    const rims = view.container.queryAll((node) => flat(node).borderTopColor === darkGlass.rim.top);
+    expect(rims).toHaveLength(1);
+    expect(flat(rims[0])).toMatchObject({ borderWidth: 1, borderColor: darkGlass.rim.color, borderLeftColor: darkGlass.rim.left });
+    expect(darkGlass.rim.color).toBe('rgba(0,194,224,0.20)');
   });
 
   it('skips the blur for inline controls and the sheen where the level has none', async () => {
@@ -290,18 +308,25 @@ describe('Reduce Transparency (§106 accessibility)', () => {
     expect(view.container.queryAll((node) => flat(node).borderColor === darkColors.borderStrong)).toHaveLength(1);
   });
 
-  it('drops the ambient wash when transparency is reduced', async () => {
+  it('keeps the ambient glows when transparency is reduced, because the page light is not glass', async () => {
     const view = await render(
       <Providers reduceTransparency>
         <AmbientBackground testID="ambient" />
       </Providers>,
     );
-    expect(hosts(view.container, 'ViewManagerAdapter_ExpoLinearGradient')).toHaveLength(0);
+    expect(hosts(view.container, 'RNSVGRadialGradient')).toHaveLength(2);
+  });
+
+  it('drops the ambient glows under the system high-contrast setting', async () => {
+    jest.spyOn(AccessibilityInfo, 'isDarkerSystemColorsEnabled').mockResolvedValue(true);
+    const view = await renderWithTheme(<AmbientBackground testID="ambient" />, { mode: 'dark' });
+    await waitFor(() => expect(hosts(view.container, 'RNSVGRadialGradient')).toHaveLength(0));
+    expect(screen.queryByTestId('ambient', { includeHiddenElements: true })).toBeNull();
   });
 });
 
 describe('GlassBar, GlassDock and the ambient wash', () => {
-  it('keeps the top bar clear at rest and turns it to glass once content scrolls under it', async () => {
+  it('shows the top bar as resting glass, tint and rim included, and strengthens it once content scrolls under it', async () => {
     const view = await renderWithTheme(
       <GlassBar scrolled={false} floating testID="bar">
         <RNText>Title</RNText>
@@ -309,14 +334,21 @@ describe('GlassBar, GlassDock and the ambient wash', () => {
     );
     const bar = screen.getByTestId('bar');
     expect(bar).toHaveStyle({ position: 'absolute', top: 0, paddingTop: TEST_METRICS.insets.top });
-    const material = view.container.queryAll((node) => node.props.pointerEvents === 'none' && flat(node).position === 'absolute')[0];
-    expect(flat(material).opacity).toBe(0);
+    const faded = view.container.queryAll((node) => typeof flat(node).opacity === 'number' && flat(node).position === 'absolute');
+    expect(faded.some((node) => Math.abs(Number(flat(node).opacity) - lightGlass.rest) < 1e-6)).toBe(true);
+    const frost = screen.getByTestId(GLASS_FROST_TEST_ID, { includeHiddenElements: true });
+    expect(flat(frost).opacity).toBe(1);
+    expect(lightGlass.rest).toBeGreaterThan(0.4);
+    expect(screen.getByTestId(GLASS_TINT_TEST_ID, { includeHiddenElements: true })).toHaveStyle({ backgroundColor: lightGlass.level.bar.tint });
+    expect(view.container.queryAll((node) => flat(node).borderBottomColor === lightGlass.edge.color).length).toBeGreaterThan(0);
+    expect(bar).not.toHaveStyle({ shadowOpacity: lightGlass.shadow.shadowOpacity });
     await view.rerender(
       <GlassBar scrolled floating testID="bar">
         <RNText>Title</RNText>
       </GlassBar>,
     );
     expect(view.container.queryAll((node) => flat(node).borderBottomColor === lightGlass.edge.color).length).toBeGreaterThan(0);
+    expect(screen.getByTestId('bar')).toHaveStyle({ shadowOpacity: lightGlass.shadow.shadowOpacity });
   });
 
   it('switches instantly when motion is reduced', async () => {
@@ -325,8 +357,27 @@ describe('GlassBar, GlassDock and the ambient wash', () => {
         <GlassBar scrolled testID="bar" />
       </Providers>,
     );
-    const material = view.container.queryAll((node) => node.props.pointerEvents === 'none' && flat(node).position === 'absolute')[0];
-    expect(flat(material).opacity).toBe(1);
+    const faded = view.container.queryAll((node) => typeof flat(node).opacity === 'number' && flat(node).position === 'absolute');
+    expect(faded.every((node) => flat(node).opacity === 1)).toBe(true);
+  });
+
+  it('compiles materialOpacity as a worklet so animated styles can call it on the UI runtime', () => {
+    expect((materialOpacity as unknown as { __workletHash?: number }).__workletHash).toBeDefined();
+    expect((restingOpacity as unknown as { __workletHash?: number }).__workletHash).toBeUndefined();
+  });
+
+  it('keeps the frost outside the fading layer, so no ancestor opacity ever cuts the backdrop blur off on web', () => {
+    expect(materialOpacity(0, 0.6)).toBeCloseTo(0.6, 6);
+    expect(materialOpacity(1, 0.6)).toBe(1);
+    expect(materialOpacity(0.5, 0)).toBe(0.5);
+    expect(restingOpacity('blur', 0.6)).toBe(0.6);
+    expect(restingOpacity('opaque', 0.6)).toBe(1);
+    expect(restingOpacity('opaque', 0)).toBe(0);
+  });
+
+  it('keeps a status-bar strip with no resting state fully clear, frost included, until content scrolls under it', async () => {
+    await renderWithTheme(<GlassBar scrolled={false} rest={0} floating testID="strip" />);
+    expect(flat(screen.getByTestId(GLASS_FROST_TEST_ID, { includeHiddenElements: true })).opacity).toBe(0);
   });
 
   it('docks to the bottom with rounded top corners, a lit top rim and the safe area', async () => {
@@ -342,13 +393,42 @@ describe('GlassBar, GlassDock and the ambient wash', () => {
       borderTopLeftRadius: 24,
       borderTopRightRadius: 24,
     });
-    expect(view.container.queryAll((node) => flat(node).borderTopColor === lightGlass.rim.top && flat(node).borderTopWidth === 1)).toHaveLength(1);
+    const dockRim = glassRimFor(lightGlass, 'dock');
+    expect(view.container.queryAll((node) => flat(node).borderTopColor === dockRim.top && flat(node).borderTopWidth === 1)).toHaveLength(1);
   });
 
-  it('paints two whisper-quiet gradients for glass to refract', async () => {
+  it('paints two very large, very soft radial glows for glass to refract: top-left and centre-right (§107)', async () => {
     const view = await renderWithTheme(<AmbientBackground testID="ambient" />, { mode: 'dark' });
-    expect(hosts(view.container, 'ViewManagerAdapter_ExpoLinearGradient')).toHaveLength(2);
+    const glows = hosts(view.container, 'RNSVGRadialGradient');
+    expect(glows).toHaveLength(2);
+    expect(hosts(view.container, 'ViewManagerAdapter_ExpoLinearGradient')).toHaveLength(0);
+    expect(glows.map((glow) => glow.props.cx)).toEqual([AMBIENT_GLOWS.primary.cx, AMBIENT_GLOWS.secondary.cx]);
+    expect(AMBIENT_GLOWS.primary.cx).toBeLessThan(0.2);
+    expect(AMBIENT_GLOWS.primary.cy).toBeLessThan(0.2);
+    expect(AMBIENT_GLOWS.secondary.cx).toBeGreaterThan(0.6);
+    expect(AMBIENT_GLOWS.primary.r).toBeGreaterThan(0.5);
+    expect(AMBIENT_GLOWS.secondary.cy + AMBIENT_GLOWS.secondary.r).toBeLessThanOrEqual(1.05);
+    const ids = new Set(glows.map((glow) => String(glow.props.name)));
+    expect(ids.size).toBe(2);
+    const fills = hosts(view.container, 'RNSVGRect');
+    expect(fills).toHaveLength(2);
     expect(screen.getByTestId('ambient', { includeHiddenElements: true })).toHaveProp('pointerEvents', 'none');
+  });
+
+  it('fades each glow on an eased curve to nothing, so there is no ring edge or blob', () => {
+    expect(AMBIENT_FALLOFF[0]).toEqual([0, 1]);
+    expect(AMBIENT_FALLOFF[AMBIENT_FALLOFF.length - 1]).toEqual([1, 0]);
+    expect(AMBIENT_FALLOFF.length).toBeGreaterThanOrEqual(5);
+    for (let i = 1; i < AMBIENT_FALLOFF.length; i += 1) {
+      expect(AMBIENT_FALLOFF[i][0]).toBeGreaterThan(AMBIENT_FALLOFF[i - 1][0]);
+      expect(AMBIENT_FALLOFF[i][1]).toBeLessThan(AMBIENT_FALLOFF[i - 1][1]);
+    }
+    const stops = ambientStops(darkGlass.ambient.primary);
+    expect(stops[0]).toEqual({ offset: 0, color: 'rgb(13,56,67)', opacity: 0.18 });
+    expect(stops[stops.length - 1].opacity).toBe(0);
+    const tone = parseColor(darkGlass.ambient.secondary);
+    expect(ambientStops(darkGlass.ambient.secondary)[0].opacity).toBeCloseTo(tone.a, 6);
+    expect(ambientStops(lightGlass.ambient.secondary)[0].color).toBe('rgb(255,255,255)');
   });
 });
 
@@ -482,6 +562,14 @@ describe('Android blur target', () => {
       </GlassBackdropScope>,
     );
     expect(String(screen.getByTestId('backdrop').type)).toBe('View');
+  });
+});
+
+describe('sticky glass inside a scroller on web', () => {
+  it('drops the scroller compositing transform on web so a sticky bar can blur the rows passing under it, and leaves native alone', () => {
+    expect(stickyGlassScrollerStyle('web')).toEqual({ transform: 'none' });
+    expect(stickyGlassScrollerStyle('ios')).toBeNull();
+    expect(stickyGlassScrollerStyle('android')).toBeNull();
   });
 });
 

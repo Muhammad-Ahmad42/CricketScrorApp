@@ -41,7 +41,7 @@ function factsFailure(delivery: DeliveryPayload): ValidationResult | null {
     return fail('INVALID_RUNS', 'Runs run must be a whole number from 0 to 9.');
   }
   if (!isInt(delivery.shortRuns) || delivery.shortRuns < 0 || delivery.shortRuns > delivery.runsRun) {
-    return fail('INVALID_SHORT_RUNS', "Short runs can't be more than the runs the batters ran.");
+    return fail('INVALID_SHORT_RUNS', "Too many short runs. They can't exceed the runs taken.");
   }
   if (delivery.boundary !== 0 && delivery.boundary !== 4 && delivery.boundary !== 6) {
     return fail('INVALID_BOUNDARY', 'A boundary must be a four or a six.');
@@ -61,11 +61,11 @@ function wicketFailure(setup: MatchSetup, innings: InningsState, delivery: Deliv
     return fail('DISMISSAL_NOT_ALLOWED_ON_CALL', `A batter can't be out that way off a ${callWords(delivery.call)}.`);
   }
   if (innings.isFreeHitNext && !FREE_HIT_ALLOWED.includes(wicket.type)) {
-    return fail('DISMISSAL_NOT_ALLOWED_ON_FREE_HIT', 'On a free hit the batter can only be run out, hit the ball twice, obstruct the field or handle the ball.');
+    return fail('DISMISSAL_NOT_ALLOWED_ON_FREE_HIT', 'Not out on a free hit. Only run out, hit the ball twice, obstructing or handling the ball count.');
   }
   if (isStrikerOnly(wicket.type)) {
     if (delivery.runsRun !== 0 || delivery.boundary !== 0) {
-      return fail('RUNS_NOT_ALLOWED_WITH_DISMISSAL', "No runs can be scored off the bat on a ball where the striker is out that way.");
+      return fail('RUNS_NOT_ALLOWED_WITH_DISMISSAL', 'No runs off the bat with this dismissal. Set the runs off the bat to 0.');
     }
     if (wicket.playerOutId !== innings.strikerId) {
       return fail('DISMISSED_PLAYER_NOT_AT_CREASE', `Only the striker, ${playerName(setup, innings.strikerId)}, can be out that way.`);
@@ -88,7 +88,7 @@ function wicketFailure(setup: MatchSetup, innings: InningsState, delivery: Deliv
     return fail('FIELDER_NOT_IN_FIELDING_SIDE', 'Fielders must be players of the fielding side.');
   }
   if (innings.target !== null && innings.runs + deliveryFigures(setup.rules, delivery).totalRuns >= innings.target.runs) {
-    return fail('WICKET_AFTER_RESULT', "The winning run was already scored on this ball, so this wicket doesn't count.");
+    return fail('WICKET_AFTER_RESULT', "This wicket doesn't count. The winning run was already scored on this ball.");
   }
   return null;
 }
@@ -134,7 +134,7 @@ export function validateDelivery(setup: MatchSetup, state: MatchState, delivery:
     return fail('PENDING_ACTION_REQUIRED', pendingMessage(state));
   }
   if (mode === 'append' && !stampsMatch(innings, delivery)) {
-    return fail('CONTEXT_MISMATCH', 'The batters or bowler on this ball do not match the current scorecard. Refresh and try again.');
+    return fail('CONTEXT_MISMATCH', "This ball doesn't match the scorecard. Refresh and try again.");
   }
   const facts = factsFailure(delivery);
   if (facts !== null) {

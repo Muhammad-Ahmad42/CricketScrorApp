@@ -3,17 +3,18 @@ import { StyleSheet, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { canTransitionFixture } from '@/domain/tournament/stateMachine';
 import type { Fixture, FixturePatch, FixtureStatus, TournamentId } from '@/domain/types';
-import { ImpactSheet, Notice } from '@/features/shared';
-import { BoundaryRule, Button, Dialog, EmptyState, Icon, ListRow, SectionHeader, Separator, Text, space } from '@/ui';
+import { ImpactSheet } from '@/features/shared';
+import { Button, Dialog, EmptyState, ExplainedText, Icon, InlineNotice, Inset, ListRow, SectionHeader, Separator, Text, space } from '@/ui';
 import { useTournamentStore } from '@/stores';
 import { showError, showToast } from '../hooks/toast';
+import { Scoreline } from '../components/Scoreline';
 import { useChangeFlow } from '../hooks/useChangeFlow';
-import { useStartFixtureMatch } from '../hooks/useStartFixtureMatch';
-import { useVenues, venueLookup } from '../hooks/useLibrary';
+import { PROVISIONAL_START_TITLE, useStartFixtureMatch } from '../hooks/useStartFixtureMatch';
+import { tournamentVenues, useVenues, venueLookup } from '../hooks/useLibrary';
 import { FIXTURE_STATUS_LABEL } from '../labels';
 import { routes } from '../routes';
 import { formatDateTime } from '../selectors/dates';
-import { fixtureRow, type FixtureRowVM } from '../selectors/fixtures';
+import { fixturePlayedOn, fixtureRow } from '../selectors/fixtures';
 import type { TournamentIndex } from '../selectors/names';
 import { editPolicy } from '../selectors/policy';
 import { ReasonSheet } from '../sheets/ReasonSheet';
@@ -45,17 +46,24 @@ function subtitleFor(index: TournamentIndex, fixture: Fixture): string {
   return parts.join(' · ');
 }
 
-function replayNotice(index: TournamentIndex, fixture: Fixture): string {
-  return `${index.fixtureTitle(fixture)} was abandoned with recorded scores. Rescheduling a replay keeps that match in the match history and plays a new match on the new date. The reason is saved in the audit log.`;
+export const REPLAY_HEADLINE = 'The abandoned match stays in history';
+export const REPLAY_SUPPORTING = 'A new match is played on the new date.';
+
+function sentence(text: string): string {
+  return /[.!?]$/.test(text) ? text : `${text}.`;
 }
 
-function waitingExplanation(index: TournamentIndex, row: FixtureRowVM, fixture: Fixture): string {
-  const explanations = [fixture.sideA, fixture.sideB]
-    .filter((side) => side.kind === 'slot' && !index.side(side).resolved)
-    .map((side) => (side.kind === 'slot' ? index.slotResolution(side.slotId)?.explanation : undefined))
-    .filter((text): text is string => Boolean(text));
-  const waiting = [row.a, row.b].filter((side) => !side.resolved).map((side) => side.meaning ?? side.slotLabel ?? side.text);
-  return [`Waiting for ${waiting.join(' and ')}.`, ...explanations].join(' ');
+function waitingReasons(index: TournamentIndex, fixture: Fixture): readonly string[] {
+  return [fixture.sideA, fixture.sideB].flatMap((side) => {
+    if (side.kind !== 'slot' || index.side(side).resolved) {
+      return [];
+    }
+    const resolution = index.slotResolution(side.slotId);
+    if (!resolution?.detail) {
+      return [];
+    }
+    return [`${sentence(resolution.headline ?? resolution.explanation)} ${resolution.detail}`];
+  });
 }
 
 function FixtureBody({ tournamentId, index, fixture }: { readonly tournamentId: TournamentId; readonly index: TournamentIndex; readonly fixture: Fixture }) {
@@ -70,6 +78,7 @@ function FixtureBody({ tournamentId, index, fixture }: { readonly tournamentId: 
   const stage = index.stage(fixture.stageId);
   const replayAllowed = stage?.config.abandonedMatches === 'replay';
   const played = fixture.matchId !== null;
+  const playedOn = fixturePlayedOn(index, fixture);
   const replayWithData = fixture.status === 'abandoned' && played;
   const canSchedule = !played && policy.fixtureSchedule !== 'forbidden' && fixture.status !== 'cancelled';
   const venueName = fixture.venueId ? venueLookup(venues)(fixture.venueId) : null;
@@ -106,10 +115,16 @@ function FixtureBody({ tournamentId, index, fixture }: { readonly tournamentId: 
       if (!row.resolved) {
         return (
           <View style={styles.gap}>
-            <Button label={row.detail} onPress={() => undefined} disabled fullWidth testID="fixture-btn-start-match" />
-            <Text variant="footnote" tone="secondary" testID="fixture-text-waiting">
-              {waitingExplanation(index, row, fixture)}
-            </Text>
+            <Button label="Start match" icon="play" onPress={() => undefined} disabled fullWidth accessibilityHint={row.detail} testID="fixture-btn-start-match" />
+            <ExplainedText
+              headline={row.detail}
+              detail={waitingReasons(index, fixture)}
+              detailTitle="Waiting for teams"
+              presentation="sheet"
+              tone="secondary"
+              size="subhead"
+              testID="fixture-text-waiting"
+            />
           </View>
         );
       }
@@ -129,78 +144,85 @@ function FixtureBody({ tournamentId, index, fixture }: { readonly tournamentId: 
 
   return (
     <View>
-      <BoundaryRule />
-      <View style={styles.hero} accessible accessibilityLabel={`${row.teamsText}. ${statusLine}`}>
-        <Text variant="title2" testID="fixture-text-teams">
-          {row.teamsText}
-        </Text>
-        <Text variant="callout" tone="secondary" testID="fixture-text-status">
-          {statusLine}
-        </Text>
-        {row.result ? (
-          <Text variant="bodyStrong" testID="fixture-text-result">
-            {row.result}
+      <View style={styles.hero} accessible accessibilityLabel={[row.teamsText, statusLine, row.scoreline?.spoken ?? null, row.result].filter(Boolean).join('. ')}>
+        <Inset gap="xs">
+          <Text variant="title2" testID="fixture-text-teams">
+            {row.teamsText}
           </Text>
-        ) : null}
-        {venueName ? (
-          <Text variant="footnote" tone="secondary">
-            {venueName}
+          <Text variant="callout" tone="secondary" testID="fixture-text-status">
+            {statusLine}
           </Text>
-        ) : null}
+          {row.scoreline ? <Scoreline scoreline={row.scoreline} size="hero" testID="fixture-text-score" /> : null}
+          {row.result ? (
+            <Text variant="bodyStrong" testID="fixture-text-result">
+              {row.result}
+            </Text>
+          ) : null}
+          {venueName ? (
+            <Text variant="footnote" tone="secondary">
+              {venueName}
+            </Text>
+          ) : null}
+        </Inset>
       </View>
-      <View style={styles.primary}>{primary()}</View>
-      {played ? (
-        <View style={styles.locked}>
-          <Icon name="info" size={16} color="textSecondary" />
-          <Text variant="footnote" tone="secondary">
-            Played fixtures keep their date and teams. Correct the result from the scorecard.
-          </Text>
-        </View>
-      ) : null}
-      {fixture.status === 'abandoned' && replayAllowed && allowed(fixture, 'rescheduled', replayAllowed) ? (
-        <View style={styles.primary}>
+      <Inset bottom="md" gap="md">
+        {primary()}
+        {played ? (
+          <View style={styles.locked}>
+            <Icon name="info" size={16} color="textSecondary" />
+            <Text variant="footnote" tone="secondary" style={styles.flex} testID="fixture-text-locked">
+              Fix results from the scorecard.
+            </Text>
+          </View>
+        ) : null}
+        {fixture.status === 'abandoned' && replayAllowed && allowed(fixture, 'rescheduled', replayAllowed) ? (
           <Button label="Reschedule replay" variant="secondary" onPress={() => setMode('reschedule')} fullWidth testID="fixture-btn-reschedule" />
-        </View>
-      ) : null}
+        ) : null}
+      </Inset>
       <Separator />
       <SectionHeader title="Schedule" />
-      <ListRow title="Date & time" trailing={{ kind: 'value', text: formatDateTime(fixture.scheduledDate, fixture.scheduledTime) ?? 'Not set' }} compact />
+      {playedOn !== null ? <ListRow title="Played" trailing={{ kind: 'value', text: playedOn }} compact testID="fixture-row-played" /> : null}
+      <ListRow title={played ? 'Scheduled for' : 'Date & time'} trailing={{ kind: 'value', text: formatDateTime(fixture.scheduledDate, fixture.scheduledTime) ?? 'Not set' }} compact />
       <ListRow title="Venue" trailing={{ kind: 'value', text: venueName ?? 'Not set' }} compact />
       {fixture.notes ? <ListRow title="Notes" subtitle={fixture.notes} compact /> : null}
       {canSchedule ? (
-        <View style={styles.actions}>
-          <Button label="Edit schedule" variant="secondary" size="sm" icon="pencil-line" onPress={() => setMode('edit')} testID="fixture-btn-edit" />
-          {policy.fixtureTeams !== 'forbidden' ? (
-            <Button
-              label="Swap sides"
-              variant="secondary"
-              size="sm"
-              icon="arrow-left-right"
-              onPress={() =>
-                void flow.start(
-                  (fresh) => {
-                    const current = fresh.snapshot.fixtures.find((candidate) => candidate.id === fixture.id);
-                    return current ? { kind: 'fixture_update', fixtureId: current.id, patch: { sideA: current.sideB, sideB: current.sideA } } : null;
-                  },
-                  { successMessage: 'Sides swapped' },
-                )
-              }
-              testID="fixture-btn-swap-sides"
-            />
-          ) : null}
-        </View>
+        <Inset top="sm" bottom="sm">
+          <View style={styles.actions}>
+            <Button label="Edit schedule" variant="secondary" size="sm" icon="pencil-line" onPress={() => setMode('edit')} testID="fixture-btn-edit" />
+            {policy.fixtureTeams !== 'forbidden' ? (
+              <Button
+                label="Swap sides"
+                variant="secondary"
+                size="sm"
+                icon="arrow-left-right"
+                onPress={() =>
+                  void flow.start(
+                    (fresh) => {
+                      const current = fresh.snapshot.fixtures.find((candidate) => candidate.id === fixture.id);
+                      return current ? { kind: 'fixture_update', fixtureId: current.id, patch: { sideA: current.sideB, sideB: current.sideA } } : null;
+                    },
+                    { successMessage: 'Sides swapped' },
+                  )
+                }
+                testID="fixture-btn-swap-sides"
+              />
+            ) : null}
+          </View>
+        </Inset>
       ) : null}
       {!played && (allowed(fixture, 'postponed', replayAllowed) || allowed(fixture, 'cancelled', replayAllowed)) ? (
         <View>
           <Separator />
-          <View style={styles.actions}>
-            {allowed(fixture, 'postponed', replayAllowed) ? (
-              <Button label="Postpone" variant="secondary" size="sm" icon="pause" onPress={() => setMode('postpone')} testID="fixture-btn-postpone" />
-            ) : null}
-            {allowed(fixture, 'cancelled', replayAllowed) ? (
-              <Button label="Cancel match" variant="destructive" size="sm" icon="x" onPress={() => setMode('cancel')} testID="fixture-btn-cancel" />
-            ) : null}
-          </View>
+          <Inset top="sm" bottom="sm">
+            <View style={styles.dangerActions} testID="fixture-row-called-off-actions">
+              {allowed(fixture, 'postponed', replayAllowed) ? (
+                <Button label="Postpone" variant="secondary" size="sm" icon="pause" onPress={() => setMode('postpone')} testID="fixture-btn-postpone" />
+              ) : null}
+              {allowed(fixture, 'cancelled', replayAllowed) ? (
+                <Button label="Cancel match" variant="destructive" size="sm" icon="x" onPress={() => setMode('cancel')} testID="fixture-btn-cancel" />
+              ) : null}
+            </View>
+          </Inset>
         </View>
       ) : null}
       {mode === 'edit' ? (
@@ -208,7 +230,7 @@ function FixtureBody({ tournamentId, index, fixture }: { readonly tournamentId: 
           visible
           title="Edit schedule"
           initial={scheduleInitial}
-          venues={venues}
+          venues={tournamentVenues(venues, index.snapshot.tournament.venueIds, fixture.venueId)}
           confirmLabel="Save"
           busy={busy}
           onClose={() => setMode('idle')}
@@ -225,7 +247,7 @@ function FixtureBody({ tournamentId, index, fixture }: { readonly tournamentId: 
           requireDate
           showDetails={false}
           reason={replayWithData ? 'required' : 'optional'}
-          extra={replayWithData ? <Notice tone="warning" message={replayNotice(index, fixture)} testID="schedule-text-replay" /> : undefined}
+          extra={replayWithData ? <InlineNotice tone="warning" headline={REPLAY_HEADLINE} supporting={REPLAY_SUPPORTING} testID="schedule-text-replay" /> : undefined}
           busy={busy}
           onClose={() => setMode('idle')}
           onSubmit={(values, reason) =>
@@ -237,7 +259,7 @@ function FixtureBody({ tournamentId, index, fixture }: { readonly tournamentId: 
         <ReasonSheet
           visible
           title="Postpone this match?"
-          message="The fixture stays in the list as postponed until you reschedule it."
+          message="You can reschedule it later."
           confirmLabel="Postpone"
           required={false}
           busy={busy}
@@ -249,7 +271,7 @@ function FixtureBody({ tournamentId, index, fixture }: { readonly tournamentId: 
         <ReasonSheet
           visible
           title="Cancel this match?"
-          message="A cancelled fixture is not played and does not count in the standings. You can restore it later."
+          message="It won't count in the standings. You can restore it later."
           confirmLabel="Cancel match"
           required
           destructive
@@ -260,7 +282,7 @@ function FixtureBody({ tournamentId, index, fixture }: { readonly tournamentId: 
       ) : null}
       <Dialog
         visible={start.prompt !== null}
-        title="Start anyway?"
+        title={PROVISIONAL_START_TITLE}
         message={start.prompt?.message}
         cancel={{ label: 'Cancel', onPress: start.dismiss }}
         confirm={{ label: 'Start anyway', onPress: start.confirm, loading: start.busy }}
@@ -290,12 +312,7 @@ export function FixtureDetailScreen({ tournamentId, fixtureId }: FixtureDetailSc
       {(index) => {
         const fixture = index.snapshot.fixtures.find((candidate) => candidate.id === fixtureId);
         if (!fixture) {
-          return (
-            <View>
-              <Notice tone="warning" message="This fixture no longer exists. It may have been regenerated or deleted." testID="fixture-text-missing" />
-              <EmptyState title="Fixture not found" testID="fixture-missing" />
-            </View>
-          );
+          return <EmptyState title="Fixture not found" body="It may have been regenerated or deleted." testID="fixture-missing" />;
         }
         return <FixtureBody tournamentId={tournamentId} index={index} fixture={fixture} />;
       }}
@@ -304,9 +321,10 @@ export function FixtureDetailScreen({ tournamentId, fixtureId }: FixtureDetailSc
 }
 
 const styles = StyleSheet.create({
-  hero: { paddingHorizontal: space.md, paddingVertical: space.md, gap: space.xxs },
-  primary: { paddingHorizontal: space.md, paddingBottom: space.md },
+  hero: { paddingVertical: space.md },
   gap: { gap: space.xs },
-  locked: { flexDirection: 'row', alignItems: 'center', gap: space.xs, paddingHorizontal: space.md, paddingBottom: space.md },
-  actions: { flexDirection: 'row', flexWrap: 'wrap', gap: space.xs, paddingHorizontal: space.md, paddingVertical: space.sm },
+  locked: { flexDirection: 'row', alignItems: 'center', gap: space.xs },
+  flex: { flex: 1, minWidth: 0 },
+  actions: { flexDirection: 'row', flexWrap: 'wrap', gap: space.xs },
+  dangerActions: { flexDirection: 'row', flexWrap: 'wrap', columnGap: space.lg, rowGap: space.sm },
 });

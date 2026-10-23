@@ -8,7 +8,6 @@ import {
   formatLabel,
   scoringPatch,
   selectSettingsVM,
-  transparencyNote,
 } from '../selectors/settings';
 import { appSettings } from './support/fixtures';
 
@@ -50,12 +49,6 @@ describe('settings view model', () => {
     expect('reduceTransparency' in appSettings()).toBe(false);
     expect(selectSettingsVM(appSettings(), BUILTIN_FORMAT_PRESETS).reduceTransparency).toBe(false);
     expect(selectSettingsVM(appSettings({ reduceTransparency: false }), BUILTIN_FORMAT_PRESETS).reduceTransparency).toBe(false);
-  });
-
-  it("explains the glass, or says the phone's setting already makes it solid (§106)", () => {
-    expect(transparencyNote(false)).toMatch(/frosted glass that lets the page show through/);
-    expect(transparencyNote(false)).toMatch(/easier to read in bright sun/);
-    expect(transparencyNote(true)).toBe("Your phone's Reduce Transparency is on, so bars and sheets are already solid.");
   });
 
   it('labels the default format from the presets, Custom, or a user preset', () => {

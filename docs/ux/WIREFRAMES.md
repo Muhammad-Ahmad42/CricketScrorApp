@@ -48,7 +48,7 @@ Phone portrait wireframes for **every route** in [ARCHITECTURE.md §9](../archit
 
 ### W-R0 · Bootstrap states (`src/app/_layout.tsx`)
 
-The native splash (`#1F5C3A` with the app mark) stays up while fonts load and `bootstrap()` runs. There is no in-app spinner screen unless bootstrap takes more than 1.5 s. After that, the frame on the left appears (on `background`). A failure shows the frame on the right.
+The native splash (§107 obsidian `#070E12` with the app mark) stays up while fonts load and `bootstrap()` runs. There is no in-app spinner screen unless bootstrap takes more than 1.5 s. After that, the frame on the left appears (on `background`). A failure shows the frame on the right.
 
 ```text
 ┌────────────────────────────────────┬────────────────────────────────────┐
@@ -305,8 +305,6 @@ Shows `completed` and `archived` tournaments (§82: name, team count, status, ch
 ├────────────────────────────────────────────┤
 │ FEEDBACK                                   │
 │ Vibration                            ●     │
-│ Sound effects                        ○     │
-│ Not available in this version              │
 │ Reduce motion         System ▾             │
 ├────────────────────────────────────────────┤
 │ LIBRARY                                    │
@@ -335,7 +333,7 @@ Shows `completed` and `archived` tournaments (§82: name, team count, status, ch
 | Confirm innings end | Switch → `scoring.confirmInningsEnd` |
 | Keep screen awake | Switch → `scoring.keepAwake` (expo-keep-awake while `score` is focused) |
 | Vibration | Switch → `hapticsEnabled` (§76, §77 wording) |
-| Sound effects | Switch **disabled** + helper "Not available in this version" (no audio dependency; see DESIGN_SYSTEM §9) |
+| Sound effects | Hidden until the feature ships (`SOUND_EFFECTS_AVAILABLE`); then a plain title + Switch → `soundEnabled`, no helper |
 | Reduce motion | Picker `System · On · Off` → `reducedMotion` |
 | About | Privacy line per §85 |
 
@@ -2003,16 +2001,16 @@ Invalid files show an ErrorState block listing `BackupIssue.message`s (errors fi
 └────────────────────────────────────────────┘
 ```
 
-Built-ins open read-only with **Duplicate to edit**. Custom presets open the same rule editor as W-M1. The note reads "Changing a preset never changes past matches."
+Built-ins open read-only with **Duplicate to edit**. Custom presets open the same rule editor as W-M1. The note reads "Presets only fill in a new match's rules. Past matches keep the rules they were played with."
 
 ### W-X3 · Diagnostics: `settings/diagnostics.tsx` (§86, §93)
 
 ```text
 ┌────────────────────────────────────────────┐
 │ ‹  Diagnostics                             │
-│ Database version        1                  │
-│ Last start              30 Sep 09:12       │
-│ Results recalculated    0                  │
+│ THIS APP                                   │
+│ App version             1.0.0              │
+│ Technical                              ⌄   │
 ├────────────────────────────────────────────┤
 │ MATCHES THAT NEED REPAIR                   │
 │ Pakistan XI v Lions · event 214        ›   │
@@ -2025,5 +2023,5 @@ Built-ins open read-only with **Duplicate to edit**. Custom presets open the sam
 └────────────────────────────────────────────┘
 ```
 
-"Check data links" runs the on-demand foreign-key check. The results use plain language ("All links between matches, teams and tournaments are intact"). Technical details (codes, `ServiceError.detail`) are only in the copied text.
+"Technical" is a collapsed disclosure holding Database version, Scoring engine, Backup format, Scores recalculated at start and Database settings. "Check data links" runs the on-demand foreign-key check. The results use plain language ("All links between matches, teams and tournaments are intact"). Technical details (codes, `ServiceError.detail`) are only in the copied text.
 

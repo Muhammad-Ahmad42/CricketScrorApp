@@ -1,5 +1,5 @@
 import { StyleSheet, View } from 'react-native';
-import { Button, ResultLine, Text, space } from '@/ui';
+import { Button, Disclosure, ResultLine, Text, space } from '@/ui';
 import type { SuspensionVM } from '../../selectors/options';
 import { PanelFrame } from './PanelFrame';
 
@@ -31,21 +31,29 @@ export function ResumePlayPanel({ vm, onResume, onReviseOvers, onEndMatch, onPen
 
 export interface ConfirmResultPanelProps {
   readonly text: string;
+  readonly scores?: string | null;
   readonly inTournament: boolean;
   readonly busy: boolean;
   readonly onConfirm: () => void;
   readonly onUndo: () => void;
 }
 
-export function ConfirmResultPanel({ text, inTournament, busy, onConfirm, onUndo }: ConfirmResultPanelProps) {
+export function ConfirmResultPanel({ text, scores = null, inTournament, busy, onConfirm, onUndo }: ConfirmResultPanelProps) {
   return (
     <PanelFrame heading="Match result" onUndo={onUndo} testID="prompt-confirm-result">
-      <Text variant="title2" testID="prompt-result-text">
+      <Text variant="title2" testID="prompt-result-text" accessibilityRole="header">
         {text}
       </Text>
-      <Text variant="callout" tone="secondary">
-        {inTournament ? 'Confirm to finish the match and update the tournament standings.' : 'Confirm to finish the match.'}
-      </Text>
+      {scores ? (
+        <Text variant="bodyStrong" style={styles.numbers} testID="prompt-result-scores">
+          {scores}
+        </Text>
+      ) : null}
+      {inTournament ? (
+        <Text variant="callout" tone="secondary" testID="prompt-result-standings">
+          Updates the tournament standings
+        </Text>
+      ) : null}
       <Button label="Confirm result" size="lg" fullWidth loading={busy} onPress={onConfirm} testID="prompt-confirm-btn" />
     </PanelFrame>
   );
@@ -66,7 +74,7 @@ export function ResolveTiePanel({ heading, options, nextRound, onSuperOver, onAc
     <PanelFrame heading={heading} onUndo={onUndo} testID="prompt-resolve-tie">
       {options.includes('super_over') ? (
         <Button
-          label={nextRound !== null && nextRound > 1 ? `Play super over ${nextRound}` : 'Play a super over'}
+          label={nextRound !== null && nextRound > 1 ? `Play super over ${nextRound}` : 'Play super over'}
           size="lg"
           fullWidth
           onPress={onSuperOver}
@@ -76,7 +84,7 @@ export function ResolveTiePanel({ heading, options, nextRound, onSuperOver, onAc
       <View style={styles.pair}>
         {options.includes('accept_tie') ? (
           <View style={styles.flex}>
-            <Button label="Accept the tie" variant="secondary" fullWidth onPress={onAcceptTie} testID="prompt-tie-accept" />
+            <Button label="Accept tie" variant="secondary" fullWidth onPress={onAcceptTie} testID="prompt-tie-accept" />
           </View>
         ) : null}
         {options.includes('decide_other') ? (
@@ -107,19 +115,27 @@ export function MatchOverPanel({ resultText, onScorecard, onAnalytics }: MatchOv
 
 export interface RepairPanelProps {
   readonly message: string;
+  readonly detail?: string | null;
   readonly canReview: boolean;
   readonly onReview: () => void;
   readonly onUndo: () => void;
 }
 
-export function RepairPanel({ message, canReview, onReview, onUndo }: RepairPanelProps) {
+export function RepairPanel({ message, detail = null, canReview, onReview, onUndo }: RepairPanelProps) {
   return (
     <PanelFrame heading="This match needs repair" tone="danger" testID="prompt-repair">
       <Text variant="body" testID="prompt-repair-text">
-        {`One recorded event can't be applied: ${message}`}
+        {`Can't apply: ${message}`}
       </Text>
+      {detail !== null ? (
+        <Disclosure testID="prompt-repair-detail">
+          <Text variant="callout" tone="secondary">
+            {detail}
+          </Text>
+        </Disclosure>
+      ) : null}
       <Text variant="footnote" tone="secondary">
-        Scoring is paused until the log is repaired. Every ball is still saved.
+        Every ball is still saved
       </Text>
       <View style={styles.pair}>
         {canReview ? (
@@ -138,4 +154,5 @@ export function RepairPanel({ message, canReview, onReview, onUndo }: RepairPane
 const styles = StyleSheet.create({
   pair: { flexDirection: 'row', gap: space.xs },
   flex: { flex: 1 },
+  numbers: { fontVariant: ['tabular-nums'] },
 });

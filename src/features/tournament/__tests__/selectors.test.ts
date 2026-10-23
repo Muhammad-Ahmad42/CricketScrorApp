@@ -65,12 +65,12 @@ describe('tournament list', () => {
     expect(filterTournaments(items, 'all').map((item) => item.id)).toEqual(['b', 'c', 'a']);
     expect(filterTournaments(items, 'drafts').map((item) => item.id)).toEqual(['b']);
     expect(filterTournaments(items, 'completed').map((item) => item.id)).toEqual(['c']);
-    expect(emptyListText('drafts')).toBe('No drafts.');
+    expect(emptyListText('drafts')).toBe('No drafts');
   });
 
   it('describes a row with progress and champion', () => {
     const row = tournamentRowVM(listItem({ championName: 'Tigers', status: 'completed' }));
-    expect(row).toMatchObject({ name: 'City Cup 2026', statusLabel: 'Completed', progressText: '24/48 played', champion: 'Tigers', draft: false });
+    expect(row).toMatchObject({ name: 'City Cup 2026', statusLabel: 'Completed', progressText: '24 of 48 played', champion: 'Tigers', draft: false });
     expect(tournamentRowVM(listItem({ status: 'registration' })).progressText).toBeNull();
   });
 });
@@ -165,7 +165,7 @@ describe('wizard structure (§28, §29)', () => {
 describe('wizard validation and steps', () => {
   it('validates each step', () => {
     const info = { name: ' ', season: null, description: null, organizer: null, startDate: '2026-09-12', endDate: '2026-09-01', venueIds: [], structureKind: 'league' as const, templateId: null };
-    expect(infoErrors(info)).toEqual({ name: 'Enter a tournament name.', startDate: null, endDate: 'The end date is before the start date.' });
+    expect(infoErrors(info)).toEqual({ name: 'Enter a tournament name.', startDate: null, endDate: 'Ends before it starts.' });
     expect(teamsError([{ teamId: 'a', seed: null }])).toBe('Add at least 2 teams');
     expect(teamsError([{ teamId: 'a', seed: 1 }, { teamId: 'b', seed: 1 }])).toBe('Two teams have the same seed.');
     expect(structureError([])).toBe('Choose a template or a structure.');

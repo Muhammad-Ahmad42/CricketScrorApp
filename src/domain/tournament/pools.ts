@@ -243,7 +243,7 @@ function unevenWarning(pools: readonly PoolAssignmentPool[]): readonly PoolWarni
   return [
     {
       code: 'UNEVEN_POOLS',
-      message: 'Teams in different pools may play different numbers of matches.',
+      message: 'Pools play different numbers of matches.',
       poolIds: filled.map((pool) => pool.poolId),
       members: [],
     },
@@ -259,7 +259,7 @@ function sizeWarnings(pools: readonly PoolAssignmentPool[]): readonly PoolWarnin
       return [
         {
           code: 'SINGLE_TEAM_POOL',
-          message: `${pool.name} has only one team, so it has no matches.`,
+          message: `${pool.name} has one team, so no matches.`,
           poolIds: [pool.poolId],
           members: pool.members,
         },

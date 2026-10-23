@@ -1,4 +1,4 @@
-import type { FixtureDraft, IsoDate, LocalTime } from '../../types';
+import type { FixtureDraft, IsoDate, LocalTime, VenueId } from '../../types';
 import { nextIsoDate } from './dates';
 import { sideKey } from './sides';
 
@@ -7,6 +7,7 @@ export interface SequentialScheduleOptions {
   readonly matchesPerDay: number;
   readonly times: readonly LocalTime[];
   readonly restDates?: readonly IsoDate[];
+  readonly venueIds?: readonly VenueId[];
 }
 
 interface DayState {
@@ -41,7 +42,8 @@ export function scheduleDrafts(drafts: readonly FixtureDraft[], opts: Sequential
   while (!isOpen(firstOpen)) {
     firstOpen = nextIsoDate(firstOpen);
   }
-  const placed = new Map<number, { readonly date: IsoDate; readonly time: LocalTime | null }>();
+  const venues = opts.venueIds ?? [];
+  const placed = new Map<number, { readonly date: IsoDate; readonly time: LocalTime | null; readonly venueId: VenueId | null }>();
   for (const index of roundOrder(drafts)) {
     const draft = drafts[index];
     const keys = [sideKey(draft.sideA), sideKey(draft.sideB)];
@@ -51,15 +53,16 @@ export function scheduleDrafts(drafts: readonly FixtureDraft[], opts: Sequential
     }
     const state = dayState(date);
     const time = opts.times.length > 0 ? opts.times[state.count % opts.times.length] : null;
+    const venueId = draft.venueId ?? (venues.length > 0 ? venues[Math.floor(state.count / Math.max(1, opts.times.length)) % venues.length] : null);
     state.count += 1;
     keys.forEach((key) => state.sides.add(key));
-    placed.set(index, { date, time });
+    placed.set(index, { date, time, venueId });
     while (!isOpen(firstOpen)) {
       firstOpen = nextIsoDate(firstOpen);
     }
   }
   return drafts.map((draft, index) => {
     const slot = placed.get(index);
-    return slot ? { ...draft, scheduledDate: slot.date, scheduledTime: slot.time } : draft;
+    return slot ? { ...draft, scheduledDate: slot.date, scheduledTime: slot.time, venueId: slot.venueId } : draft;
   });
 }

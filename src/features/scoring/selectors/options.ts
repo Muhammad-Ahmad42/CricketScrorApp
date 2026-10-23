@@ -1,9 +1,11 @@
 import type { DeliveryCall, DeliveryDismissalType, InningsState, MatchSetup, MatchState, PendingAction, PlayerId, TeamId } from '@/domain/types';
 import { currentInnings } from '@/domain/scoring/replay';
-import { formatBowlingFigures, formatOvers, formatScore } from '@/domain/scoring/format';
+import { formatBowlingFigures, formatOvers, formatRequirement, formatRequirementCompact, formatScore } from '@/domain/scoring/format';
+import { nextInningsPreview } from '@/domain/scoring/nextInnings';
 import { allowedDismissals, bowlerEligibility, eligibleIncomingBatters } from '@/domain/scoring/validate';
 import { COMPLETION_TEXT, ineligibilityText, inningsTitle, regularNumberOf, SUSPENSION_TEXT } from './labels';
 import { otherTeam, playerName, playerOf, squadOf, teamName } from './names';
+import { plural } from '@/features/shared/text';
 
 export interface PlayerOption {
   readonly id: PlayerId;
@@ -67,7 +69,7 @@ export function selectNextBatter(setup: MatchSetup, state: MatchState, pending: 
 }
 
 export interface BowlerOptionVM extends PlayerOption {
-  readonly figures: string;
+  readonly figures: string | null;
   readonly quota: string | null;
 }
 
@@ -79,6 +81,7 @@ export interface IneligibleBowlerVM {
 
 export interface NextBowlerVM {
   readonly heading: string;
+  readonly overTitle: string;
   readonly overLabel: string;
   readonly eligible: readonly BowlerOptionVM[];
   readonly ineligible: readonly IneligibleBowlerVM[];
@@ -98,12 +101,12 @@ function lastOverBowled(innings: InningsState, playerId: PlayerId): number {
 export function bowlerOption(setup: MatchSetup, innings: InningsState, playerId: PlayerId): BowlerOptionVM {
   const row = innings.bowling.find((entry) => entry.playerId === playerId);
   const max = innings.limits.maxOversPerBowler;
-  const figures = row === undefined ? '–' : formatBowlingFigures(row, setup.rules.ballsPerOver);
+  const figures = row === undefined || row.legalBalls + row.runsConceded + row.wickets === 0 ? null : formatBowlingFigures(row, setup.rules.ballsPerOver);
   const used = row === undefined ? '0' : formatOvers(row.legalBalls, setup.rules.ballsPerOver);
   return {
     ...playerOption(setup, playerId),
     figures,
-    quota: max === null ? null : `${used} of ${max} overs`,
+    quota: max === null ? (figures === null ? 'Not bowled yet' : null) : `${used} of ${max} ${max === 1 ? 'over' : 'overs'}`,
   };
 }
 
@@ -120,6 +123,7 @@ export function selectNextBowler(setup: MatchSetup, state: MatchState, pending: 
   }
   return {
     heading: `Over ${pending.overIndex + 1} · Choose bowler`,
+    overTitle: `Over ${pending.overIndex + 1}`,
     overLabel: `over ${pending.overIndex + 1}`,
     eligible: rankBowlers(innings, pending.eligible).map((id) => bowlerOption(setup, innings, id)),
     ineligible: pending.ineligible.map((entry) => ({
@@ -153,9 +157,39 @@ export function selectChangeBowler(setup: MatchSetup, state: MatchState): Change
   };
 }
 
+export interface ChaseVM {
+  readonly headline: string;
+  readonly detail: string | null;
+  readonly spokenDetail?: string;
+}
+
+export interface ChasePreview {
+  readonly text: string | null;
+  readonly headline?: string | null;
+  readonly detail?: string | null;
+  readonly runsRequired?: number | null;
+  readonly maxBalls?: number;
+}
+
+export function chaseOf(preview: ChasePreview | null): ChaseVM | null {
+  if (preview === null || preview.text === null) {
+    return null;
+  }
+  const headline = preview.headline ?? null;
+  if (headline === null || headline.trim() === '') {
+    return { headline: preview.text, detail: null };
+  }
+  const runs = preview.runsRequired ?? null;
+  if (runs === null || preview.maxBalls === undefined) {
+    return { headline, detail: preview.detail ?? null };
+  }
+  return { headline, detail: formatRequirementCompact(runs, preview.maxBalls), spokenDetail: formatRequirement(runs, preview.maxBalls) };
+}
+
 export interface StartInningsVM {
   readonly heading: string;
   readonly previous: string | null;
+  readonly chase: ChaseVM | null;
   readonly suggestedBattingTeamId: TeamId | null;
   readonly teams: readonly { readonly id: TeamId; readonly name: string }[];
   readonly battersFor: (teamId: TeamId) => readonly PlayerOption[];
@@ -177,6 +211,7 @@ export function selectStartInnings(setup: MatchSetup, state: MatchState, pending
   return {
     heading,
     previous,
+    chase: chaseOf(nextInningsPreview(setup, state)),
     suggestedBattingTeamId: pending.suggestedBattingTeamId,
     teams: setup.teams.map((team) => ({ id: team.id, name: team.name })),
     battersFor: (teamId) => squadOf(setup, teamId).map((player) => playerOption(setup, player.playerId)),
@@ -278,7 +313,7 @@ export function reviseTargetOf(setup: MatchSetup, state: MatchState): ReviseOver
     inningsIndex: innings.index,
     label: `${teamName(setup, innings.battingTeamId)} innings`,
     currentOvers: Math.max(1, Math.floor(innings.limits.maxBalls / bpo)),
-    currentLimit: `${formatOvers(innings.limits.maxBalls, bpo)} overs`,
+    currentLimit: plural(formatOvers(innings.limits.maxBalls, bpo), 'over'),
     ballsBowled: innings.legalBalls,
     isChase: innings.target !== null,
     canApplyToBoth: innings.index === 0 && innings.kind === 'regular',

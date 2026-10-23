@@ -1,4 +1,5 @@
 import { StyleSheet, View } from 'react-native';
+import { useGutter } from '../layout/gutter';
 import { space } from '../theme';
 import { Text } from '../typography';
 import { Button } from './Button';
@@ -20,10 +21,11 @@ export interface EmptyStateProps {
 }
 
 export function EmptyState({ title, body, icon, action, caps = false, testID }: EmptyStateProps) {
+  const gutter = useGutter();
   return (
-    <View testID={testID} style={styles.root}>
+    <View testID={testID} style={[styles.root, { paddingHorizontal: gutter }]}>
       {icon ? <Icon name={icon} size={32} color="textMuted" /> : null}
-      <Text variant="title2" align="center" numberOfLines={1} accessibilityRole="header">
+      <Text variant="title2" align="center" accessibilityRole="header" style={styles.title}>
         {title}
       </Text>
       {body ? (
@@ -44,9 +46,9 @@ const styles = StyleSheet.create({
   root: {
     alignItems: 'center',
     paddingTop: space['3xl'],
-    paddingHorizontal: space.md,
     gap: space.xs,
   },
+  title: { flexShrink: 1 },
   body: { maxWidth: 320 },
   action: { marginTop: space.md },
 });

@@ -42,7 +42,6 @@ export function ScoringSection(props: ScoringSectionProps) {
       />
       <SegmentSetting
         title="Scoring pad layout"
-        helper="Left hand puts the WICKET key on the left side of the pad."
         choices={PAD_CHOICES}
         value={props.padHand}
         onChange={props.onPadHandChange}
@@ -50,22 +49,25 @@ export function ScoringSection(props: ScoringSectionProps) {
         testID="settings-group-pad"
       />
       <ListRow
-        title="Ask for the bowler at over end"
+        title="Ask for next bowler"
         trailing={{ kind: 'switch', value: props.autoPromptBowler, onValueChange: props.onAutoPromptBowlerChange, disabled }}
         disabled={disabled}
+        accessibilityHint="Asks who bowls next when an over ends"
         testID="settings-toggle-bowler-prompt"
       />
       <ListRow
-        title="Confirm before ending an innings"
-        subtitle="Asks before a declaration or when no batters are left"
+        title="Confirm innings end"
         trailing={{ kind: 'switch', value: props.confirmInningsEnd, onValueChange: props.onConfirmInningsEndChange, disabled }}
         disabled={disabled}
+        accessibilityHint="Asks before a declaration or when no batters are left"
         testID="settings-toggle-confirm-innings"
       />
       <ListRow
-        title="Keep screen awake while scoring"
+        title="Keep screen awake"
         trailing={{ kind: 'switch', value: props.keepAwake, onValueChange: props.onKeepAwakeChange, disabled }}
         disabled={disabled}
+        accessibilityHint="Stops the screen turning off while you score"
+        separator={false}
         testID="settings-toggle-keep-awake"
       />
     </>

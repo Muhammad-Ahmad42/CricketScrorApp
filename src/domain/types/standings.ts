@@ -8,6 +8,7 @@ export interface TieBreakNote {
   readonly separatedBy: TieBreakerKind | null;
   readonly aboveTeamId: TeamId | null;
   readonly detail: string;
+  readonly headline?: string;
 }
 
 export type QualificationState = 'qualified' | 'in_contention' | 'eliminated';
@@ -30,6 +31,9 @@ export interface TeamQualification {
   readonly targets: readonly QualificationTarget[];
   readonly explanation: string;
   readonly override: TournamentOverride | null;
+  readonly headline?: string;
+  readonly note?: string | null;
+  readonly detail?: string;
 }
 
 export interface StandingRow {
@@ -78,6 +82,8 @@ export interface SlotResolution {
   readonly status: 'final' | 'provisional' | 'pending';
   readonly viaOverride: boolean;
   readonly explanation: string;
+  readonly headline?: string;
+  readonly detail?: string;
 }
 
 export interface ChampionResult {
@@ -148,6 +154,9 @@ export interface TournamentRecordLine {
   readonly playerId: PlayerId | null;
   readonly value: number;
   readonly detail: string;
+  readonly playerIds?: readonly PlayerId[];
+  readonly valueText?: string;
+  readonly tiedWith?: readonly TournamentRecordLine[];
 }
 
 export interface TournamentStats {

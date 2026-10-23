@@ -10,16 +10,16 @@ export function LinkSections({ onOpen }: LinkSectionsProps) {
     <>
       <SectionHeader title="Library" />
       <ListRow title="Teams & players" trailing={{ kind: 'chevron' }} onPress={() => onOpen('teams')} testID="settings-btn-teams" />
-      <ListRow title="Format presets" trailing={{ kind: 'chevron' }} onPress={() => onOpen('presets')} testID="settings-btn-presets" />
+      <ListRow title="Format presets" trailing={{ kind: 'chevron' }} onPress={() => onOpen('presets')} separator={false} testID="settings-btn-presets" />
       <SectionHeader title="Data" />
       <ListRow
         title="Backup & import"
-        subtitle="Save your data to a file or restore it"
         trailing={{ kind: 'chevron' }}
         onPress={() => onOpen('backup')}
+        accessibilityHint="Save your data to a file or restore it"
         testID="settings-btn-backup"
       />
-      <ListRow title="Diagnostics" trailing={{ kind: 'chevron' }} onPress={() => onOpen('diagnostics')} testID="settings-btn-diagnostics" />
+      <ListRow title="Diagnostics" trailing={{ kind: 'chevron' }} onPress={() => onOpen('diagnostics')} separator={false} testID="settings-btn-diagnostics" />
     </>
   );
 }

@@ -40,8 +40,11 @@ describe('paths', () => {
     expect(exportsDirectory('file:///data/cache/')).toBe('file:///data/cache/exports');
   });
 
-  it('makes names safe for the file system', () => {
-    expect(safeFileName('Scorecard - Lions v Tigers: Final/2026?')).toBe('Scorecard - Lions v Tigers Final 2026');
+  it('makes names safe to share as file URIs', () => {
+    expect(safeFileName('Scorecard - Lions v Tigers: Final/2026?')).toBe('scorecard-lions-v-tigers-final-2026');
+    expect(safeFileName('Scorecard - Northside Strikers V Riverside Lions - 2026-10-07')).toBe('scorecard-northside-strikers-v-riverside-lions-2026-10-07');
+    expect(safeFileName('Café Ünited')).toBe('cafe-united');
+    expect(safeFileName('---')).toBe('export');
     expect(safeFileName('   ')).toBe('export');
     expect(safeFileName('a'.repeat(200))).toHaveLength(120);
   });
@@ -90,7 +93,14 @@ describe('service errors (§86)', () => {
 
   it('passes typed failures through unchanged', () => {
     const typed = failure('VALIDATION', 'Choose two teams.', { domainCode: 'X' });
-    expect(toServiceError(typed, 'other')).toEqual({ code: 'VALIDATION', message: 'Choose two teams.', domainCode: 'X', detail: null });
+    expect(toServiceError(typed, 'other')).toEqual({
+      code: 'VALIDATION',
+      message: 'Choose two teams.',
+      domainCode: 'X',
+      detail: null,
+      headline: 'Choose two teams',
+      supporting: null,
+    });
     expect(unwrap(ok(3))).toBe(3);
     expect(() => unwrap({ ok: false, error: typed.error })).toThrow('Choose two teams.');
   });

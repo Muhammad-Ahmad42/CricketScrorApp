@@ -2,10 +2,10 @@ import { useEffect, useState } from 'react';
 import { FlatList, StyleSheet, View } from 'react-native';
 import type { AuditEvent, TournamentId } from '@/domain/types';
 import { ImpactSections, impactViewModel } from '@/features/shared';
-import { Button, EmptyState, ErrorState, Separator, Skeleton, Tabs, Text, space, useScreenList } from '@/ui';
+import { Button, Disclosure, EmptyState, ErrorState, Inset, Separator, Skeleton, Tabs, Text, space, useGutter, useScreenList } from '@/ui';
 import { useTournamentStore } from '@/stores';
 import type { TournamentIndex } from '../selectors/names';
-import { AUDIT_FILTERS, auditRow, filterAudit, type AuditFilter, type AuditRowVM } from '../selectors/audit';
+import { AUDIT_FILTERS, auditRow, filterAudit, impactLabel, type AuditFilter, type AuditRowVM } from '../selectors/audit';
 import { TournamentContainer } from './TournamentContainer';
 
 export interface AuditScreenProps {
@@ -15,21 +15,23 @@ export interface AuditScreenProps {
 const PAGE_SIZE = 30;
 
 function AuditRow({ row, position, showDay, index }: { readonly row: AuditRowVM; readonly position: number; readonly showDay: boolean; readonly index: TournamentIndex }) {
-  const [open, setOpen] = useState(false);
+  const gutter = useGutter();
   const impact = row.event.impact;
   return (
     <View>
       {showDay ? (
-        <Text variant="label" tone="secondary" accessibilityRole="header" style={styles.day}>
-          {row.day}
-        </Text>
+        <Inset top="lg" bottom="xs">
+          <Text variant="label" tone="secondary" accessibilityRole="header">
+            {row.day}
+          </Text>
+        </Inset>
       ) : null}
-      <View style={styles.row} testID={`audit-row-${position}`}>
+      <View style={[styles.row, { paddingHorizontal: gutter }]} testID={`audit-row-${position}`}>
         <Text variant="tableNumeric" tone="secondary" style={styles.time}>
           {row.time}
         </Text>
         <View style={styles.main}>
-          <Text variant="bodyStrong" testID={`audit-text-summary-${position}`}>
+          <Text variant="body" weight="semibold" testID={`audit-text-summary-${position}`}>
             {row.summary}
           </Text>
           {row.change ? (
@@ -43,22 +45,16 @@ function AuditRow({ row, position, showDay, index }: { readonly row: AuditRowVM;
             </Text>
           ) : null}
           {impact ? (
-            <View>
-              <Button
-                label={open ? 'Hide impact' : `Impact: ${impact.headline}`}
-                variant="tertiary"
-                size="sm"
-                icon={open ? 'chevron-down' : 'chevron-right'}
-                onPress={() => setOpen(!open)}
-                accessibilityLabel={open ? 'Hide impact' : 'Show impact'}
-                testID={`audit-btn-impact-${position}`}
-              />
-              {open ? <ImpactSections vm={impactViewModel(impact, index.impactNames)} showHeadline={false} /> : null}
-            </View>
+            <Disclosure label={impactLabel(impact)} expandedLabel="Hide impact" accessibilityHint={impact.headline} testID={`audit-btn-impact-${position}`}>
+              <View style={styles.impact}>
+                <Text variant="callout">{impact.headline}</Text>
+                <ImpactSections vm={impactViewModel(impact, index.impactNames)} />
+              </View>
+            </Disclosure>
           ) : null}
         </View>
       </View>
-      <Separator inset={space.md} />
+      <Separator inset={gutter} />
     </View>
   );
 }
@@ -133,12 +129,12 @@ function AuditBody({ index, filter }: { readonly index: TournamentIndex; readonl
         <AuditRow row={item} position={position + 1} showDay={position === 0 || rows[position - 1].day !== item.day} index={index} />
       )}
       ListEmptyComponent={
-        <EmptyState icon="history" title="No changes yet" body="Important changes to teams, fixtures, results and rules appear here with their reasons." testID="audit-empty" />
+        <EmptyState icon="history" title="No changes yet" testID="audit-empty" />
       }
       ListFooterComponent={
         !exhausted && events.length > 0 ? (
           <View style={styles.more}>
-            <Button label="Load older changes" variant="tertiary" loading={loadingMore} onPress={() => void loadMore()} testID="audit-btn-more" />
+            <Button label="Load older" variant="tertiary" loading={loadingMore} onPress={() => void loadMore()} testID="audit-btn-more" />
           </View>
         ) : null
       }
@@ -164,7 +160,7 @@ export function AuditScreen({ tournamentId }: AuditScreenProps) {
       scroll={false}
       controls={() => (
         <Tabs
-          tabs={AUDIT_FILTERS.map((entry) => ({ key: entry.value, label: entry.label, testID: `audit-tab-${entry.value}` }))}
+          tabs={AUDIT_FILTERS.map((entry) => ({ key: entry.value, label: entry.label, accessibilityLabel: entry.accessibilityLabel, testID: `audit-tab-${entry.value}` }))}
           selectedKey={filter}
           onSelect={setFilter}
           accessibilityLabel="Filter changes"
@@ -177,9 +173,9 @@ export function AuditScreen({ tournamentId }: AuditScreenProps) {
 }
 
 const styles = StyleSheet.create({
-  day: { paddingHorizontal: space.md, paddingTop: space.lg, paddingBottom: space.xs },
-  row: { flexDirection: 'row', gap: space.sm, paddingHorizontal: space.md, paddingVertical: space.sm },
-  time: { width: 48 },
-  main: { flex: 1, gap: 2 },
-  more: { padding: space.md, alignItems: 'center' },
+  row: { flexDirection: 'row', gap: space.sm, paddingVertical: space.sm },
+  time: { minWidth: space['4xl'] },
+  main: { flex: 1, minWidth: 0, gap: space.xxs },
+  more: { paddingVertical: space.md, alignItems: 'center' },
+  impact: { gap: space.xs, paddingTop: space.xs },
 });

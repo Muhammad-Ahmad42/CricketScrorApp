@@ -54,6 +54,12 @@ export function createPlayerRepository(db: SqlExecutor): PlayerRepository {
       );
       return rows.map(playerFromRow);
     },
+    async countActiveByTeam() {
+      const rows = await db.getAllAsync<{ readonly team_id: string; readonly n: number }>(
+        'SELECT team_id, count(*) AS n FROM players WHERE archived_at IS NULL GROUP BY team_id',
+      );
+      return Object.fromEntries(rows.map((row) => [row.team_id, Number(row.n)]));
+    },
     async getMany(ids) {
       if (ids.length === 0) {
         return [];

@@ -329,7 +329,7 @@ describe('IT-M standalone match lifecycle (§91)', () => {
     const team = expectOk(await harness.app.teams.get(lions.team.id)).team;
     expectOk(await harness.app.teams.update({ ...team, name: 'Lions & <Co>' }));
     const pdf = expectOk(await harness.app.export.scorecardPdf(matchId));
-    expect(pdf.fileUri).toMatch(/^file:\/\/\/cache\/exports\/Scorecard - Lions v Tigers - 2026-05-01\.pdf$/);
+    expect(pdf.fileUri).toBe('file:///cache/exports/scorecard-lions-v-tigers-2026-05-01.pdf');
     const html = harness.app.deps.printer.printed[harness.app.deps.printer.printed.length - 1];
     expect(html).toContain('Tigers won by 9 wickets (4 balls left)');
     expect(html).toContain('b Shaheen');
@@ -400,7 +400,7 @@ describe('IT-M standalone match lifecycle (§91)', () => {
     expect(JSON.parse((await matchRow()).summary_json ?? 'null').innings[0].batting.find((line: { playerId: string }) => line.playerId === lions.p(2)).dismissalType).toBe('lbw');
   });
 
-  it('IT-M-24 refuses an edit that breaks the confirmed result', async () => {
+  it('IT-M-24 previews an edit that breaks the confirmed result as reopening the match, saving nothing', async () => {
     const loaded = await live(harness.app, matchId);
     const chaseStart = loaded.events.find((event) => event.kind === 'innings_started' && event.inningsIndex === 1)?.seq ?? 0;
     const two = [...loaded.events]
@@ -410,8 +410,12 @@ describe('IT-M standalone match lifecycle (§91)', () => {
       throw new Error('two missing');
     }
     const ops: readonly HistoryEditOp[] = [{ op: 'replace', seq: two.seq, with: [{ ...stripEnvelope(two), runsRun: 3 }] }];
-    const failure = expectFailure(await harness.app.matches.previewHistoryEdit(matchId, ops), 'VALIDATION');
-    expect(failure.domainCode).toBe('NATURAL_RESULT_NOT_REACHED');
+    const preview = expectOk(await harness.app.matches.previewHistoryEdit(matchId, ops));
+    expect(preview.resolutions?.map((resolution) => resolution.kind)).toEqual(['reopen_match']);
+    expect(preview.ops).toEqual([...ops, { op: 'delete', seq: loaded.events[loaded.events.length - 1].seq }]);
+    expect(preview.outcome.after.lifecycle).toBe('live');
+    expect(preview.consequences?.reopensMatch).toBe(true);
+    expect(preview.requiresReason).toBe(true);
     expect((await live(harness.app, matchId)).events).toEqual(loaded.events);
   });
 

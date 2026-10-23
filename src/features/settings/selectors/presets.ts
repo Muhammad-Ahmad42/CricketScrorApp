@@ -73,11 +73,20 @@ function bowlerLimitText(rules: MatchRules): string {
   return rules.maxOversPerBowler === null ? 'No limit' : `${countOf(rules.maxOversPerBowler, OVERS)} each`;
 }
 
+function overSpan(rule: PowerplayRule): string {
+  return rule.fromOver === rule.toOver ? `over ${rule.fromOver}` : `overs ${overRange(rule)}`;
+}
+
 function powerplayText(rules: MatchRules): string {
-  if (rules.powerplays.length === 0) {
+  const [only] = rules.powerplays;
+  if (!only) {
     return 'None';
   }
-  return rules.powerplays.map((rule) => `${rule.name}: overs ${overRange(rule)}`).join('; ');
+  if (rules.powerplays.length === 1 && only.name.trim().toLowerCase() === 'powerplay') {
+    const span = overSpan(only);
+    return span.charAt(0).toUpperCase() + span.slice(1);
+  }
+  return rules.powerplays.map((rule) => `${rule.name}: ${overSpan(rule)}`).join('; ');
 }
 
 function tieAgainText(rule: SuperOverRule): string {
@@ -117,7 +126,7 @@ export function ruleLines(rules: MatchRules): readonly RuleLineVM[] {
     { key: 'balls', label: 'Balls per over', value: String(rules.ballsPerOver) },
     { key: 'players', label: 'Players per side', value: String(rules.playersPerSide) },
     { key: 'bowler', label: 'Bowler limit', value: bowlerLimitText(rules) },
-    { key: 'consecutive', label: 'Same bowler twice in a row', value: rules.allowBowlerConsecutiveOvers ? 'Allowed' : 'Not allowed' },
+    { key: 'consecutive', label: 'Consecutive overs', value: rules.allowBowlerConsecutiveOvers ? 'Allowed' : 'Not allowed' },
     { key: 'wide', label: 'Wides', value: extraText(rules.wide) },
     { key: 'noBall', label: 'No-balls', value: noBallText(rules.noBall) },
     { key: 'powerplays', label: 'Powerplays', value: powerplayText(rules) },

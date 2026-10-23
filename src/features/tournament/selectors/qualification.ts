@@ -1,5 +1,5 @@
 import type { QualificationState, StageEvaluation, StageId, StageSlot, TeamId, TournamentOverride } from '@/domain/types';
-import { QUALIFICATION_STATE_LABEL, type QualificationCertainty } from '@/features/shared';
+import { QUALIFICATION_STATE_LABEL, conciseExplanation, plural, type QualificationCertainty } from '@/features/shared';
 import { formatDate } from './dates';
 import type { TournamentIndex } from './names';
 import { downstreamRulesText } from './standings';
@@ -15,6 +15,10 @@ export interface QualificationRowVM {
   readonly manual: boolean;
   readonly reason: string | null;
   readonly explanation: string;
+  readonly condition: string | null;
+  readonly headline: string | null;
+  readonly detail: string | null;
+  readonly record: string | null;
   readonly poolId: string | null;
 }
 
@@ -102,20 +106,29 @@ export function overrideTargets(index: TournamentIndex, sourceStageId: StageId):
 }
 
 export function qualificationVM(index: TournamentIndex, stage: StageEvaluation): QualificationVM {
+  const standing = new Map(stage.tables.flatMap((table) => table.rows).filter((row) => row.teamId !== null).map((row) => [row.teamId as string, row]));
   const rows: QualificationRowVM[] = stage.qualification.map((entry) => {
     const manual = entry.certainty === 'manual' || entry.override !== null;
     const slots = entry.slotIds.map((slotId) => index.slot(slotId)?.label).filter((label): label is string => Boolean(label));
+    const team = index.teamName(entry.teamId);
+    const row = standing.get(entry.teamId);
+    const record = row ? [plural(row.points, 'pt'), row.matchesRemaining > 0 ? `${row.matchesRemaining} left` : 'all played'].join(' · ') : null;
+    const slotText = slots.length > 0 ? `${!manual && entry.certainty === 'provisional' ? 'Provisional ' : ''}${slots.join(', ')}` : null;
     return {
       key: `${entry.stageId}:${entry.teamId}`,
       teamId: entry.teamId,
-      team: index.teamName(entry.teamId),
+      team,
       where: index.poolName(entry.poolId),
-      slots: slots.length > 0 ? slots.join(', ') : null,
+      slots: slotText,
       state: entry.state,
       certainty: entry.certainty,
       manual,
       reason: entry.override?.reason ?? null,
       explanation: entry.explanation,
+      condition: entry.note !== undefined ? entry.note : conciseExplanation(entry.explanation, team),
+      headline: entry.headline ?? null,
+      detail: manual ? null : (entry.detail ?? null),
+      record,
       poolId: entry.poolId,
     };
   });

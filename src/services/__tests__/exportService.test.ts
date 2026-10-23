@@ -9,6 +9,7 @@ describe('PDF export and sharing (§82, §83, FR-08)', () => {
   let harness: Harness;
   let league: League;
   let matchId: string;
+  let startedAt: string | null;
 
   beforeAll(async () => {
     harness = await openHarness();
@@ -28,11 +29,24 @@ describe('PDF export and sharing (§82, §83, FR-08)', () => {
       sideB,
     );
     matchId = played.match.id;
+    startedAt = played.match.startedAt;
+  });
+
+  it('names the scorecard PDF after the local date the match was played, like every screen', async () => {
+    expect(startedAt).not.toBeNull();
+    const played = new Date(startedAt as string);
+    const pad = (value: number) => String(value).padStart(2, '0');
+    const localDay = `${played.getFullYear()}-${pad(played.getMonth() + 1)}-${pad(played.getDate())}`;
+    const scheduled = localDay === '2001-01-01' ? '2001-01-02' : '2001-01-01';
+    expectOk(await harness.app.matches.updateDetails(matchId, { scheduledDate: scheduled }));
+    const result = expectOk(await harness.app.export.scorecardPdf(matchId));
+    expect(result.fileUri.endsWith(`-${localDay}.pdf`)).toBe(true);
+    expect(result.fileUri).not.toContain(scheduled);
   });
 
   it('prints a tournament scorecard with the pool standings', async () => {
     const result = expectOk(await harness.app.export.scorecardPdf(matchId));
-    expect(result.fileUri).toMatch(/^file:\/\/\/cache\/exports\/Scorecard - .+\.pdf$/);
+    expect(result.fileUri).toMatch(/^file:\/\/\/cache\/exports\/scorecard-[a-z0-9-]+\.pdf$/);
     expect(harness.app.deps.fileSystem.files.has(result.fileUri)).toBe(true);
     const html = harness.app.deps.printer.printed[harness.app.deps.printer.printed.length - 1];
     expect(html).toContain('Spring League');
@@ -42,7 +56,7 @@ describe('PDF export and sharing (§82, §83, FR-08)', () => {
 
   it('prints the tournament summary', async () => {
     const result = expectOk(await harness.app.export.tournamentPdf(league.tournamentId));
-    expect(result.fileUri).toMatch(/Tournament - Spring League - \d{4}-\d{2}-\d{2}\.pdf$/);
+    expect(result.fileUri).toMatch(/\/exports\/tournament-spring-league-\d{4}-\d{2}-\d{2}\.pdf$/);
     const html = harness.app.deps.printer.printed[harness.app.deps.printer.printed.length - 1];
     expect(html).toContain('Spring League');
     expect(html).toContain(league.sides.Lions.team.name);

@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { FlatList, StyleSheet, View } from 'react-native';
 import type { TeamId, TournamentId } from '@/domain/types';
+import { useDiscardGuard } from '@/features/scoring/hooks/useDiscardGuard';
 import { ImpactSheet, plural } from '@/features/shared';
-import { Button, ListRow, Sheet, Text, TextField, space, useScreenList } from '@/ui';
+import { Button, Inset, ListRow, Sheet, Text, TextField, space, useScreenList } from '@/ui';
 import { useTeamLibraryStore } from '@/stores';
 import { useChangeFlow } from '../hooks/useChangeFlow';
 import { useLibraryLoaded } from '../hooks/useLibrary';
@@ -38,16 +39,15 @@ function teamRows(index: TournamentIndex): readonly TeamRowVM[] {
     const entry = index.snapshot.poolEntries.find((candidate) => candidate.side.kind === 'team' && candidate.side.teamId === view.team.id);
     const pool = entry ? index.poolName(entry.poolId) : null;
     const status = view.membership.status;
-    const parts = [view.membership.seed === null ? 'No seed' : `Seed ${view.membership.seed}`];
+    const parts: string[] = view.membership.seed === null ? [] : [`Seed ${view.membership.seed}`];
     if (pool) {
       parts.push(pool);
     }
     const statusText = STATUS_TEXT[status];
-    if (statusText) {
-      parts.push(statusText);
-    }
     if (status === 'replaced' && view.membership.replacedByTeamId) {
-      parts.push(`by ${index.teamName(view.membership.replacedByTeamId)}`);
+      parts.push(`${statusText} by ${index.teamName(view.membership.replacedByTeamId)}`);
+    } else if (statusText) {
+      parts.push(statusText);
     }
     return {
       teamId: view.team.id,
@@ -65,18 +65,37 @@ function SeedSheet({ team, onClose, onSubmit }: { readonly team: TeamRowVM; read
   const [text, setText] = useState(team.seed === null ? '' : String(team.seed));
   const trimmed = text.trim();
   const valid = trimmed.length === 0 || (/^\d+$/.test(trimmed) && Number(trimmed) >= 1);
+  const guard = useDiscardGuard(text !== (team.seed === null ? '' : String(team.seed)), onClose);
   return (
-    <Sheet
-      visible
-      title={`Seed for ${team.name}`}
-      onClose={onClose}
-      testID="sheet-seed"
-      footer={<Button label="Review changes" disabled={!valid} onPress={() => onSubmit(trimmed.length === 0 ? null : Number(trimmed))} fullWidth testID="seed-btn-review" />}
-    >
-      <View style={styles.sheetBody}>
-        <TextField label="Seed" value={text} onChangeText={setText} numeric helper="1 is the strongest. Leave empty for no seed." error={valid ? null : 'Enter a whole number from 1.'} testID="seed-input" />
-      </View>
-    </Sheet>
+    <>
+      <Sheet
+        visible={!guard.asking}
+        title="Change seed"
+        subtitle={team.name}
+        onClose={guard.requestClose}
+        testID="sheet-seed"
+        footer={<Button label="Review changes" disabled={!valid} onPress={() => onSubmit(trimmed.length === 0 ? null : Number(trimmed))} fullWidth testID="seed-btn-review" />}
+      >
+        <View style={styles.sheetBody}>
+          <TextField
+            label="Seed"
+            value={text}
+            onChangeText={setText}
+            numeric
+            helper="1 is the strongest"
+            error={valid ? null : 'Enter a whole number from 1.'}
+            returnKeyType="done"
+            onSubmitEditing={() => {
+              if (valid) {
+                onSubmit(trimmed.length === 0 ? null : Number(trimmed));
+              }
+            }}
+            testID="seed-input"
+          />
+        </View>
+      </Sheet>
+      {guard.dialog}
+    </>
   );
 }
 
@@ -102,14 +121,16 @@ function TeamsBody({ index }: { readonly index: TournamentIndex }) {
         data={rows}
         keyExtractor={(row) => row.teamId}
         ListHeaderComponent={
-          <Text variant="headline" style={styles.count} testID="tteams-text-count">
-            {plural(active, 'team')}
-          </Text>
+          <Inset top="sm" bottom="sm">
+            <Text variant="headline" testID="tteams-text-count">
+              {plural(active, 'team')}
+            </Text>
+          </Inset>
         }
         renderItem={({ item, index: position }) => (
           <ListRow
             title={item.name}
-            subtitle={item.detail}
+            subtitle={item.detail.length > 0 ? item.detail : undefined}
             leading={{ monogram: item.shortName.slice(0, 3) }}
             disabled={item.status !== 'active'}
             menu={
@@ -193,6 +214,5 @@ export function TournamentTeamsScreen({ tournamentId }: TournamentTeamsScreenPro
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
-  count: { paddingHorizontal: space.md, paddingVertical: space.sm },
   sheetBody: { gap: space.md },
 });

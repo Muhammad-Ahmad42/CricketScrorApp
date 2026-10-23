@@ -11,6 +11,7 @@ export interface WizardScreenProps {
   readonly toolbar?: ReactNode;
   readonly nextLabel?: string;
   readonly nextDisabled?: boolean;
+  readonly nextReason?: string | null;
   readonly busy?: boolean;
   readonly onNext?: () => void;
 }
@@ -24,7 +25,7 @@ export function goToStep(step: WizardStep): void {
   router.push(STEP_ROUTE[step]);
 }
 
-export function WizardScreen({ step, children, toolbar, nextLabel, nextDisabled = false, busy = false, onNext }: WizardScreenProps) {
+export function WizardScreen({ step, children, toolbar, nextLabel, nextDisabled = false, nextReason = null, busy = false, onNext }: WizardScreenProps) {
   const draft = useMatchSetupStore((s) => s.draft);
   const [confirming, setConfirming] = useState(false);
   const index = STEPS.indexOf(step);
@@ -50,6 +51,7 @@ export function WizardScreen({ step, children, toolbar, nextLabel, nextDisabled 
         toolbar={toolbar}
         nextLabel={nextLabel}
         nextDisabled={nextDisabled}
+        nextReason={nextReason}
         busy={busy}
         onNext={onNext ?? advance}
         onBack={step === firstStep ? undefined : () => router.back()}

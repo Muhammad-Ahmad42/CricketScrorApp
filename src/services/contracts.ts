@@ -54,6 +54,7 @@ import type {
 } from '@/domain/types';
 import type { IdGenerator, PoolId } from '@/domain/types';
 import type { EditOutcome, HistoryEditOp } from '@/domain/scoring/history';
+import type { EditConflict, EditConsequences, EditResolution } from '@/domain/scoring/editPlanning';
 import type { PoolAssignment } from '@/domain/tournament/pools';
 import type { MatchListItem, MatchListQuery, TournamentListItem } from '@/domain/types';
 import type { SqlDatabase } from '@/db/types';
@@ -77,6 +78,8 @@ export interface ServiceError {
   readonly message: string;
   readonly domainCode: string | null;
   readonly detail: string | null;
+  readonly headline?: string;
+  readonly supporting?: string | null;
 }
 
 export type ServiceResult<T> = { readonly ok: true; readonly value: T } | { readonly ok: false; readonly error: ServiceError };
@@ -93,7 +96,14 @@ export interface HistoryEditPreview {
   readonly baseFingerprint: string;
   readonly impact: ImpactSummary | null;
   readonly requiresReason: boolean;
+  readonly ops?: readonly HistoryEditOp[];
+  readonly resolutions?: readonly EditResolution[];
+  readonly consequences?: EditConsequences;
 }
+
+export type HistoryEditPlan =
+  | { readonly status: 'ready'; readonly preview: HistoryEditPreview }
+  | { readonly status: 'conflict'; readonly conflict: EditConflict; readonly baseFingerprint: string };
 
 export interface MatchService {
   createMatch(input: NewMatchInput, openingEvents?: readonly MatchEventInput[]): Promise<ServiceResult<LiveMatch>>;
@@ -106,6 +116,7 @@ export interface MatchService {
   undo(matchId: MatchId, expectedLastSeq: Seq, reason?: string): Promise<ServiceResult<{ readonly live: LiveMatch; readonly undone: readonly MatchEvent[] }>>;
   redo(matchId: MatchId, expectedLastSeq: Seq, group: readonly MatchEvent[], reason?: string): Promise<ServiceResult<LiveMatch>>;
   previewHistoryEdit(matchId: MatchId, ops: readonly HistoryEditOp[]): Promise<ServiceResult<HistoryEditPreview>>;
+  planHistoryEdit(matchId: MatchId, ops: readonly HistoryEditOp[]): Promise<ServiceResult<HistoryEditPlan>>;
   applyHistoryEdit(
     matchId: MatchId,
     ops: readonly HistoryEditOp[],
@@ -157,6 +168,7 @@ export type PrePlayStatus = Parameters<MatchService['setPrePlayStatus']>[1];
 export interface TeamService {
   list(opts?: { readonly includeArchived?: boolean; readonly search?: string }): Promise<ServiceResult<readonly Team[]>>;
   get(teamId: TeamId): Promise<ServiceResult<{ readonly team: Team; readonly players: readonly Player[] }>>;
+  playerCounts?(): Promise<ServiceResult<Readonly<Record<TeamId, number>>>>;
   create(input: NewTeamInput): Promise<ServiceResult<Team>>;
   update(team: Team): Promise<ServiceResult<Team>>;
   archive(teamId: TeamId): Promise<ServiceResult<void>>;

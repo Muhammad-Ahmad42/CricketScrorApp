@@ -2,8 +2,7 @@ import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import type { MatchRules, RunsTo } from '@/domain/types';
 import type { ScoringIntent } from '@/domain/scoring/commands';
-import { Button, SegmentedControl, Sheet, Stepper, Tabs, Text, space } from '@/ui';
-import { ChipButton } from '../components/common/ChipButton';
+import { ActionTile, Button, SegmentedControl, Sheet, Stepper, Tabs, Text, space } from '@/ui';
 import {
   allowsSix,
   customIntent,
@@ -106,12 +105,12 @@ export function ExtrasSheet({ visible, rules, onSubmit, onClose, onPenalty, init
           <>
             <View style={styles.grid}>
               {extrasChips(tab, runsTo).map((entry) => (
-                <ChipButton
+                <ActionTile
                   key={entry.key}
                   label={entry.label}
                   caption={entry.caption}
                   accessibilityLabel={entry.accessibilityLabel}
-                  wide={tab === 'other'}
+                  span={tab === 'other' ? 'half' : 'third'}
                   onPress={() => submit(entry.intent)}
                   testID={`extras-chip-${entry.key}`}
                 />
@@ -160,7 +159,7 @@ export function ExtrasSheet({ visible, rules, onSubmit, onClose, onPenalty, init
               <Button label="More" variant="tertiary" size="sm" onPress={() => setShowShort(true)} testID="extras-custom-more" />
             )}
             <Button label="Record" size="lg" fullWidth onPress={() => submit(customIntent(tab, runsTo, custom))} testID="extras-custom-record" />
-            <Button label="Back to choices" variant="tertiary" size="sm" onPress={() => setCustom(null)} testID="extras-custom-back" />
+            <Button label="Back" icon="chevron-left" variant="tertiary" size="sm" onPress={() => setCustom(null)} testID="extras-custom-back" />
           </View>
         )}
         {note ? (

@@ -211,7 +211,7 @@ describe('EmptyState and ErrorState', () => {
       const user = userEvent.setup();
       await renderWithTheme(<ErrorState title="Couldn't load this tournament" onRetry={onRetry} details="SQLITE_BUSY: database is locked" />);
       expect(screen.getByTestId('error-screen')).toBeOnTheScreen();
-      expect(screen.getByTestId('error-text-message')).toHaveTextContent('Your data is safe on this device. Try again, or open Diagnostics for details.');
+      expect(screen.getByTestId('error-text-message')).toHaveTextContent('Your data is safe on this device.', { exact: true });
       expect(screen.queryByText(/SQLITE_BUSY/, { includeHiddenElements: true })).toBeNull();
       await user.press(screen.getByTestId('error-btn-retry'));
       expect(onRetry).toHaveBeenCalledTimes(1);

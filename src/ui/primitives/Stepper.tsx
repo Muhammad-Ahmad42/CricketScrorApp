@@ -14,6 +14,8 @@ export interface StepperProps {
   readonly formatValue?: (value: number) => string;
   readonly editable?: boolean;
   readonly disabled?: boolean;
+  readonly hideLabel?: boolean;
+  readonly caption?: string;
   readonly testID?: string;
 }
 
@@ -34,6 +36,8 @@ export function Stepper({
   formatValue = String,
   editable = true,
   disabled = false,
+  hideLabel = false,
+  caption,
   testID,
 }: StepperProps) {
   const theme = useTheme();
@@ -96,9 +100,9 @@ export function Stepper({
     styles.button,
     {
       borderRadius: theme.radius.md,
-      borderWidth: enabled ? theme.borderWidth.control : 0,
-      borderColor: theme.color.borderStrong,
-      backgroundColor: !enabled ? theme.color.surfaceSunken : pressed ? theme.color.surfaceSunken : theme.color.surface,
+      borderWidth: theme.borderWidth.control,
+      borderColor: enabled ? theme.color.borderStrong : theme.color.border,
+      backgroundColor: enabled && pressed ? theme.color.surfaceSunken : 'transparent',
     },
   ];
 
@@ -114,75 +118,93 @@ export function Stepper({
       onAccessibilityAction={onAccessibilityAction}
       style={styles.root}
     >
-      <Pressable
-        testID={testID ? `${testID}-decrement` : undefined}
-        accessibilityRole="button"
-        accessibilityLabel={`Decrease ${label}`}
-        accessibilityState={{ disabled: !canDecrement }}
-        disabled={!canDecrement}
-        onPress={() => nudge(-1)}
-        onLongPress={() => startRepeat(-1)}
-        delayLongPress={REPEAT_DELAY_MS}
-        onPressOut={stopRepeat}
-        style={({ pressed }) => buttonStyle(canDecrement, pressed)}
-      >
-        <Icon name="minus" size={20} color={canDecrement ? 'textPrimary' : 'textMuted'} />
-      </Pressable>
-      {editing ? (
-        <TextInput
-          testID={testID ? `${testID}-input` : undefined}
-          accessibilityLabel={label}
-          autoFocus
-          value={draft}
-          onChangeText={setDraft}
-          keyboardType="number-pad"
-          onSubmitEditing={commitDraft}
-          onBlur={commitDraft}
-          selectTextOnFocus
-          style={[
-            textStyle('scoreMedium', theme, { size: 24, lineHeight: 28 }),
-            styles.value,
-            styles.input,
-            { borderColor: theme.color.accent, borderWidth: theme.borderWidth.emphasis, borderRadius: theme.radius.md },
-          ]}
-        />
-      ) : (
-        <Pressable
-          testID={testID ? `${testID}-value` : undefined}
-          accessibilityRole="button"
-          accessibilityLabel={`Type ${label}`}
-          disabled={!editable || disabled}
-          onPress={() => {
-            setDraft(String(value));
-            setEditing(true);
-          }}
-          style={styles.valueTouch}
-        >
-          <Text variant="scoreMedium" style={[styles.value, { fontSize: 24, lineHeight: 28 }]} align="center">
-            {shown}
+      {hideLabel ? null : (
+        <View style={styles.caption} accessible={false} importantForAccessibility="no-hide-descendants" accessibilityElementsHidden>
+          <Text variant="body" tone={disabled ? 'muted' : 'primary'} testID={testID ? `${testID}-label` : undefined}>
+            {label}
           </Text>
-        </Pressable>
+          {caption ? (
+            <Text variant="footnote" tone="secondary">
+              {caption}
+            </Text>
+          ) : null}
+        </View>
       )}
-      <Pressable
-        testID={testID ? `${testID}-increment` : undefined}
-        accessibilityRole="button"
-        accessibilityLabel={`Increase ${label}`}
-        accessibilityState={{ disabled: !canIncrement }}
-        disabled={!canIncrement}
-        onPress={() => nudge(1)}
-        onLongPress={() => startRepeat(1)}
-        delayLongPress={REPEAT_DELAY_MS}
-        onPressOut={stopRepeat}
-        style={({ pressed }) => buttonStyle(canIncrement, pressed)}
-      >
-        <Icon name="plus" size={20} color={canIncrement ? 'textPrimary' : 'textMuted'} />
-      </Pressable>
+      <View style={styles.controls}>
+        <Pressable
+          testID={testID ? `${testID}-decrement` : undefined}
+          accessibilityRole="button"
+          accessibilityLabel={`Decrease ${label}`}
+          accessibilityState={{ disabled: !canDecrement }}
+          aria-disabled={!canDecrement}
+          disabled={!canDecrement}
+          onPress={() => nudge(-1)}
+          onLongPress={() => startRepeat(-1)}
+          delayLongPress={REPEAT_DELAY_MS}
+          onPressOut={stopRepeat}
+          style={({ pressed }) => buttonStyle(canDecrement, pressed)}
+        >
+          <Icon name="minus" size={20} color={canDecrement ? 'textPrimary' : 'textMuted'} />
+        </Pressable>
+        {editing ? (
+          <TextInput
+            testID={testID ? `${testID}-input` : undefined}
+            accessibilityLabel={label}
+            autoFocus
+            value={draft}
+            onChangeText={setDraft}
+            keyboardType="number-pad"
+            onSubmitEditing={commitDraft}
+            onBlur={commitDraft}
+            selectTextOnFocus
+            style={[
+              textStyle('scoreMedium', theme, { size: 24, lineHeight: 28 }),
+              styles.value,
+              styles.input,
+              { borderColor: theme.color.accent, borderWidth: theme.borderWidth.emphasis, borderRadius: theme.radius.md },
+            ]}
+          />
+        ) : (
+          <Pressable
+            testID={testID ? `${testID}-value` : undefined}
+            accessibilityRole="button"
+            accessibilityLabel={`Type ${label}`}
+            disabled={!editable || disabled}
+            onPress={() => {
+              setDraft(String(value));
+              setEditing(true);
+            }}
+            style={styles.valueTouch}
+          >
+            <Text variant="scoreMedium" style={[styles.value, { fontSize: 24, lineHeight: 28 }]} align="center">
+              {shown}
+            </Text>
+          </Pressable>
+        )}
+        <Pressable
+          testID={testID ? `${testID}-increment` : undefined}
+          accessibilityRole="button"
+          accessibilityLabel={`Increase ${label}`}
+          accessibilityState={{ disabled: !canIncrement }}
+          aria-disabled={!canIncrement}
+          disabled={!canIncrement}
+          onPress={() => nudge(1)}
+          onLongPress={() => startRepeat(1)}
+          delayLongPress={REPEAT_DELAY_MS}
+          onPressOut={stopRepeat}
+          style={({ pressed }) => buttonStyle(canIncrement, pressed)}
+        >
+          <Icon name="plus" size={20} color={canIncrement ? 'textPrimary' : 'textMuted'} />
+        </Pressable>
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  root: { flexDirection: 'row', alignItems: 'center', gap: space.xs },
+  root: { flexDirection: 'row', alignItems: 'center', gap: space.sm, alignSelf: 'stretch', minHeight: 44 },
+  caption: { flex: 1, minWidth: 0, gap: 2 },
+  controls: { flexDirection: 'row', alignItems: 'center', gap: space.xs, flexShrink: 0, marginLeft: 'auto' },
   button: { width: 44, height: 44, minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
   valueTouch: { minWidth: 56, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
   value: { minWidth: 56, textAlign: 'center' },

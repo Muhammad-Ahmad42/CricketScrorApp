@@ -1,5 +1,6 @@
 import './support/mocks';
-import { fireEvent, screen } from '@testing-library/react-native';
+import { fireEvent, screen, within } from '@testing-library/react-native';
+import { lightColors } from '@/ui';
 import { router } from 'expo-router';
 import { selectBowler } from '@/domain/scoring/commands';
 import { ScoringScreen } from '../screens/ScoringScreen';
@@ -20,13 +21,34 @@ describe('More sheet on the live screen', () => {
     jest.clearAllMocks();
   });
 
-  it('navigates to the scorecard, ball log, analytics and match settings', async () => {
+  it('navigates to the scorecard, ball log, analytics and match settings from the top match menu', async () => {
     setLive(liveMatch([OPEN]));
     await renderScreen(<ScoringScreen />);
     for (const route of ['scorecard', 'balls', 'analytics', 'manage']) {
-      await openMore(route);
+      await fireEvent.press(screen.getByTestId('score-top-more'));
+      expect(screen.getByTestId('sheet-match-menu')).toBeOnTheScreen();
+      expect(screen.queryByTestId('more-row-end_innings')).not.toBeOnTheScreen();
+      await fireEvent.press(screen.getByTestId(`more-row-${route}`));
       expect(router.push).toHaveBeenLastCalledWith({ pathname: `/match/[matchId]/${route}`, params: { matchId: 'M1' } });
     }
+  });
+
+  it('keeps the dock More for play actions only, grouped, with End innings in warning ink', async () => {
+    setLive(liveMatch([OPEN, '1']));
+    await renderScreen(<ScoringScreen />);
+    await fireEvent.press(screen.getByTestId('score-btn-more'));
+    expect(screen.getByTestId('sheet-more')).toBeOnTheScreen();
+    expect(screen.queryByTestId('more-row-scorecard')).not.toBeOnTheScreen();
+    expect(screen.getByText('Stop or shorten play')).toBeOnTheScreen();
+    expect(within(screen.getByTestId('more-row-end_innings')).getByText('End innings')).toHaveStyle({ color: lightColors.warning });
+  });
+
+  it('offers play actions in the top menu while a prompt replaces the pad', async () => {
+    setLive(liveMatch([OPEN, ...Array.from({ length: 6 }, () => '1')]));
+    await renderScreen(<ScoringScreen />);
+    await fireEvent.press(screen.getByTestId('score-top-more'));
+    expect(screen.getByTestId('more-row-suspend')).toBeOnTheScreen();
+    expect(screen.getByTestId('more-row-scorecard')).toBeOnTheScreen();
   });
 
   it('changes the bowler mid-over for an injury', async () => {

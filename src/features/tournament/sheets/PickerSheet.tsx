@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from 'react';
 import { FlatList, StyleSheet, View, useWindowDimensions } from 'react-native';
-import { ListRow, Sheet, Text, TextField, space } from '@/ui';
+import { Icon, ListRow, Sheet, Text, TextField, space } from '@/ui';
 
 export interface PickerOption {
   readonly key: string;
@@ -22,7 +22,19 @@ export interface PickerSheetProps {
   readonly testIDPrefix?: string;
   readonly header?: ReactNode;
   readonly footer?: ReactNode;
+  readonly actionLabel?: string;
   readonly testID?: string;
+}
+
+function ActionTrailing({ label }: { readonly label: string }) {
+  return (
+    <View style={styles.action}>
+      <Icon name="plus" size={16} color="accent" />
+      <Text variant="subhead" weight="semibold" tone="accent">
+        {label}
+      </Text>
+    </View>
+  );
 }
 
 export function PickerSheet({
@@ -37,6 +49,7 @@ export function PickerSheet({
   testIDPrefix = 'picker',
   header,
   footer,
+  actionLabel,
   testID = 'sheet-picker',
 }: PickerSheetProps) {
   const window = useWindowDimensions();
@@ -74,6 +87,8 @@ export function PickerSheet({
                 subtitle={item.subtitle}
                 leading={item.monogram ? { monogram: item.monogram } : undefined}
                 disabled={item.disabled}
+                trailing={item.disabled ? undefined : actionLabel ? { kind: 'custom', node: <ActionTrailing label={actionLabel} /> } : { kind: 'chevron' }}
+                accessibilityHint={actionLabel && !item.disabled ? `${actionLabel} ${item.title}` : undefined}
                 onPress={() => onPick(item.key)}
                 testID={`${testIDPrefix}-row-${index + 1}`}
               />
@@ -87,4 +102,5 @@ export function PickerSheet({
 
 const styles = StyleSheet.create({
   body: { gap: space.sm },
+  action: { flexDirection: 'row', alignItems: 'center', gap: space.xxs },
 });

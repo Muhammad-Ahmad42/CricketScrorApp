@@ -109,7 +109,7 @@ describe('TournamentTeamsScreen (§27, §33)', () => {
     loadTournament(cupSnapshot());
     await renderWithTheme(<TournamentTeamsScreen tournamentId="t1" />);
     expect(screen.getByTestId('tteams-text-count')).toHaveTextContent('8 teams');
-    expect(screen.getByTestId('tteams-row-1')).toHaveProp('accessibilityLabel', 'Lions, No seed · Pool A');
+    expect(screen.getByTestId('tteams-row-1')).toHaveProp('accessibilityLabel', 'Lions, Pool A');
   });
 
   it('withdraws a team through the impact preview', async () => {

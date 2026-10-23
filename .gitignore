@@ -45,3 +45,4 @@ example
 .workflow/
 .expo-export-check/
 .playwright-mcp/
+.expo-export-analysis/

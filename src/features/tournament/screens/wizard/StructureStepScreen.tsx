@@ -1,13 +1,11 @@
 import { useEffect, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
 import { builtinTemplates, templateFitsTeamCount } from '@/domain/tournament/templates';
 import type { Stage, TournamentStructureKind, TournamentTemplate } from '@/domain/types';
-import { ChoiceList } from '@/features/shared';
-import { Button, ListRow, SectionHeader, Separator, Text, space } from '@/ui';
+import { Disclosure, EmptyState, Inset, ListRow, RadioList, SectionHeader, Separator } from '@/ui';
 import { useTournamentWizardStore } from '@/stores';
 import { newId, nowIso } from '../../ids';
 import { STRUCTURE_KIND_KEY, STRUCTURE_KIND_LABEL } from '../../labels';
-import { CHAMPION_MARK, stageNameMap, stageSummary } from '../../selectors/stages';
+import { CHAMPION_MARK, stageNameMap, stageSubtitle } from '../../selectors/stages';
 import { StageEditorSheet } from '../../sheets/StageEditorSheet';
 import {
   addKnockoutStage,
@@ -27,11 +25,11 @@ import { WizardFrame } from './WizardFrame';
 const KINDS: readonly TournamentStructureKind[] = ['league', 'groups', 'knockout', 'groups_knockout', 'custom'];
 
 const KIND_DESCRIPTION: { readonly [K in TournamentStructureKind]: string } = {
-  league: 'Everyone plays everyone in one table.',
-  groups: 'Pools play round robins; the pool tables decide the title.',
-  knockout: 'Single elimination from the first round.',
-  groups_knockout: 'Pools first, then the best teams play knockouts.',
-  custom: 'Build your own stages and add fixtures by hand.',
+  league: 'Everyone plays everyone.',
+  groups: 'Pool tables decide the title.',
+  knockout: 'Single elimination.',
+  groups_knockout: 'Top pool teams advance to knockouts.',
+  custom: 'Your own stages and fixtures.',
 };
 
 export function templateSlug(template: TournamentTemplate): string {
@@ -117,86 +115,79 @@ export function StructureStepScreen() {
   return (
     <WizardFrame step="structure" nextDisabled={error !== null} nextHint={error}>
       <SectionHeader title={`Templates for ${teamCount} teams`} />
-      <View style={styles.padded}>
-        {fitting.length === 0 ? (
-          <Text variant="callout" tone="secondary">
-            No template fits this number of teams. Choose a structure below.
-          </Text>
-        ) : (
-          <ChoiceList
-            choices={fitting.map((template) => ({
-              value: template.id,
-              label: template.name,
-              description: template.description,
-              testID: `twiz-chip-template-${templateSlug(template)}`,
-            }))}
-            value={selectedTemplate}
-            onChange={(templateId) => {
-              const template = templates.find((candidate) => candidate.id === templateId);
-              if (template) {
-                applyTemplate(template);
-              }
-            }}
-            accessibilityLabel="Template"
-          />
-        )}
-        {other.length > 0 ? (
-          <Button
-            label={showOther ? 'Hide other templates' : `Other templates (${other.length})`}
-            variant="tertiary"
-            size="sm"
-            onPress={() => setShowOther(!showOther)}
+      {fitting.length === 0 ? (
+        <EmptyState title="No template fits" testID="twiz-text-no-template" />
+      ) : (
+        <RadioList
+          choices={fitting.map((template) => ({
+            value: template.id,
+            label: template.name,
+            description: template.description,
+            testID: `twiz-chip-template-${templateSlug(template)}`,
+          }))}
+          value={selectedTemplate}
+          onChange={(templateId) => {
+            const template = templates.find((candidate) => candidate.id === templateId);
+            if (template) {
+              applyTemplate(template);
+            }
+          }}
+          accessibilityLabel="Template"
+        />
+      )}
+      {other.length > 0 ? (
+        <Inset top="xs">
+          <Disclosure
+            label={`Other team counts (${other.length})`}
+            expandedLabel="Hide other team counts"
+            expanded={showOther}
+            onToggle={setShowOther}
             testID="twiz-btn-other-templates"
-          />
-        ) : null}
-        {showOther
-          ? other.map((template) => (
-              <ListRow
-                key={template.id}
-                title={template.name}
-                subtitle={templateFitsTeamCount(template, teamCount).message ?? undefined}
-                disabled
-                compact
-                testID={`twiz-chip-template-${templateSlug(template)}`}
-              />
-            ))
-          : null}
-      </View>
+          >
+            {null}
+          </Disclosure>
+        </Inset>
+      ) : null}
+      {showOther
+        ? other.map((template) => (
+            <ListRow
+              key={template.id}
+              title={template.name}
+              subtitle={templateFitsTeamCount(template, teamCount).message ?? undefined}
+              disabled
+              compact
+              testID={`twiz-chip-template-${templateSlug(template)}`}
+            />
+          ))
+        : null}
       <Separator />
       <SectionHeader title="Structure" />
-      <View style={styles.padded}>
-        <ChoiceList
-          choices={KINDS.map((kind) => ({
-            value: kind,
-            label: STRUCTURE_KIND_LABEL[kind],
-            description: KIND_DESCRIPTION[kind],
-            testID: `twiz-chip-structure-${STRUCTURE_KIND_KEY[kind]}`,
-          }))}
-          value={selectedTemplate === null ? draft.info.structureKind : null}
-          onChange={applyKind}
-          accessibilityLabel="Structure"
-        />
-      </View>
+      <RadioList
+        choices={KINDS.map((kind) => ({
+          value: kind,
+          label: STRUCTURE_KIND_LABEL[kind],
+          description: KIND_DESCRIPTION[kind],
+          testID: `twiz-chip-structure-${STRUCTURE_KIND_KEY[kind]}`,
+        }))}
+        value={selectedTemplate === null ? draft.info.structureKind : null}
+        onChange={applyKind}
+        accessibilityLabel="Structure"
+      />
       <Separator />
       <SectionHeader
         title="Stages"
-        action={{ label: 'Stage', onPress: () => applyStructure(addKnockoutStage(currentStructure(), context())), testID: 'twiz-btn-add-stage' }}
+        action={{ label: 'Add stage', onPress: () => applyStructure(addKnockoutStage(currentStructure(), context())), testID: 'twiz-btn-add-stage' }}
       />
       {stages.map((stage, index) => (
         <ListRow
           key={stage.id}
           title={`${index + 1}  ${stage.name}`}
-          subtitle={[stageSummary(stage, draft.pools, names), stage.config.decidesChampion ? CHAMPION_MARK : null].filter(Boolean).join('\n')}
+          subtitle={[stageSubtitle(stage, draft.pools, names), stage.config.decidesChampion && stages.length > 1 ? CHAMPION_MARK : null].filter(Boolean).join('\n')}
           trailing={{ kind: 'chevron' }}
           onPress={() => setEditing(stage)}
           testID={`twiz-row-stage-${index + 1}`}
         />
       ))}
-      {error ? (
-        <Text variant="footnote" tone="danger" style={styles.padded} testID="twiz-text-structure-error">
-          {error}
-        </Text>
-      ) : null}
       {editing ? (
         <StageEditorSheet
           visible
@@ -226,7 +217,3 @@ export function StructureStepScreen() {
     </WizardFrame>
   );
 }
-
-const styles = StyleSheet.create({
-  padded: { paddingHorizontal: space.md, gap: space.xs },
-});

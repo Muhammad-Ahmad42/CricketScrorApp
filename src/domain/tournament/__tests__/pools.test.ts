@@ -303,7 +303,7 @@ describe('poolWarnings', () => {
     expect(warnings).toEqual([
       {
         code: 'UNEVEN_POOLS',
-        message: 'Teams in different pools may play different numbers of matches.',
+        message: 'Pools play different numbers of matches.',
         poolIds: ['p0', 'p1', 'p2'],
         members: [],
       },
@@ -327,7 +327,7 @@ describe('poolWarnings', () => {
     expect(warnings.map((w) => w.code)).toEqual(['UNEVEN_POOLS', 'SINGLE_TEAM_POOL']);
     expect(warnings[1]).toEqual({
       code: 'SINGLE_TEAM_POOL',
-      message: 'Pool B has only one team, so it has no matches.',
+      message: 'Pool B has one team, so no matches.',
       poolIds: ['p1'],
       members: [team('T03')],
     });

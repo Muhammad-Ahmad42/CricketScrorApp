@@ -1,5 +1,4 @@
 import type {
-  ActionId,
   EventId,
   EventValidationCode,
   IdGenerator,
@@ -12,9 +11,10 @@ import type {
   Seq,
 } from '../types';
 import { canonicalJson, fnv1a32 } from './internal/canonical';
+import { editFailure, isEditLogFailure, materialiseEdits, normaliseEdited, validateEditedLog } from './internal/editLog';
 import { computeAnchors, normalizeWithAnchors } from './internal/normalize';
 import { validateEventCore } from './internal/validation';
-import { applyEvent, initialMatchState, replayMatch } from './replay';
+import { applyEvent, replayMatch } from './replay';
 
 export type RedoStack = readonly (readonly MatchEvent[])[];
 
@@ -58,7 +58,7 @@ export function redoAction(
   const contiguous = group.every((event, index) => event.seq === tail + 1 + index);
   const anchored = expectedTailId === undefined || (last?.id ?? null) === expectedTailId;
   if (group.length === 0 || !contiguous || !anchored) {
-    return { ok: false, code: 'REDO_STALE', message: 'The match has changed since this was undone, so it can no longer be redone.' };
+    return { ok: false, code: 'REDO_STALE', message: "Can't redo. The match changed since this was undone." };
   }
   let state = replayMatch(setup, events);
   for (const event of group) {
@@ -100,82 +100,13 @@ export type EditOutcome =
       readonly affectedInnings: readonly number[];
       readonly resultChanged: boolean;
     }
-  | { readonly ok: false; readonly code: EventValidationCode; readonly message: string; readonly atSeq: Seq | null };
-
-interface Slot {
-  readonly original: MatchEvent;
-  before: MatchEvent[];
-  self: MatchEvent[];
-  after: MatchEvent[];
-  touched: boolean;
-}
-
-type EditFailure = Extract<EditOutcome, { readonly ok: false }>;
-
-function editFailure(code: EventValidationCode, message: string, atSeq: Seq | null): EditFailure {
-  return { ok: false, code, message, atSeq };
-}
-
-interface Materialised {
-  readonly events: readonly MatchEvent[];
-  readonly insertedIds: readonly EventId[];
-  readonly removedIds: readonly EventId[];
-  readonly replacedIds: readonly EventId[];
-}
-
-function materialise(setup: MatchSetup, events: readonly MatchEvent[], ops: readonly HistoryEditOp[], ctx: EditContext): Materialised | EditFailure {
-  const slots: Slot[] = events.map((event) => ({ original: event, before: [], self: [event], after: [], touched: false }));
-  const bySeq = new Map<Seq, Slot>();
-  for (const slot of slots) {
-    if (!bySeq.has(slot.original.seq)) {
-      bySeq.set(slot.original.seq, slot);
-    }
-  }
-  const insertedIds: EventId[] = [];
-  const removedIds: EventId[] = [];
-  const replacedIds: EventId[] = [];
-  const fresh = (payloads: readonly MatchEventInput[]): MatchEvent[] => {
-    const actionId: ActionId = ctx.ids();
-    return payloads.map((payload) => {
-      const id = ctx.ids();
-      insertedIds.push(id);
-      return { ...payload, id, matchId: setup.matchId, seq: 0, actionId, recordedAt: ctx.now };
-    });
-  };
-  for (const op of ops) {
-    const slot = bySeq.get(op.seq);
-    if (slot === undefined) {
-      return editFailure('SEQ_OUT_OF_ORDER', 'That entry is not in the match log.', op.seq);
-    }
-    switch (op.op) {
-      case 'replace':
-      case 'delete':
-        if (slot.touched) {
-          return editFailure('SEQ_OUT_OF_ORDER', 'That entry was already changed in this edit.', op.seq);
-        }
-        slot.touched = true;
-        if (op.op === 'replace') {
-          replacedIds.push(slot.original.id);
-          slot.self = fresh(op.with);
-        } else {
-          removedIds.push(slot.original.id);
-          slot.self = [];
-        }
-        break;
-      case 'insert_before':
-        slot.before = [...slot.before, ...fresh(op.events)];
-        break;
-      case 'insert_after':
-        slot.after = [...slot.after, ...fresh(op.events)];
-        break;
-      default: {
-        const unreachable: never = op;
-        return unreachable;
-      }
-    }
-  }
-  return { events: slots.flatMap((slot) => [...slot.before, ...slot.self, ...slot.after]), insertedIds, removedIds, replacedIds };
-}
+  | {
+      readonly ok: false;
+      readonly code: EventValidationCode;
+      readonly message: string;
+      readonly atSeq: Seq | null;
+      readonly eventId?: EventId | null;
+    };
 
 function inningsProjection(innings: InningsState | undefined): string {
   if (innings === undefined) {
@@ -210,38 +141,28 @@ function outcomeKey(state: MatchState): string {
   return canonicalJson(state.result ?? state.naturalResult);
 }
 
-function validateNormalised(setup: MatchSetup, events: readonly MatchEvent[]): { readonly state: MatchState } | EditFailure {
-  let state = initialMatchState(setup);
-  for (const event of events) {
-    const validation = validateEventCore(setup, state, event, 'append');
-    if (!validation.ok) {
-      return editFailure(validation.code, validation.message, event.seq);
-    }
-    state = applyEvent(setup, state, event);
-  }
-  if (state.issues.length > 0) {
-    const issue = state.issues[0];
-    return editFailure(issue.code, issue.message, issue.seq);
-  }
-  return { state };
-}
-
 export function applyHistoryEdits(
   setup: MatchSetup,
   events: readonly MatchEvent[],
   ops: readonly HistoryEditOp[],
   ctx: EditContext,
 ): EditOutcome {
-  const edited = materialise(setup, events, ops, ctx);
-  if ('ok' in edited) {
+  const edited = materialiseEdits(setup, events, ops, ctx);
+  if (isEditLogFailure(edited)) {
     return edited;
   }
-  const normalised = normalizeWithAnchors(setup, edited.events, computeAnchors(setup, events), () => ctx.ids());
+  const normalised = normaliseEdited(setup, events, edited.events, ctx);
   if (normalised.missingBowlerAtSeq !== null) {
-    return editFailure('BOWLER_NOT_SELECTED', 'An over in the edited log has no bowler. Choose the bowler for that over.', normalised.missingBowlerAtSeq);
+    const missing = normalised.events.find((event) => event.seq === normalised.missingBowlerAtSeq) ?? null;
+    return editFailure(
+      'BOWLER_NOT_SELECTED',
+      'An over has no bowler. Choose the bowler for that over.',
+      normalised.missingBowlerAtSeq,
+      missing?.id ?? null,
+    );
   }
-  const validated = validateNormalised(setup, normalised.events);
-  if ('ok' in validated) {
+  const validated = validateEditedLog(setup, normalised.events);
+  if (isEditLogFailure(validated)) {
     return validated;
   }
   const before = replayMatch(setup, events);

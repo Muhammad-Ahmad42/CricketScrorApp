@@ -4,8 +4,8 @@ import { knockoutGenerationGuard } from '@/domain/tournament/knockout';
 import { explainEntryRules } from '@/domain/tournament/slots';
 import type { KnockoutConfig, SeedingMethod, Stage, StageId, TournamentId } from '@/domain/types';
 import type { FixturePlan } from '@/services/contracts';
-import { ChoiceList, ImpactSheet, ManualOverrideBadge, plural } from '@/features/shared';
-import { Button, EmptyState, ListRow, SectionHeader, SegmentedControl, Separator, Sheet, Stepper, Text, TextField, space } from '@/ui';
+import { ImpactSheet, ManualOverrideBadge, plural } from '@/features/shared';
+import { Button, EmptyState, Inset, ListRow, RadioList, SectionHeader, SegmentedControl, Separator, Sheet, Stepper, Text, TextField, space } from '@/ui';
 import { useTournamentStore } from '@/stores';
 import { showError, showToast } from '../hooks/toast';
 import { useChangeFlow } from '../hooks/useChangeFlow';
@@ -23,14 +23,31 @@ export interface StageDetailScreenProps {
   readonly stageId: StageId;
 }
 
-function slotStatusText(index: TournamentIndex, slotId: string): { readonly text: string; readonly manual: string | null } {
+interface SlotStatus {
+  readonly text: string;
+  readonly manual: boolean;
+  readonly reason: string | null;
+}
+
+function slotStatusText(index: TournamentIndex, slotId: string): SlotStatus {
   const resolution = index.slotResolution(slotId);
   if (!resolution || resolution.teamId === null) {
-    return { text: 'To be decided', manual: null };
+    return { text: 'To be decided', manual: false, reason: null };
   }
   const name = index.teamName(resolution.teamId);
   const text = resolution.status === 'provisional' ? `${name} (provisional)` : name;
-  return { text, manual: resolution.viaOverride ? resolution.explanation : null };
+  return { text, manual: resolution.viaOverride, reason: resolution.viaOverride ? slotOverrideReason(index, slotId, resolution.teamId) : null };
+}
+
+function slotOverrideReason(index: TournamentIndex, slotId: string, teamId: string): string | null {
+  const override = index.snapshot.overrides.find(
+    (candidate) =>
+      candidate.revokedAt === null &&
+      (candidate.kind === 'slot_assignment' || candidate.kind === 'qualification') &&
+      candidate.slotId === slotId &&
+      candidate.teamId === teamId,
+  );
+  return override?.reason ?? null;
 }
 
 function StageBody({ index, stage }: { readonly index: TournamentIndex; readonly stage: Stage }) {
@@ -100,15 +117,20 @@ function StageBody({ index, stage }: { readonly index: TournamentIndex; readonly
 
   return (
     <View>
-      <View style={styles.padded}>
-        <TextField label="Name" value={draft.name} onChangeText={(name) => setDraft({ ...draft, name })} editable={editable} testID="stage-input-name" />
-        <ListRow
-          title="Decides the champion"
-          trailing={{ kind: 'switch', value: draft.config.decidesChampion, disabled: !editable, onValueChange: (decidesChampion) => setDraft(withStageConfig(draft, { decidesChampion })) }}
-          separator={false}
-          testID="stage-toggle-champion"
-        />
-        {roundRobin ? (
+      <Inset top="md" bottom="xs">
+        <TextField label="Name" value={draft.name} onChangeText={(name) => setDraft({ ...draft, name })} editable={editable} returnKeyType="done" testID="stage-input-name" />
+      </Inset>
+      <ListRow
+        title="Decides the champion"
+        trailing={{ kind: 'switch', value: draft.config.decidesChampion, disabled: !editable, onValueChange: (decidesChampion) => setDraft(withStageConfig(draft, { decidesChampion })) }}
+        separator={false}
+        testID="stage-toggle-champion"
+      />
+      {roundRobin ? (
+        <Inset bottom="md" gap="sm">
+          <Text variant="label" tone="secondary">
+            Matches against each opponent
+          </Text>
           <SegmentedControl
             options={[
               { value: '1', label: 'Once' },
@@ -120,18 +142,18 @@ function StageBody({ index, stage }: { readonly index: TournamentIndex; readonly
             disabled={!editable}
             accessibilityLabel="Matches against each opponent"
           />
-        ) : null}
-      </View>
+        </Inset>
+      ) : null}
       <Separator />
       <SectionHeader title="Who enters" />
-      <View style={styles.padded}>
+      <Inset gap="sm" bottom="md">
         <Text variant="callout" testID="stage-text-entry">
           {explainEntryRules(draft.config.entryRules, stageNameMap(index.stages))}
         </Text>
         {perPool !== null ? (
           <Stepper label="Qualifiers from each pool" value={perPool} min={1} max={8} disabled={!editable} onChange={(count) => setDraft(withTopPerPool(draft, count))} testID="stage-input-qualifiers" />
         ) : null}
-      </View>
+      </Inset>
       {slots.length > 0 ? (
         <View>
           <Separator />
@@ -140,11 +162,11 @@ function StageBody({ index, stage }: { readonly index: TournamentIndex; readonly
             const status = slotStatusText(index, slot.id);
             return (
               <View key={slot.id}>
-                <ListRow title={slot.label} trailing={{ kind: 'value', text: status.text }} compact testID={`stage-row-slot-${position + 1}`} />
+                <ListRow title={slot.label} subtitle={status.text} compact testID={`stage-row-slot-${position + 1}`} />
                 {status.manual ? (
-                  <View style={styles.padded}>
-                    <ManualOverrideBadge reason={status.manual} />
-                  </View>
+                  <Inset top="xs" bottom="sm">
+                    <ManualOverrideBadge reason={status.reason ?? ''} showReason={status.reason !== null} testID={`stage-badge-slot-${position + 1}`} />
+                  </Inset>
                 ) : null}
               </View>
             );
@@ -154,44 +176,43 @@ function StageBody({ index, stage }: { readonly index: TournamentIndex; readonly
       {knockout ? (
         <View>
           <Separator />
-          <SectionHeader title="Knockout" />
-          <View style={styles.padded}>
+          <SectionHeader title="Bracket draw" />
+          <Inset gap="sm">
             <SegmentedControl
               options={(['fixed', 'random', 'ranking'] as const).map((value) => ({ value, label: SEEDING_LABEL[value], testID: `stage-chip-seeding-${value}` }))}
               value={draft.config.seeding}
               onChange={(seeding: SeedingMethod) => setDraft(withStageConfig(draft, { seeding }))}
               disabled={!editable}
-              accessibilityLabel="Seeding"
+              accessibilityLabel="Bracket draw"
             />
-            <ListRow
-              title="Third-place play-off"
-              trailing={{ kind: 'switch', value: knockout.thirdPlacePlayoff, disabled: !editable, onValueChange: (thirdPlacePlayoff) => setDraft(withStageConfig(draft, { knockout: { ...knockout, thirdPlacePlayoff } })) }}
-              separator={false}
-              testID="stage-toggle-third-place"
-            />
-            <Text variant="label" tone="secondary">
-              Tied match
+            <Text variant="footnote" tone="secondary" testID="stage-text-seeding">
+              {SEEDING_CAPTION[draft.config.seeding]}
             </Text>
-            <ChoiceList
-              choices={(Object.keys(TIED_MATCH_LABEL) as KnockoutConfig['tiedMatch'][]).map((value) => ({ value, label: TIED_MATCH_LABEL[value], disabled: !editable }))}
-              value={knockout.tiedMatch}
-              onChange={(tiedMatch) => setDraft(withStageConfig(draft, { knockout: { ...knockout, tiedMatch } }))}
-              accessibilityLabel="Tied match"
-            />
-            <Text variant="label" tone="secondary">
-              No result
-            </Text>
-            <ChoiceList
-              choices={(Object.keys(NO_RESULT_LABEL) as KnockoutConfig['noResult'][]).map((value) => ({ value, label: NO_RESULT_LABEL[value], disabled: !editable }))}
-              value={knockout.noResult}
-              onChange={(noResult) => setDraft(withStageConfig(draft, { knockout: { ...knockout, noResult } }))}
-              accessibilityLabel="No result"
-            />
-          </View>
+          </Inset>
+          <ListRow
+            title="Third-place play-off"
+            trailing={{ kind: 'switch', value: knockout.thirdPlacePlayoff, disabled: !editable, onValueChange: (thirdPlacePlayoff) => setDraft(withStageConfig(draft, { knockout: { ...knockout, thirdPlacePlayoff } })) }}
+            separator={false}
+            testID="stage-toggle-third-place"
+          />
+          <SectionHeader title="Tied match" />
+          <RadioList
+            choices={(Object.keys(TIED_MATCH_LABEL) as KnockoutConfig['tiedMatch'][]).map((value) => ({ value, label: TIED_MATCH_LABEL[value], disabled: !editable }))}
+            value={knockout.tiedMatch}
+            onChange={(tiedMatch) => setDraft(withStageConfig(draft, { knockout: { ...knockout, tiedMatch } }))}
+            accessibilityLabel="Tied match"
+          />
+          <SectionHeader title="No result" />
+          <RadioList
+            choices={(Object.keys(NO_RESULT_LABEL) as KnockoutConfig['noResult'][]).map((value) => ({ value, label: NO_RESULT_LABEL[value], disabled: !editable }))}
+            value={knockout.noResult}
+            onChange={(noResult) => setDraft(withStageConfig(draft, { knockout: { ...knockout, noResult } }))}
+            accessibilityLabel="No result"
+          />
         </View>
       ) : null}
       <Separator />
-      <View style={styles.actions}>
+      <Inset top="md" bottom="md" gap="sm">
         {editable ? (
           <Button label="Review changes" disabled={!dirty || draft.name.trim().length === 0} loading={flow.previewing} onPress={review} fullWidth testID="stage-btn-review" />
         ) : null}
@@ -217,7 +238,7 @@ function StageBody({ index, stage }: { readonly index: TournamentIndex; readonly
             ) : null}
           </View>
         ) : null}
-      </View>
+      </Inset>
       {plan ? (
         <Sheet
           visible
@@ -246,17 +267,24 @@ function StageBody({ index, stage }: { readonly index: TournamentIndex; readonly
   );
 }
 
+const SEEDING_CAPTION: { readonly [K in SeedingMethod]: string } = {
+  fixed: 'By qualifying slot, e.g. A1 v B2',
+  random: 'Drawn at random',
+  ranking: 'Best qualifier meets the lowest',
+};
+
 export function StageDetailScreen({ tournamentId, stageId }: StageDetailScreenProps) {
   return (
     <TournamentContainer
       tournamentId={tournamentId}
       testID="screen-stage"
+      width="column"
       title={(index) => index.stage(stageId)?.name ?? 'Stage'}
     >
       {(index) => {
         const stage = index.stage(stageId);
         if (!stage) {
-          return <EmptyState title="Stage not found" body="This stage may have been deleted." testID="stage-missing" />;
+          return <EmptyState title="Stage not found" body="It may have been deleted." testID="stage-missing" />;
         }
         return <StageBody key={`${stage.id}:${index.snapshot.version}`} index={index} stage={stage} />;
       }}
@@ -265,7 +293,5 @@ export function StageDetailScreen({ tournamentId, stageId }: StageDetailScreenPr
 }
 
 const styles = StyleSheet.create({
-  padded: { paddingHorizontal: space.md, gap: space.sm },
-  actions: { padding: space.md, gap: space.sm },
   gap: { gap: space.xs },
 });

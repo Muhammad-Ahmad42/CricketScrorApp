@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import type { MatchRules, PowerplayRule, SuperOverTieBreak } from '@/domain/types';
-import { Button, IconButton, ListRow, SegmentedControl, Sheet, Stepper, Text, TextField, space } from '@/ui';
-import { RULE_TITLE, type RuleKey } from '../selectors/rules';
+import { Button, IconButton, ListRow, RadioList, SegmentedControl, Sheet, Stepper, Text, TextField, space } from '@/ui';
+import { QUOTA_LABEL, RULE_TITLE, type RuleKey } from '../selectors/rules';
 
 export interface RuleSheetProps {
   readonly ruleKey: RuleKey | null;
@@ -11,10 +11,10 @@ export interface RuleSheetProps {
   readonly onClose: () => void;
 }
 
-const TIE_AGAIN: readonly { readonly value: SuperOverTieBreak; readonly label: string }[] = [
-  { value: 'repeat', label: 'Another super over' },
-  { value: 'boundary_count', label: 'Boundary count' },
-  { value: 'tie_stands', label: 'Tie stands' },
+const TIE_AGAIN: readonly { readonly value: SuperOverTieBreak; readonly label: string; readonly testID: string }[] = [
+  { value: 'repeat', label: 'Another super over', testID: 'rule-super-again-repeat' },
+  { value: 'boundary_count', label: 'Boundary count', testID: 'rule-super-again-boundary' },
+  { value: 'tie_stands', label: 'Tie stands', testID: 'rule-super-again-stands' },
 ];
 
 const PENALTIES = ['0', '1', '2'] as const;
@@ -78,10 +78,10 @@ function RuleBody({ ruleKey, draft, setDraft }: { readonly ruleKey: RuleKey; rea
       );
     case 'bowlerQuota':
       return (
-        <SegmentedControl
-          options={[
-            { value: 'uniform', label: 'Same for everyone', testID: 'rule-quota-uniform' },
-            { value: 'icc_one_fifth', label: 'ICC one-fifth', testID: 'rule-quota-icc' },
+        <RadioList
+          choices={[
+            { value: 'uniform', label: QUOTA_LABEL.uniform, testID: 'rule-quota-uniform' },
+            { value: 'icc_one_fifth', label: QUOTA_LABEL.icc_one_fifth, testID: 'rule-quota-icc' },
           ]}
           value={draft.bowlerQuotaMode}
           onChange={(bowlerQuotaMode) => setDraft({ ...draft, bowlerQuotaMode })}
@@ -89,7 +89,7 @@ function RuleBody({ ruleKey, draft, setDraft }: { readonly ruleKey: RuleKey; rea
         />
       );
     case 'consecutive':
-      return switchRow('A bowler may bowl two overs in a row', draft.allowBowlerConsecutiveOvers, (allowBowlerConsecutiveOvers) => setDraft({ ...draft, allowBowlerConsecutiveOvers }), 'rule-consecutive');
+      return switchRow('Allow back-to-back overs', draft.allowBowlerConsecutiveOvers, (allowBowlerConsecutiveOvers) => setDraft({ ...draft, allowBowlerConsecutiveOvers }), 'rule-consecutive');
     case 'wide':
       return (
         <View style={styles.list}>
@@ -136,7 +136,7 @@ function RuleBody({ ruleKey, draft, setDraft }: { readonly ruleKey: RuleKey; rea
               <Text variant="subhead" tone="secondary">
                 If tied again
               </Text>
-              <SegmentedControl options={TIE_AGAIN} value={superOver.ifTiedAgain} onChange={(ifTiedAgain) => set({ ifTiedAgain })} accessibilityLabel="If tied again" />
+              <RadioList choices={TIE_AGAIN} value={superOver.ifTiedAgain} onChange={(ifTiedAgain) => set({ ifTiedAgain })} accessibilityLabel="If tied again" />
               {switchRow('Limit the rounds', superOver.maxRounds !== null, (limited) => set({ maxRounds: limited ? 3 : null }), 'rule-super-limit')}
               {superOver.maxRounds !== null ? (
                 <Stepper label="Max rounds" value={superOver.maxRounds} min={1} max={10} onChange={(maxRounds) => set({ maxRounds })} testID="rule-super-rounds" />
@@ -179,18 +179,36 @@ function RuleBody({ ruleKey, draft, setDraft }: { readonly ruleKey: RuleKey; rea
   }
 }
 
+export function rulesChanged(before: MatchRules, after: MatchRules): boolean {
+  return JSON.stringify(before) !== JSON.stringify(after);
+}
+
 export function RuleSheet({ ruleKey, rules, onDone, onClose }: RuleSheetProps) {
   const [draft, setDraft] = useState<MatchRules>(rules);
   if (ruleKey === null) {
     return null;
   }
+  const changed = rulesChanged(rules, draft);
+  const keep = () => (changed ? onDone(draft) : onClose());
   return (
     <Sheet
       visible
       title={RULE_TITLE[ruleKey]}
-      onClose={onClose}
+      onClose={keep}
+      closeLabel={changed ? 'Keep changes and close' : 'Close'}
       testID="sheet-rule"
-      footer={<Button label="Done" size="lg" fullWidth onPress={() => onDone(draft)} testID="rule-done" />}
+      footer={
+        <View style={styles.footer}>
+          {changed ? (
+            <View style={styles.flex}>
+              <Button label="Discard" variant="secondary" size="lg" fullWidth onPress={onClose} testID="rule-discard" />
+            </View>
+          ) : null}
+          <View style={styles.flex}>
+            <Button label="Done" size="lg" fullWidth onPress={keep} testID="rule-done" />
+          </View>
+        </View>
+      }
     >
       <View style={styles.body}>
         <RuleBody ruleKey={ruleKey} draft={draft} setDraft={setDraft} />
@@ -205,4 +223,5 @@ const styles = StyleSheet.create({
   phase: { gap: space.xs },
   phaseHeader: { flexDirection: 'row', alignItems: 'flex-end', gap: space.xs },
   flex: { flex: 1 },
+  footer: { flexDirection: 'row', gap: space.xs },
 });

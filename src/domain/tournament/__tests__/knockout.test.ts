@@ -386,11 +386,11 @@ describe('knockoutGenerationGuard', () => {
   it('U-KO-08 ranking is refused while an entry slot is provisional', () => {
     expect(knockoutGenerationGuard('ranking', resolutions(['final', 'provisional']))).toEqual({
       ok: false,
-      reason: 'Seeding by ranking is possible once all 2 qualifiers are known.',
+      reason: 'Seeding by ranking needs all 2 qualifiers.',
     });
     expect(knockoutGenerationGuard('ranking', resolutions(['final', 'final', 'final', 'final', 'final', 'pending']))).toEqual({
       ok: false,
-      reason: 'Seeding by ranking is possible once all 6 qualifiers are known.',
+      reason: 'Seeding by ranking needs all 6 qualifiers.',
     });
     expect(knockoutGenerationGuard('ranking', resolutions(Array.from({ length: 8 }, () => 'final')))).toEqual({ ok: true, warnings: [] });
   });
@@ -400,7 +400,7 @@ describe('knockoutGenerationGuard', () => {
     const random = knockoutGenerationGuard('random', resolutions(['pending']));
     expect(fixed.ok).toBe(true);
     expect(random.ok).toBe(true);
-    expect(fixed.ok && fixed.warnings).toEqual(['2 knockout places are still to be decided; the draw uses their qualification slots.']);
+    expect(fixed.ok && fixed.warnings).toEqual(['2 knockout places are still to be decided. The draw uses their slots.']);
   });
 });
 

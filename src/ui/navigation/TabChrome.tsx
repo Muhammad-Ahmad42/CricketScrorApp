@@ -3,14 +3,14 @@ import { ChromeInsetsProvider } from '../glass/chromeInsets';
 import { useToastAnchor } from '../layout/toastAnchor';
 import { useInsets } from '../layout/useInsets';
 import { space } from '../theme';
-import { floatingTabBarMetrics } from './TabBar';
+import { tabBarMetrics } from './TabBar';
 
 export interface TabChromeProps {
   readonly children: ReactNode;
 }
 
 export function tabChromeBottom(bottomInset: number): number {
-  return Math.max(0, floatingTabBarMetrics(bottomInset).footprint - bottomInset);
+  return Math.max(0, tabBarMetrics(bottomInset).footprint - bottomInset);
 }
 
 export function TabChrome({ children }: TabChromeProps) {

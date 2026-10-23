@@ -22,7 +22,7 @@ export interface BootstrapGateProps {
 
 export const BOOTSTRAP_SLOW_MS = 1500;
 export const BOOTSTRAP_ERROR_TITLE = "Scorebook couldn't open your data";
-export const BOOTSTRAP_ERROR_BODY = 'Nothing has been changed. Close other apps and try again.';
+export const BOOTSTRAP_ERROR_BODY = 'Nothing has been changed.';
 
 export type GatePhase = 'splash' | 'loading' | 'error' | 'ready';
 
@@ -71,7 +71,7 @@ export function BootstrapGate({ status, error, onRetry, slowAfterMs = BOOTSTRAP_
         <View style={[styles.fill, { backgroundColor: theme.color.background }]}>
           <ErrorState
             title={BOOTSTRAP_ERROR_TITLE}
-            body={error?.message ?? BOOTSTRAP_ERROR_BODY}
+            body={BOOTSTRAP_ERROR_BODY}
             details={error?.detail ?? null}
             onRetry={() => {
               setSlow(false);

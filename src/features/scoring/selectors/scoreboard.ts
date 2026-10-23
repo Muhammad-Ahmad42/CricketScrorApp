@@ -1,9 +1,10 @@
-import { BUILTIN_FORMAT_IDS, type BallToken, type BattingCardRow, type InningsState, type MatchSetup, type MatchState, type OverSummary, type PlayerId } from '@/domain/types';
+import { type BallToken, type BattingCardRow, type InningsState, type MatchSetup, type MatchState, type OverSummary, type PlayerId } from '@/domain/types';
 import type { LiveMatch } from '@/services/contracts';
 import { currentInnings } from '@/domain/scoring/replay';
-import { formatBowlingFigures, formatOvers, formatRate, formatRequirement, formatScore } from '@/domain/scoring/format';
+import { formatBowlingFigures, formatDisplayLabel, formatOvers, formatPresetName, formatRate, formatRequirement, formatRequirementCompact, formatScore } from '@/domain/scoring/format';
 import { inningsTitle, regularNumberOf } from './labels';
 import { playerName, teamName, teamShortName } from './names';
+import { plural } from '@/features/shared/text';
 
 export type DotStyle = 'zero' | 'dot';
 
@@ -21,8 +22,10 @@ export interface ScoreHeaderVM {
   readonly target: string | null;
   readonly rrr: string | null;
   readonly requirement: string | null;
+  readonly requirementShort: string | null;
   readonly freeHit: boolean;
   readonly powerplay: string | null;
+  readonly context: string | null;
 }
 
 const NOT_STARTED: ScoreHeaderVM = {
@@ -39,9 +42,31 @@ const NOT_STARTED: ScoreHeaderVM = {
   target: null,
   rrr: null,
   requirement: null,
+  requirementShort: null,
   freeHit: false,
   powerplay: null,
+  context: null,
 };
+
+export function overRangeText(fromOver: number, toOver: number): string {
+  return fromOver === toOver ? `over ${fromOver}` : `overs ${fromOver}–${toOver}`;
+}
+
+function contextLine(setup: MatchSetup, innings: InningsState): string | null {
+  const parts: string[] = [];
+  const stand = innings.currentPartnership;
+  if (stand !== null && (stand.balls > 0 || stand.runs > 0)) {
+    parts.push(`P'ship ${stand.runs} (${stand.balls})`);
+  }
+  const fall = innings.fallOfWickets[innings.fallOfWickets.length - 1];
+  if (fall !== undefined) {
+    const row = innings.batting.find((entry) => entry.playerId === fall.playerOutId);
+    const name = row?.name ?? playerName(setup, fall.playerOutId);
+    const how = row === undefined || row.dismissalText === '' ? '' : ` ${row.dismissalText}`;
+    parts.push(`Last wkt ${name}${how} ${row?.runs ?? 0} (${row?.balls ?? 0})`);
+  }
+  return parts.length === 0 ? null : parts.join(' · ');
+}
 
 export function selectHeader(live: LiveMatch | null): ScoreHeaderVM {
   if (live === null) {
@@ -77,8 +102,10 @@ export function selectHeader(live: LiveMatch | null): ScoreHeaderVM {
     target: chase === null ? null : `${chase.target}`,
     rrr,
     requirement,
+    requirementShort: chase === null ? null : formatRequirementCompact(chase.runsRequired, chase.ballsRemaining),
     freeHit,
-    powerplay: inProgress && active !== null ? `${active.name} · overs ${active.fromOver}–${active.toOver}` : null,
+    powerplay: inProgress && active !== null ? `${active.name} · ${overRangeText(active.fromOver, active.toOver)}` : null,
+    context: inProgress ? contextLine(setup, innings) : null,
   };
 }
 
@@ -226,6 +253,16 @@ export function selectOverStrip(live: LiveMatch | null, dotStyle: DotStyle): Ove
     };
   }
   const last = innings.overs[innings.overs.length - 1];
+  const between = innings.status !== 'in_progress' || live.state.pendingAction !== null;
+  if (last !== undefined && between) {
+    return {
+      balls: last.tokens.map((token) => chipOf(token, dotStyle)),
+      remaining: 0,
+      runs: null,
+      summary: overSummaryLine(last, live.setup),
+      overKey: last.overIndex,
+    };
+  }
   return {
     balls: [],
     remaining: innings.status === 'in_progress' ? bpo : 0,
@@ -233,6 +270,74 @@ export function selectOverStrip(live: LiveMatch | null, dotStyle: DotStyle): Ove
     summary: last === undefined ? null : overSummaryLine(last, live.setup),
     overKey: innings.overs.length,
   };
+}
+
+export interface InningsSummaryLineVM {
+  readonly key: string;
+  readonly team: string;
+  readonly score: string;
+  readonly overs: string;
+  readonly batters: string | null;
+  readonly bowlers: string | null;
+  readonly accessibilityLabel: string;
+}
+
+export interface InningsSummaryVM {
+  readonly innings: readonly InningsSummaryLineVM[];
+}
+
+const SUMMARY_PLAYERS = 2;
+
+function summaryLine(setup: MatchSetup, state: MatchState, innings: InningsState): InningsSummaryLineVM {
+  const bpo = setup.rules.ballsPerOver;
+  const team = teamName(setup, innings.battingTeamId);
+  const score = formatScore(innings.runs, innings.wickets);
+  const overs = `${formatOvers(innings.legalBalls, bpo)} ov`;
+  const batters = innings.batting
+    .filter((row) => row.status !== 'yet_to_bat' && row.status !== 'absent')
+    .slice()
+    .sort((a, b) => b.runs - a.runs || a.balls - b.balls)
+    .slice(0, SUMMARY_PLAYERS)
+    .map((row) => `${row.name} ${row.runs}${row.status === 'not_out' ? '*' : ''} (${row.balls})`);
+  const bowlers = innings.bowling
+    .slice()
+    .sort((a, b) => b.wickets - a.wickets || a.runsConceded - b.runsConceded)
+    .slice(0, SUMMARY_PLAYERS)
+    .map((row) => `${row.name} ${row.wickets}-${row.runsConceded} (${formatOvers(row.legalBalls, bpo)})`);
+  const title = inningsTitle(innings, regularNumberOf(state.innings, innings.index));
+  return {
+    key: `${innings.index}`,
+    team: `${team} · ${title}`,
+    score,
+    overs,
+    batters: batters.length === 0 ? null : batters.join(' · '),
+    bowlers: bowlers.length === 0 ? null : bowlers.join(' · '),
+    accessibilityLabel: [`${team}, ${title}, ${innings.runs} for ${innings.wickets} from ${plural(formatOvers(innings.legalBalls, bpo), 'over')}`, ...batters, ...bowlers].join('. '),
+  };
+}
+
+export function selectInningsSummary(live: LiveMatch | null): InningsSummaryVM | null {
+  if (live === null) {
+    return null;
+  }
+  const { setup, state } = live;
+  const innings = currentInnings(state);
+  if (innings === null || innings.status === 'in_progress') {
+    return null;
+  }
+  return { innings: state.innings.map((entry) => summaryLine(setup, state, entry)) };
+}
+
+export function selectScoresLine(live: LiveMatch | null): string | null {
+  if (live === null) {
+    return null;
+  }
+  const bpo = live.setup.rules.ballsPerOver;
+  const regular = live.state.innings.filter((innings) => innings.kind === 'regular');
+  if (regular.length === 0) {
+    return null;
+  }
+  return regular.map((innings) => `${teamShortName(live.setup, innings.battingTeamId)} ${formatScore(innings.runs, innings.wickets)} (${formatOvers(innings.legalBalls, bpo)} ov)`).join(' · ');
 }
 
 export interface MatchTitleVM {
@@ -249,8 +354,11 @@ export function selectMatchTitle(live: LiveMatch | null): MatchTitleVM {
 }
 
 export function formatLabel(formatId: string, oversPerInnings: number): string {
-  const builtin: readonly string[] = BUILTIN_FORMAT_IDS;
-  return builtin.includes(formatId) ? formatId : `${oversPerInnings} ov`;
+  return formatDisplayLabel(formatId, oversPerInnings);
+}
+
+export function formatSummary(formatId: string, oversPerInnings: number): string {
+  return `${formatPresetName(formatId, oversPerInnings)} · ${oversPerInnings} ${oversPerInnings === 1 ? 'over' : 'overs'}`;
 }
 
 export interface LastBallVM {

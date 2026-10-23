@@ -872,7 +872,7 @@ describe('scorecard PDF (§83) for a scripted match', () => {
     expect(text).toContain('Pool A standings');
     const tigers = rowWith(html, 'Tigers', '+2.345');
     expect(tigers).toContain('2');
-    expect(rowWith(html, 'Lions', '-2.345')).toBeDefined();
+    expect(rowWith(html, 'Lions', '−2.345')).toBeDefined();
   });
 
   it('carries the "Scored with Scorebook" footer with the generation date', () => {
@@ -2274,13 +2274,19 @@ describe('adversarial: scorecard §83 details the first pass did not pin down', 
     expect(text).not.toContain('Usman');
   });
 
-  it('title block carries the fixture label and the scheduled date of the match, not only the generation date', () => {
+  it('title block carries the fixture label and the date the match was played, not the fixture date or only the generation date (wave-3 bug #5)', () => {
     const source = scorecardSource(played, { tournament: true });
-    const dated = buildScorecardHtml({ ...source, match: { ...source.match, scheduledDate: '2026-09-12' } }, { generatedAt: GENERATED_AT });
+    const dated = buildScorecardHtml(
+      { ...source, match: { ...source.match, scheduledDate: '2026-09-12', startedAt: '2026-09-20T09:00:00.000Z', completedAt: '2026-09-20T11:00:00.000Z' } },
+      { generatedAt: GENERATED_AT },
+    );
     const datedText = visibleText(dated);
-    expect(datedText).toContain('12 Sep 2026');
+    expect(datedText).toContain('20 Sep 2026');
+    expect(datedText).not.toContain('12 Sep 2026');
     expect(datedText).toContain('Match 1');
     expect(datedText).toContain('Lahore');
+    const unplayed = buildScorecardHtml({ ...source, match: { ...source.match, scheduledDate: '2026-09-12', startedAt: null, completedAt: null } }, { generatedAt: GENERATED_AT });
+    expect(visibleText(unplayed)).toContain('12 Sep 2026');
   });
 
   it('footer reads "Scored with Scorebook · generated 30 Sep 2026, 14:05" in the wall time of generatedAt', () => {

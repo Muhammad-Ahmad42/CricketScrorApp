@@ -5,6 +5,7 @@ import { useBackupStore } from '@/stores';
 import { COPY } from '../copy';
 import { pickBackupFile } from '../platform/backupFile';
 import { DEFAULT_IMPORT_POLICY, policyForImport } from '../selectors/importPreview';
+import { problemOf, problemText, type ProblemVM } from '../selectors/problem';
 
 export type ImportPhase = 'idle' | 'picking' | 'checking' | 'importing';
 
@@ -15,7 +16,7 @@ export interface BackupImport {
   readonly report: ImportReport | null;
   readonly policy: ImportConflictPolicy;
   readonly confirmingReplace: boolean;
-  readonly problem: string | null;
+  readonly problem: ProblemVM | null;
   choose(): Promise<void>;
   setPolicy(policy: ImportConflictPolicy): void;
   requestImport(): void;
@@ -35,7 +36,7 @@ export function useBackupImport(): BackupImport {
   const [fileName, setFileName] = useState<string | null>(null);
   const [policy, setPolicy] = useState<ImportConflictPolicy>(DEFAULT_IMPORT_POLICY);
   const [confirmingReplace, setConfirmingReplace] = useState(false);
-  const [problem, setProblem] = useState<string | null>(null);
+  const [problem, setProblem] = useState<ProblemVM | null>(null);
   const busy = useRef(false);
   const replaceArmed = useRef(false);
 
@@ -59,7 +60,7 @@ export function useBackupImport(): BackupImport {
       try {
         picked = await pickBackupFile();
       } catch {
-        setProblem(COPY.pickerFailed);
+        setProblem(problemText(COPY.pickerFailed));
         return;
       }
       if (!picked) {
@@ -72,7 +73,7 @@ export function useBackupImport(): BackupImport {
       await previewImport(picked.uri);
       const after = useBackupStore.getState();
       if (!after.preview) {
-        setProblem(after.error?.message ?? COPY.readFailed);
+        setProblem(problemOf(after.error, COPY.readFailed));
       }
     } finally {
       busy.current = false;
@@ -95,7 +96,7 @@ export function useBackupImport(): BackupImport {
       setPhase('idle');
     }
     if (!ok) {
-      setProblem(useBackupStore.getState().error?.message ?? COPY.importFailed);
+      setProblem(problemOf(useBackupStore.getState().error, COPY.importFailed));
     }
   };
 

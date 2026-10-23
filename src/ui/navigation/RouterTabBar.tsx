@@ -31,6 +31,10 @@ export function tabBarItems({ state, navigation, descriptors }: Pick<BottomTabBa
   });
 }
 
-export function RouterTabBar(props: BottomTabBarProps) {
-  return <TabBar items={tabBarItems(props)} bottomInset={props.insets.bottom} />;
+export interface RouterTabBarProps extends BottomTabBarProps {
+  readonly onSelectionChange?: () => void;
+}
+
+export function RouterTabBar({ onSelectionChange, ...props }: RouterTabBarProps) {
+  return <TabBar items={tabBarItems(props)} onSelectionChange={onSelectionChange} />;
 }

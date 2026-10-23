@@ -18,6 +18,7 @@ export interface OverGroupVM {
   readonly heading: string;
   readonly summary: string;
   readonly cells: readonly BallCellVM[];
+  readonly lead: readonly string[];
   readonly notes: readonly string[];
   readonly isCurrent: boolean;
 }
@@ -25,7 +26,7 @@ export interface OverGroupVM {
 export function eventNote(event: MatchEvent, setup: MatchSetup): string | null {
   switch (event.kind) {
     case 'innings_started':
-      return `${teamName(setup, event.battingTeamId)} innings: ${playerName(setup, event.strikerId)} and ${playerName(setup, event.nonStrikerId)} open, ${playerName(setup, event.bowlerId)} to bowl`;
+      return `Openers: ${playerName(setup, event.strikerId)} & ${playerName(setup, event.nonStrikerId)}`;
     case 'batter_in':
       return `${playerName(setup, event.playerId)} comes in`;
     case 'bowler_selected':
@@ -62,6 +63,16 @@ export function eventNote(event: MatchEvent, setup: MatchSetup): string | null {
   }
 }
 
+function openingBowlerNote(event: MatchEvent, setup: MatchSetup): string | null {
+  if (event.kind === 'innings_started') {
+    return `${playerName(setup, event.bowlerId)} to bowl`;
+  }
+  if (event.kind === 'bowler_selected' && event.reason === 'over_start') {
+    return `${playerName(setup, event.bowlerId)} to bowl`;
+  }
+  return null;
+}
+
 export function inningsEvents(events: readonly MatchEvent[], inningsIndex: number): readonly MatchEvent[] {
   const starts = events.filter((event) => event.kind === 'innings_started').map((event) => event.seq);
   const from = starts[inningsIndex];
@@ -90,13 +101,13 @@ function overOf(ball: BallRecord | undefined): number {
 export function selectBallLog(live: LiveMatch, innings: InningsState, dotStyle: DotStyle): readonly OverGroupVM[] {
   const { setup } = live;
   const events = inningsEvents(live.events, innings.index);
-  const groups = new Map<number, { cells: BallCellVM[]; notes: string[]; balls: BallRecord[] }>();
+  const groups = new Map<number, { cells: BallCellVM[]; lead: string[]; notes: string[]; balls: BallRecord[]; bowler: string | null }>();
   const group = (overIndex: number) => {
     const existing = groups.get(overIndex);
     if (existing !== undefined) {
       return existing;
     }
-    const created = { cells: [] as BallCellVM[], notes: [] as string[], balls: [] as BallRecord[] };
+    const created = { cells: [] as BallCellVM[], lead: [] as string[], notes: [] as string[], balls: [] as BallRecord[], bowler: null as string | null };
     groups.set(overIndex, created);
     return created;
   };
@@ -116,10 +127,18 @@ export function selectBallLog(live: LiveMatch, innings: InningsState, dotStyle: 
       }
       continue;
     }
-    const note = eventNote(event, setup);
+    const target = lastBall === undefined ? group(0) : lastBall.endsOver && event.kind === 'bowler_selected' ? group(lastBall.overIndex + 1) : group(overOf(lastBall));
+    const opening = openingBowlerNote(event, setup);
+    if (opening !== null && target.cells.length === 0) {
+      target.bowler = opening;
+    }
+    const note = event.kind === 'bowler_selected' && event.reason === 'over_start' ? null : eventNote(event, setup);
     if (note !== null) {
-      const target = lastBall === undefined ? group(0) : lastBall.endsOver && event.kind === 'bowler_selected' ? group(lastBall.overIndex + 1) : group(overOf(lastBall));
-      target.notes.push(note);
+      if (target.cells.length === 0) {
+        target.lead.push(note);
+      } else {
+        target.notes.push(note);
+      }
     }
   }
   const summaries = new Map(innings.overs.map((over) => [over.overIndex, over]));
@@ -133,6 +152,7 @@ export function selectBallLog(live: LiveMatch, innings: InningsState, dotStyle: 
         heading: `Over ${overIndex + 1}${bowlers ? ` · ${bowlers}` : ''}`,
         summary: summary === undefined ? '' : `${summary.runs} · ${formatScore(summary.scoreAtEnd.runs, summary.scoreAtEnd.wickets)}`,
         cells: entry.cells,
+        lead: bowlers === '' && entry.bowler !== null ? [...entry.lead, entry.bowler] : entry.lead,
         notes: entry.notes,
         isCurrent: innings.status === 'in_progress' && summary !== undefined && !summary.isComplete,
       };

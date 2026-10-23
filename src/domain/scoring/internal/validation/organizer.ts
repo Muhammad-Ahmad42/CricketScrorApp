@@ -50,19 +50,19 @@ function revisionInnings(state: MatchState, inningsIndex: number): { readonly le
 export function validateOversRevised(setup: MatchSetup, state: MatchState, event: OversRevisedPayload): ValidationResult {
   const index = event.inningsIndex;
   if (!isInt(index) || index < 0 || index > 1) {
-    return fail('WRONG_INNINGS_INDEX', 'Overs can only be revised for the current innings or a regular innings still to come.');
+    return fail('WRONG_INNINGS_INDEX', "These overs can't be revised. Revise the current or a later innings.");
   }
   const target = revisionInnings(state, index);
   if (target === null) {
     return fail('INVALID_OVERS_REVISION', "A completed innings can't be revised.");
   }
   if (!isInt(event.maxBalls) || event.maxBalls < 1 || event.maxBalls < target.legalBalls) {
-    return fail('INVALID_OVERS_REVISION', "The new limit can't be less than the balls already bowled.");
+    return fail('INVALID_OVERS_REVISION', 'Too few overs. More balls have already been bowled.');
   }
   if (event.terminal) {
     const chaseInProgress = index === 1 && target.started;
     if (!chaseInProgress || event.maxBalls !== target.legalBalls || event.target === null) {
-      return fail('INVALID_OVERS_REVISION', 'Ending play for good needs the chase in progress, the balls bowled so far and a par target.');
+      return fail('INVALID_OVERS_REVISION', "Can't end play yet. It needs a chase in progress, the balls bowled and a par target.");
     }
   }
   if (event.target !== null) {
@@ -84,7 +84,7 @@ export function validateOversRevised(setup: MatchSetup, state: MatchState, event
   if (index === 0 && event.maxBalls < currentMax) {
     const chasePlanned = state.innings[1] !== undefined || state.plannedRevisions.some((entry) => entry.inningsIndex === 1);
     if (!chasePlanned) {
-      warnings.push({ code: 'CHASE_OVERS_NOT_REVISED', message: "The chasing side's overs have not been revised yet." });
+      warnings.push({ code: 'CHASE_OVERS_NOT_REVISED', message: "The chasing side's overs aren't revised yet." });
     }
   }
   if (event.target !== null && event.maxBalls === currentMax && !event.terminal) {
@@ -121,7 +121,7 @@ export function validateMatchEnded(setup: MatchSetup, state: MatchState, event: 
       return pass();
     case 'walkover':
       if (anyDelivery(state)) {
-        return fail('WALKOVER_AFTER_PLAY', 'A walkover is only possible before any ball is bowled. Award the match instead.');
+        return fail('WALKOVER_AFTER_PLAY', 'Too late for a walkover. Award the match instead.');
       }
       return isTeamInMatch(setup, outcome.winnerTeamId) ? pass() : fail('TEAM_NOT_IN_MATCH', "That team isn't playing in this match.");
     case 'awarded':

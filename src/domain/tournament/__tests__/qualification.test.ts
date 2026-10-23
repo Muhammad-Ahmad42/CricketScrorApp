@@ -56,6 +56,7 @@ describe('slot resolution and qualification for the §92 tournament', () => {
       ['COB', 'final'],
     ]);
     expect(slotOf(evaluation, 'sA1').explanation).toBe('Pool A winner: Lions (6 pts, NRR +3.255)');
+    expect(slotOf(evaluation, 'sA1')).toMatchObject({ headline: 'Pool A winner: Lions', detail: '6 pts, NRR +3.255.' });
     expect(qualOf(evaluation, 'LIO')).toMatchObject({
       state: 'qualified',
       certainty: 'mathematical',
@@ -74,6 +75,16 @@ describe('slot resolution and qualification for the §92 tournament', () => {
       explanation: 'Hawks can no longer qualify for the Knockouts.',
     });
     expect(qualOf(evaluation, 'BEA').state).toBe('eliminated');
+    expect(qualOf(evaluation, 'LIO')).toMatchObject({
+      headline: 'Knockouts as Pool A winners',
+      note: 'As Pool A winners',
+      detail: 'No remaining result can change this. Top 2 from each pool. Ranking: Points → NRR → Head-to-Head → Most wins → Organizer decision.',
+    });
+    expect(qualOf(evaluation, 'HAW')).toMatchObject({
+      headline: "Can't reach the Knockouts",
+      note: null,
+      detail: 'No remaining result can change this. Top 2 from each pool. Ranking: Points → NRR → Head-to-Head → Most wins → Organizer decision.',
+    });
   });
 
   it('U-QUAL-01 rows carry their qualification and the SF sides follow the slots', () => {
@@ -102,12 +113,21 @@ describe('slot resolution and qualification for the §92 tournament', () => {
     );
     expect(qualOf(evaluation, 'EAG').explanation).toBe('Eagles are still in contention for the Knockouts. A win against Tigers guarantees qualification.');
     expect(qualOf(evaluation, 'TIG').explanation).toBe('Tigers are still in contention for the Knockouts. A win against Eagles guarantees qualification.');
+    expect(qualOf(evaluation, 'LIO')).toMatchObject({ headline: 'Through to the Knockouts', note: null });
+    expect(qualOf(evaluation, 'EAG')).toMatchObject({
+      headline: 'Beat Tigers to qualify',
+      note: 'Beat Tigers to qualify',
+      detail: 'A win against Tigers guarantees qualification. Top 2 from each pool. Ranking: Points → NRR → Head-to-Head → Most wins → Organizer decision.',
+    });
+    const notes = stageOf(evaluation, 'groups').qualification.map((entry) => entry.note ?? '');
+    expect(notes.some((note) => /in contention|eliminated|qualified/i.test(note))).toBe(false);
   });
 
   it('U-QUAL-13 a progression slot takes a team that already holds an entry slot', () => {
     const evaluation = evaluate(cupSnapshot({ ko: { sf1: simpleWin('sf1m', 'LIO', 'COB') } }));
     expect(slotOf(evaluation, 'sA1').teamId).toBe('LIO');
     expect(slotOf(evaluation, 'sW1')).toMatchObject({ teamId: 'LIO', status: 'final', explanation: 'Winner SF1: Lions (won by 10 runs)' });
+    expect(slotOf(evaluation, 'sW1')).toMatchObject({ headline: 'Winner SF1: Lions', detail: 'Won by 10 runs.' });
     expect(slotOf(evaluation, 'sB2').teamId).toBe('COB');
     expect(slotOf(evaluation, 'sW2')).toMatchObject({ teamId: null, status: 'pending' });
   });
@@ -248,6 +268,9 @@ describe('uneven pools and cross-pool sources', () => {
     const groups = stageOf(evaluation, 'groups');
     expect(groups.comparisonTables.map((candidate) => candidate.key)).toEqual([`position:2:${normalization}`]);
     expect(slotOf(evaluation, 'kBest')).toMatchObject({ teamId: winner, status: 'final', explanation });
+    expect(slotOf(evaluation, 'kBest').headline).toMatch(new RegExp(`: ${winner}$`));
+    expect(slotOf(evaluation, 'kBest').detail).toMatch(/^The best runner-up: /);
+    expect(slotOf(evaluation, 'kBest').detail?.includes("Results against the lowest-placed teams of larger pools don't count.")).toBe(normalization === 'drop_extra_results');
     expect(qualOf(evaluation, winner)).toMatchObject({ state: 'qualified', certainty: 'mathematical', slotIds: ['kBest'] });
     expect(qualOf(evaluation, winner).explanation).toContain('as the best runner-up');
   });
@@ -333,6 +356,8 @@ describe('parallel targets, direct entries, manual slots and overrides', () => {
     ]);
     expect(eagles).toMatchObject({ state: 'qualified', targetStageId: 'plate', slotIds: ['pA3'] });
     expect(eagles.explanation).toBe('Eagles are out of the Cup but have qualified for the Plate semifinal as Pool A 3rd.');
+    expect(eagles).toMatchObject({ headline: 'Plate semifinal, not the Cup', note: 'Plate semifinal, not the Cup' });
+    expect(eagles.detail).toMatch(/^As Pool A 3rd. No remaining result can change this./);
     const lions = qualOf(evaluation, 'LIO');
     expect(lions.targets.map((target) => target.state)).toEqual(['qualified', 'eliminated']);
     expect(lions.targetStageId).toBe('ko');
@@ -368,8 +393,11 @@ describe('parallel targets, direct entries, manual slots and overrides', () => {
     const wildcard = slot('sM', 'ko', 6, 'Wildcard', { kind: 'manual', teamId: null });
     const open = evaluate(cupSnapshot({ extraSlots: [wildcard] }));
     expect(slotOf(open, 'sM')).toMatchObject({ teamId: null, status: 'pending', explanation: 'Wildcard: to be chosen by the organizer' });
+    expect(slotOf(open, 'sM').headline).toBe('Wildcard: to be chosen by the organizer');
+    expect(slotOf(open, 'sM').detail).toBeUndefined();
     const filled = evaluate(cupSnapshot({ extraSlots: [wildcard], overrides: [slotAssignment('sM', 'EAG', { reason: 'Host team' })] }));
     expect(slotOf(filled, 'sM')).toMatchObject({ teamId: 'EAG', status: 'final', viaOverride: true, explanation: "Wildcard: Eagles (Manual Override: 'Host team')" });
+    expect(slotOf(filled, 'sM')).toMatchObject({ headline: 'Wildcard: Eagles', detail: 'Manual override: “Host team”.' });
     expect(qualOf(filled, 'EAG')).toMatchObject({ state: 'qualified', certainty: 'manual' });
   });
 
@@ -385,6 +413,9 @@ describe('parallel targets, direct entries, manual slots and overrides', () => {
       override,
       slotIds: ['sA2'],
       explanation: "Tigers qualified for the Knockouts by Manual Override: 'Eagles fielded an ineligible player'.",
+      headline: 'Into the Knockouts by organizer decision',
+      note: 'Into the Knockouts',
+      detail: 'Manual override: “Eagles fielded an ineligible player”.',
     });
     expect(qualOf(evaluation, 'EAG').slotIds).toEqual([]);
   });
@@ -395,10 +426,14 @@ describe('parallel targets, direct entries, manual slots and overrides', () => {
     expect(slotOf(evaluation, 'sA1').teamId).toBe('TIG');
     expect(slotOf(evaluation, 'sA2').teamId).toBe('EAG');
     expect(slotOf(evaluation, 'sA2').explanation).toContain('Lions removed by Manual Override');
+    expect(slotOf(evaluation, 'sA2').headline).toBe('Pool A runner-up: Eagles');
+    expect(slotOf(evaluation, 'sA2').detail).toMatch(/Lions removed by manual override\.$/);
     expect(qualOf(evaluation, 'LIO')).toMatchObject({
       state: 'eliminated',
       certainty: 'manual',
       explanation: "Lions were eliminated from the Knockouts by Manual Override: 'Withdrew from the knockouts'.",
+      headline: 'Out of the Knockouts by organizer decision',
+      note: 'Out of the Knockouts',
     });
   });
 
@@ -636,7 +671,13 @@ describe('mathematical certainty', () => {
     expect(table.provisionalTies).toEqual([]);
     expect(table.rows[1].tieBreak?.detail).toBe('Level with C — organizer decision required');
     expect(slotOf(evaluation, 'q2')).toMatchObject({ teamId: 'B', status: 'provisional' });
-    expect(qualOf(evaluation, 'B')).toMatchObject({ state: 'in_contention', explanation: 'B and C are level for A2: organizer decision required.' });
+    expect(qualOf(evaluation, 'B')).toMatchObject({
+      state: 'in_contention',
+      explanation: 'B and C are level for A2: organizer decision required.',
+      headline: 'Level with C: organizer decides',
+      note: 'Level with C: organizer decides',
+    });
+    expect(table.rows[1].tieBreak?.headline).toBe('Level with C: organizer decides');
     expect(qualOf(evaluation, 'C').state).toBe('in_contention');
 
     const below = poolScenario({

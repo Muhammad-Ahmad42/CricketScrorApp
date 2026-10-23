@@ -1,6 +1,6 @@
 import type { ImportReport } from '@/services/contracts';
 import { collectionForKey, HEADLINE_COLLECTIONS, nounForKey, type BackupCollection } from './backupNouns';
-import { countOf } from './text';
+import { countOf, joinList } from './text';
 
 interface Entry {
   readonly key: string;
@@ -27,27 +27,39 @@ function mergedEntries(counts: ImportReport['imported']): readonly Entry[] {
   return [...byNoun.values()].sort((a, b) => a.rank - b.rank || a.key.localeCompare(b.key));
 }
 
-function describe(counts: ImportReport['imported']): readonly string[] {
+const PRIMARY: readonly BackupCollection[] = ['tournaments', 'matches'];
+const HEADLINE_LIMIT = 2;
+
+function shownEntries(counts: ImportReport['imported']): readonly Entry[] {
   const entries = mergedEntries(counts);
   const headline = entries.filter((entry) => entry.rank < HEADLINE_COLLECTIONS.length);
-  const shown = headline.length > 0 ? headline : entries;
-  return shown.map((entry) => countOf(entry.count, nounForKey(entry.key)));
+  return headline.length > 0 ? headline : entries;
 }
 
-export function importReportText(report: ImportReport): string {
-  const imported = describe(report.imported);
-  const skipped = describe(report.skipped);
-  const sentences: string[] = [];
-  if (imported.length > 0) {
-    sentences.push(`Imported ${imported.join(', ')}.`);
-  } else {
-    sentences.push('Nothing new was imported. Everything in this file is already on this phone.');
-  }
-  if (skipped.length > 0) {
-    sentences.push(`Skipped ${skipped.join(', ')} already on this phone.`);
-  }
-  if (report.rebuiltMatches > 0) {
-    sentences.push(`Recalculated ${countOf(report.rebuiltMatches, { one: 'scorecard', many: 'scorecards' })}.`);
-  }
-  return sentences.join(' ');
+function words(entries: readonly Entry[]): readonly string[] {
+  return entries.map((entry) => countOf(entry.count, nounForKey(entry.key)));
+}
+
+function isPrimary(entry: Entry): boolean {
+  const collection = collectionForKey(entry.key);
+  return collection !== null && PRIMARY.includes(collection);
+}
+
+export interface ImportReportLines {
+  readonly headline: string;
+  readonly supporting: string | null;
+}
+
+export function importReportLines(report: ImportReport): ImportReportLines {
+  const imported = shownEntries(report.imported);
+  const primary = imported.filter(isPrimary);
+  const lead = primary.length > 0 ? primary : imported.slice(0, HEADLINE_LIMIT);
+  const rest = imported.filter((entry) => !lead.includes(entry));
+  const skipped = words(shownEntries(report.skipped));
+  const supporting =
+    skipped.length > 0 ? `Skipped ${skipped.join(', ')} already on this phone` : rest.length > 0 ? `Also ${joinList(words(rest))}` : null;
+  return {
+    headline: lead.length > 0 ? `Imported ${words(lead).join(', ')}` : 'Nothing new was imported',
+    supporting,
+  };
 }

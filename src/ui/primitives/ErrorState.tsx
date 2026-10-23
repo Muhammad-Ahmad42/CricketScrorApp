@@ -1,4 +1,5 @@
 import { Share, StyleSheet, View } from 'react-native';
+import { useGutter } from '../layout/gutter';
 import { space } from '../theme';
 import { Text } from '../typography';
 import { Button } from './Button';
@@ -15,7 +16,7 @@ export interface ErrorStateProps {
   readonly testID?: string;
 }
 
-export const DEFAULT_ERROR_BODY = 'Your data is safe on this device. Try again, or open Diagnostics for details.';
+export const DEFAULT_ERROR_BODY = 'Your data is safe on this device.';
 const SHARE_DETAILS_LABEL = 'Share technical details';
 const SHARE_DETAILS_TITLE = 'Scorebook technical details';
 
@@ -36,8 +37,9 @@ export function ErrorState({
   details,
   testID = 'error-screen',
 }: ErrorStateProps) {
+  const gutter = useGutter();
   return (
-    <View testID={testID} style={styles.root}>
+    <View testID={testID} style={[styles.root, { paddingHorizontal: gutter }]}>
       <Icon name="circle-alert" size={32} color="danger" />
       <Text variant="title2" accessibilityRole="header">
         {title}
@@ -58,7 +60,7 @@ export function ErrorState({
             icon="share"
             variant="tertiary"
             size="sm"
-            accessibilityHint="Sends the technical details to another app for support. They are not shown here."
+            accessibilityHint="Opens the share sheet"
             onPress={() => shareTechnicalDetails(details)}
             testID="error-btn-details"
           />
@@ -69,7 +71,7 @@ export function ErrorState({
 }
 
 const styles = StyleSheet.create({
-  root: { paddingTop: space['3xl'], paddingHorizontal: space.md, gap: space.sm },
+  root: { paddingTop: space['3xl'], gap: space.sm },
   actions: { gap: space.xs, marginTop: space.md },
   details: { marginTop: space.md, alignItems: 'flex-start' },
 });

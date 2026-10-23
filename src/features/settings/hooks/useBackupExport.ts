@@ -2,13 +2,14 @@ import { useState } from 'react';
 import type { BackupScope } from '@/domain/types';
 import { useBackupStore, useExportStore } from '@/stores';
 import { COPY } from '../copy';
+import { problemOf, type ProblemVM } from '../selectors/problem';
 
 export type ExportPhase = 'idle' | 'exporting' | 'sharing';
 
 export interface BackupExport {
   readonly phase: ExportPhase;
   readonly fileUri: string | null;
-  readonly problem: string | null;
+  readonly problem: ProblemVM | null;
   exportScope(scope: BackupScope): Promise<boolean>;
   shareAgain(): Promise<boolean>;
 }
@@ -18,14 +19,14 @@ export function useBackupExport(): BackupExport {
   const share = useExportStore((state) => state.share);
   const [phase, setPhase] = useState<ExportPhase>('idle');
   const [fileUri, setFileUri] = useState<string | null>(null);
-  const [problem, setProblem] = useState<string | null>(null);
+  const [problem, setProblem] = useState<ProblemVM | null>(null);
 
   const shareFile = async (uri: string): Promise<boolean> => {
     setPhase('sharing');
     const shared = await share(uri, 'application/json');
     setPhase('idle');
     if (!shared) {
-      setProblem(useExportStore.getState().error?.message ?? COPY.shareFailed);
+      setProblem(problemOf(useExportStore.getState().error, COPY.shareFailed));
     }
     return shared;
   };
@@ -39,7 +40,7 @@ export function useBackupExport(): BackupExport {
     const uri = await exportBackup(scope);
     if (!uri) {
       setPhase('idle');
-      setProblem(useBackupStore.getState().error?.message ?? COPY.exportFailed);
+      setProblem(problemOf(useBackupStore.getState().error, COPY.exportFailed));
       return false;
     }
     setFileUri(uri);

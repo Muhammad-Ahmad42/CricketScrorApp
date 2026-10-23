@@ -1,7 +1,8 @@
 import type { ReactNode } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
-import { Badge, Icon, Separator, Text, space, useTheme, type BadgeTone } from '@/ui';
+import { StyleSheet, View } from 'react-native';
+import { Badge, PressableRow, Separator, Text, space, useContentSurface, useGutter, type BadgeTone } from '@/ui';
 import type { FixtureRowVM } from '../selectors/fixtures';
+import { Scoreline } from './Scoreline';
 
 export interface FixtureRowProps {
   readonly row: FixtureRowVM;
@@ -11,8 +12,8 @@ export interface FixtureRowProps {
   readonly showStatus?: boolean;
 }
 
-function statusTone(row: FixtureRowVM): BadgeTone {
-  switch (row.status) {
+export function fixtureStatusTone(status: FixtureRowVM['status']): BadgeTone {
+  switch (status) {
     case 'live':
       return 'live';
     case 'postponed':
@@ -21,66 +22,65 @@ function statusTone(row: FixtureRowVM): BadgeTone {
     case 'cancelled':
       return 'eliminated';
     case 'completed':
-      return 'plain';
-    default:
+    case 'rescheduled':
       return 'outline';
+    default:
+      return 'plain';
   }
 }
 
 export function FixtureRow({ row, onPress, testIDPrefix = 'fixtures', trailing, showStatus = true }: FixtureRowProps) {
-  const theme = useTheme();
-  const label = `${row.label}, ${row.teamsText}, ${row.statusLabel}, ${row.detail}`;
+  const surface = useContentSurface();
+  const gutter = useGutter();
+  const spokenScore = row.scoreline ? `, ${row.scoreline.spoken}` : '';
+  const label = `${row.label}, ${row.teamsText}, ${row.statusLabel}, ${row.detail}${spokenScore}`;
   return (
     <View>
-      <View style={[styles.line, { backgroundColor: theme.color.surface }]}>
-        <Pressable
-          testID={`${testIDPrefix}-row-${row.matchNumber}`}
-          accessibilityRole={onPress ? 'button' : 'text'}
-          accessibilityLabel={label}
-          disabled={!onPress}
-          onPress={onPress}
-          style={({ pressed }) => [styles.row, trailing ? styles.rowWithTrailing : null, { backgroundColor: pressed ? theme.color.surfaceSunken : theme.color.surface }]}
-        >
-          <Text variant="tableNumeric" tone="secondary" style={styles.label} numberOfLines={1}>
-            {row.label}
-          </Text>
-          <View style={styles.main}>
-            <Text variant="body" numberOfLines={2} testID={`${testIDPrefix}-text-teams-${row.matchNumber}`}>
-              {row.teamsText}
+      <View style={[styles.line, { backgroundColor: surface }]}>
+        <View style={styles.flex}>
+          <PressableRow
+            testID={`${testIDPrefix}-row-${row.matchNumber}`}
+            accessibilityLabel={label}
+            onPress={onPress}
+            chevron={trailing === undefined}
+            separator={false}
+            align="start"
+          >
+            <Text variant="tableNumeric" tone="secondary" style={styles.label}>
+              {row.label}
             </Text>
-            <Text variant="footnote" tone="secondary" numberOfLines={2}>
-              {row.detail}
-            </Text>
-          </View>
-          {showStatus && row.status !== 'scheduled' ? (
-            <Badge label={row.statusLabel} tone={statusTone(row)} testID={`${testIDPrefix}-text-status-${row.matchNumber}`} />
-          ) : showStatus ? (
-            <Text variant="footnote" tone="muted" testID={`${testIDPrefix}-text-status-${row.matchNumber}`}>
-              {row.statusLabel}
-            </Text>
-          ) : null}
-          {onPress && !trailing ? <Icon name="chevron-right" size={20} color="textMuted" /> : null}
-        </Pressable>
-        {trailing ? <View style={styles.trailing}>{trailing}</View> : null}
+            <View style={styles.main}>
+              <Text variant="body" weight="medium" testID={`${testIDPrefix}-text-teams-${row.matchNumber}`}>
+                {row.teamsText}
+              </Text>
+              <View style={styles.meta}>
+                {showStatus ? <Badge label={row.statusLabel} tone={fixtureStatusTone(row.status)} testID={`${testIDPrefix}-text-status-${row.matchNumber}`} /> : null}
+                <Text variant="footnote" tone="secondary" style={styles.metaText}>
+                  {row.meta}
+                </Text>
+              </View>
+              {row.note ? (
+                <Text variant="footnote" tone={row.result ? 'primary' : 'secondary'} testID={`${testIDPrefix}-text-note-${row.matchNumber}`}>
+                  {row.note}
+                </Text>
+              ) : null}
+              {row.scoreline ? <Scoreline scoreline={row.scoreline} testID={`${testIDPrefix}-text-score-${row.matchNumber}`} /> : null}
+            </View>
+          </PressableRow>
+        </View>
+        {trailing ? <View style={[styles.trailing, { paddingRight: gutter }]}>{trailing}</View> : null}
       </View>
-      <Separator inset={space.md} />
+      <Separator inset={gutter} />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   line: { flexDirection: 'row', alignItems: 'center' },
-  row: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: space.sm,
-    paddingHorizontal: space.md,
-    paddingVertical: space.sm,
-    minHeight: 56,
-  },
-  rowWithTrailing: { paddingRight: space.sm },
-  trailing: { paddingRight: space.md },
-  label: { width: 44 },
-  main: { flex: 1, gap: 2 },
+  flex: { flex: 1, minWidth: 0 },
+  trailing: { justifyContent: 'center' },
+  label: { minWidth: space['3xl'] },
+  main: { flex: 1, minWidth: 0, gap: space.xxs },
+  meta: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: space.xs },
+  metaText: { flexShrink: 1 },
 });

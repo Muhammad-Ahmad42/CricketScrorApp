@@ -39,9 +39,9 @@ export function validateAddFixture(form: AddFixtureForm): AddFixtureErrors {
         : sideKey(form.sideA) === sideKey(form.sideB)
           ? 'A side cannot play itself.'
           : null,
-    date: form.date.trim().length === 0 || isValidIsoDate(form.date.trim()) ? null : 'Use the format YYYY-MM-DD.',
-    time: form.time.trim().length === 0 || isValidLocalTime(form.time.trim()) ? null : 'Use 24-hour time, for example 14:30.',
-    overs: oversText.length === 0 || (/^\d+$/.test(oversText) && Number(oversText) >= 1 && Number(oversText) <= 50) ? null : 'Enter 1 to 50 overs, or leave empty for the stage default.',
+    date: form.date.trim().length === 0 || isValidIsoDate(form.date.trim()) ? null : 'Choose a valid date.',
+    time: form.time.trim().length === 0 || isValidLocalTime(form.time.trim()) ? null : 'Choose a valid time.',
+    overs: oversText.length === 0 || (/^\d+$/.test(oversText) && Number(oversText) >= 1 && Number(oversText) <= 50) ? null : 'Enter 1 to 50 overs.',
   };
 }
 

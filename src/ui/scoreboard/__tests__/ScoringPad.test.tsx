@@ -4,7 +4,7 @@ import { scoringKeyHeight } from '../../layout';
 import { renderWithTheme, touchTargetSize } from '../../testing';
 import { GlassDock } from '../../glass';
 import { darkColors, lightColors } from '../../theme';
-import { EXTRAS_HINT, ScoreKey, ScoringPad, WICKET_HINT, runKeySpec } from '..';
+import { EXTRAS_HINT, ScoreKey, ScoringPad, WICKET_HINT, keyLabelMinimumScale, runKeySpec } from '..';
 
 const KEY_ORDER = ['score-btn-0', 'score-btn-1', 'score-btn-2', 'score-btn-3', 'score-btn-4', 'score-btn-6', 'score-btn-extras', 'score-btn-wicket'];
 
@@ -70,6 +70,21 @@ describe('ScoringPad', () => {
       expect(size.width).toBeGreaterThanOrEqual(56);
     }
     expect(screen.getByTestId('score-btn-1')).toHaveStyle({ backgroundColor: lightColors.surface, borderColor: lightColors.borderStrong, borderWidth: 1 });
+  });
+
+  it('fits WICKET and EXTRAS to the key width instead of cutting them off, never below 12 pt', async () => {
+    await renderPad({ keyHeight: 72 }).result;
+    for (const label of ['WICKET', 'EXTRAS']) {
+      const text = screen.getByText(label);
+      expect(text).toHaveProp('adjustsFontSizeToFit', true);
+      expect(text).toHaveProp('ellipsizeMode', 'clip');
+      expect(text).toHaveProp('numberOfLines', 1);
+    }
+    expect(keyLabelMinimumScale(1, false) * 15).toBeCloseTo(12);
+    expect(keyLabelMinimumScale(1, true) * 13).toBeCloseTo(12);
+    expect(keyLabelMinimumScale(1.3, false) * 15 * 1.2).toBeCloseTo(12);
+    expect(keyLabelMinimumScale(2, true) * 13 * 1.2).toBeCloseTo(12);
+    expect(keyLabelMinimumScale(0.85, false)).toBeCloseTo(0.8);
   });
 
   it('never makes a key shorter than 56', async () => {

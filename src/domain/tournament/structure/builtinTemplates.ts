@@ -74,7 +74,7 @@ function buildBuiltins(): readonly TournamentTemplate[] {
       {
         id: 'builtin:8-team-t20',
         name: '8-Team T20',
-        description: 'Two pools of four play a single round robin. The top two from each pool play the semifinals, then the final.',
+        description: '2 pools of 4, top 2 to the semifinals',
         teamCount: 8,
         structureKind: 'groups_knockout',
       },
@@ -84,7 +84,7 @@ function buildBuiltins(): readonly TournamentTemplate[] {
       {
         id: 'builtin:4-team-league',
         name: '4-Team League',
-        description: 'Four teams play each other twice. The team on top of the table wins the title.',
+        description: 'Double round robin, top team wins',
         teamCount: 4,
         structureKind: 'league',
       },
@@ -99,7 +99,7 @@ function buildBuiltins(): readonly TournamentTemplate[] {
       {
         id: 'builtin:8-team-knockout',
         name: '8-Team Knockout',
-        description: 'Eight teams seeded by their pre-tournament ranking play quarterfinals, semifinals and the final.',
+        description: 'Seeded knockout from the quarterfinals',
         teamCount: 8,
         structureKind: 'knockout',
       },
@@ -109,7 +109,7 @@ function buildBuiltins(): readonly TournamentTemplate[] {
       {
         id: 'builtin:16-team-groups',
         name: '16-Team Groups',
-        description: 'Four pools of four play a single round robin. The top two from each pool play the quarterfinals, semifinals and the final.',
+        description: '4 pools of 4, top 2 to the quarterfinals',
         teamCount: 16,
         structureKind: 'groups_knockout',
       },
@@ -119,7 +119,7 @@ function buildBuiltins(): readonly TournamentTemplate[] {
       {
         id: 'builtin:20-team-pools',
         name: '20-Team Pools',
-        description: 'Four pools of five play a single round robin. The pool winners play the semifinals, then the final.',
+        description: '4 pools of 5, winners to the semifinals',
         teamCount: 20,
         structureKind: 'groups_knockout',
       },

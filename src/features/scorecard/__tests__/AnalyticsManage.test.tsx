@@ -2,6 +2,7 @@ import '@/features/scoring/__tests__/support/mocks';
 import { fireEvent, screen, waitFor, within } from '@testing-library/react-native';
 import { router } from 'expo-router';
 import { fakeHistory, fakeHome, fakeTeamLibrary } from '@/features/scoring/__tests__/support/fakes';
+import { m3Setup } from '@/domain/scoring/testing';
 import { liveMatch, OPEN } from '@/features/scoring/__tests__/support/liveMatch';
 import { renderScreen, resetCommonStores, setLive } from '@/features/scoring/__tests__/support/render';
 import { AnalyticsScreen } from '../screens/AnalyticsScreen';
@@ -30,7 +31,19 @@ describe('analytics', () => {
     ]);
     expect(vm.manhattan[0].overs.map((over) => over.runs)).toEqual([14, 6, 6]);
     expect(vm.partnerships[0].rows[0]).toMatchObject({ wicketLabel: '1st wkt', batters: 'Babar & Fakhar', runs: 26 });
+    expect(vm.partnerships.map((entry) => entry.series)).toEqual([0, 1]);
     expect(vm.summary.find((row) => row.key === 'sixes')?.values).toEqual(['1', '4']);
+  });
+
+  it('describes the worm with the overs each innings really lasted and pluralises the overs', () => {
+    const vm = selectAnalytics(liveMatch(FINISHED));
+    expect(vm.worm[1].points).toEqual([{ over: 1, runs: 28, wickets: 0 }]);
+    expect(vm.wormLabel).toBe('Runs by over: LIO 26 after 3 overs, TIG 28 after 0.5 overs');
+    expect(vm.manhattanLabel).toBe('Runs per over for LIO, 3 overs and TIG, 1 over');
+    const allOut = liveMatch([OPEN, ...ones(18), 'start:T1:T2:L11', '1', '.', '.', '.', '.', '.', '.', 'W:b', 'end'], m3Setup({ teamBPlayers: 2 }));
+    expect(allOut.state.innings[1].completion?.reason).toBe('all_out');
+    expect(selectAnalytics(allOut).wormLabel).toBe('Runs by over: LIO 18 after 3 overs, TIG 1 after 1.2 overs');
+    expect(selectAnalytics(liveMatch([OPEN, ...ones(6)])).wormLabel).toBe('Runs by over: LIO 6 after 1 over');
   });
 
   it('renders the worm, Manhattan, partnerships and scoring table', async () => {
@@ -65,7 +78,11 @@ describe('match settings', () => {
     await renderScreen(<ManageMatchScreen />);
     await fireEvent.press(screen.getByTestId('manage-row-details'));
     await fireEvent.changeText(screen.getByTestId('details-title'), 'Final');
-    await fireEvent.changeText(screen.getByTestId('details-date'), '2026-10-02');
+    expect(screen.queryByDisplayValue('2026-09-12')).toBeNull();
+    await fireEvent.press(screen.getByTestId('details-date'));
+    await fireEvent(screen.getByTestId('details-date-sheet-picker'), 'change', { nativeEvent: { timestamp: new Date(2026, 9, 2, 12).getTime() } });
+    await fireEvent.press(screen.getByTestId('details-date-sheet-done'));
+    expect(screen.getByTestId('details-date-value')).toHaveTextContent(/2 Oct/);
     await fireEvent.press(screen.getByTestId('details-save'));
     expect(store.updateDetails).toHaveBeenCalledWith({ title: 'Final', venueId: null, scheduledDate: '2026-10-02', scheduledTime: '14:00' });
   });

@@ -33,7 +33,7 @@ export interface TournamentRowVM {
 
 export function selectTournamentRow(item: TournamentListItem): TournamentRowVM {
   const inSetup = isTournamentInSetup(item.status);
-  const progress = item.fixturesTotal > 0 && !inSetup ? ` · ${item.fixturesDone}/${item.fixturesTotal}` : '';
+  const progress = item.fixturesTotal > 0 && !inSetup ? ` · ${item.fixturesDone} of ${item.fixturesTotal} played` : '';
   const status = `${TOURNAMENT_STATUS_TEXT[item.status]}${progress}`;
   const dates = [formatShortDate(item.startDate), formatShortDate(item.endDate)].filter((part): part is string => part !== null).join(' – ');
   const detail = item.championName !== null

@@ -112,6 +112,12 @@ export function formatRgb(color: Rgba): string {
   return `rgb(${byte(color.r)},${byte(color.g)},${byte(color.b)})`;
 }
 
+export function withAlpha(color: string | Rgba, alpha: number): string {
+  const value = typeof color === 'string' ? parseColor(color) : color;
+  const a = Math.max(0, Math.min(1, alpha));
+  return `rgba(${Math.round(value.r)},${Math.round(value.g)},${Math.round(value.b)},${a})`;
+}
+
 export function erf(x: number): number {
   const t = 1 / (1 + 0.3275911 * Math.abs(x));
   const y = 1 - ((((1.061405429 * t - 1.453152027) * t + 1.421413741) * t - 0.284496736) * t + 0.254829592) * t * Math.exp(-x * x);

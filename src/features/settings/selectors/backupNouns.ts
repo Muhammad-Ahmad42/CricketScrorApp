@@ -39,14 +39,11 @@ export const CONTENT_COLLECTIONS: readonly BackupCollection[] = [
   'tournaments',
   'fixtures',
   'matches',
-  'matchEvents',
   'teams',
   'players',
   'venues',
   'templates',
   'formatPresets',
-  'overrides',
-  'auditEvents',
 ];
 
 export const AGGREGATE_NOUNS: { readonly [K in ImportAggregateKind]: Noun } = {

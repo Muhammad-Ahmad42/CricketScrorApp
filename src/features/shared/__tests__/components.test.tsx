@@ -1,14 +1,14 @@
 import '@/ui/testing';
-import { StyleSheet } from 'react-native';
 import { fireEvent, screen } from '@testing-library/react-native';
-import { lightColors } from '@/ui';
+import { GUTTERS } from '@/ui';
 import { renderWithTheme } from '@/ui/testing';
 import {
-  ChoiceList,
   ManualOverrideBadge,
   NavHeader,
-  Notice,
   QualificationText,
+  fitsInline,
+  navHeaderInset,
+  reasonHelper,
   ReasonField,
   TypedNameConfirm,
   canConfirmTypedName,
@@ -24,6 +24,10 @@ describe('text helpers', () => {
     expect([1, 2, 3, 4, 11, 12, 13, 21, 22, 101, 111].map(ordinal)).toEqual(['1st', '2nd', '3rd', '4th', '11th', '12th', '13th', '21st', '22nd', '101st', '111th']);
     expect(plural(1, 'team')).toBe('1 team');
     expect(plural(3, 'match', 'matches')).toBe('3 matches');
+    expect(plural('1', 'over')).toBe('1 over');
+    expect(plural('4.5', 'over')).toBe('4.5 overs');
+    expect(plural('1.0', 'over')).toBe('1.0 overs');
+    expect(plural('0', 'run')).toBe('0 runs');
     expect(joinList(['Lions'])).toBe('Lions');
     expect(joinList(['Lions', 'Tigers', 'Hawks'])).toBe('Lions, Tigers and Hawks');
   });
@@ -42,6 +46,14 @@ describe('ReasonField', () => {
     await renderWithTheme(<ReasonField required={false} value="" onChange={jest.fn()} />);
     expect(screen.getByLabelText('Reason (optional)')).toBeOnTheScreen();
   });
+
+  it('keeps the helper to the rule alone and tells screen readers about the audit log', async () => {
+    expect(reasonHelper(true)).toBe('At least 3 characters');
+    expect(reasonHelper(false)).toBeUndefined();
+    await renderWithTheme(<ReasonField required value="" onChange={jest.fn()} />);
+    expect(screen.getByTestId('input-reason')).toHaveProp('accessibilityHint', expect.stringContaining('audit log'));
+    expect(screen.queryByText(/audit log/)).not.toBeOnTheScreen();
+  });
 });
 
 describe('ManualOverrideBadge (§47)', () => {
@@ -57,9 +69,22 @@ describe('QualificationText (§51)', () => {
     await renderWithTheme(
       <QualificationText state="qualified" certainty="mathematical" explanation="Tigers have mathematically qualified for the Semifinal." manual={false} detail="1 match left" testID="q" />,
     );
-    expect(screen.getByTestId('q')).toHaveProp('accessibilityLabel', 'Qualified · Mathematical. 1 match left. Tigers have mathematically qualified for the Semifinal.');
+    expect(screen.getByLabelText('Qualified · Mathematical. 1 match left. Tigers have mathematically qualified for the Semifinal.')).toBeOnTheScreen();
     expect(screen.getByText('Qualified')).toBeOnTheScreen();
     expect(screen.getByText('Mathematical')).toBeOnTheScreen();
+  });
+
+  it('keeps a short condition inline and moves a long one behind Why?', async () => {
+    const long = 'Lions qualify if they beat Hawks and Tigers lose to Eagles by more than 30 runs, or if Tigers lose both remaining matches.';
+    expect(fitsInline('A win against Hawks guarantees qualification.')).toBe(true);
+    expect(fitsInline(long)).toBe(false);
+    await renderWithTheme(
+      <QualificationText state="in_contention" certainty="provisional" explanation={long} manual={false} concise whyTitle="Lions" explanationTestID="why" />,
+    );
+    expect(screen.queryByText(long)).not.toBeOnTheScreen();
+    await fireEvent.press(screen.getByTestId('why-why'));
+    expect(screen.getByTestId('why')).toHaveTextContent(long);
+    expect(screen.getByRole('header', { name: 'Lions' })).toBeOnTheScreen();
   });
 
   it('marks manual qualification as Manual Override', async () => {
@@ -94,7 +119,7 @@ describe('TypedNameConfirm', () => {
   });
 });
 
-describe('NavHeader, Notice and ChoiceList', () => {
+describe('NavHeader', () => {
   it('offers a labelled back button', async () => {
     const onBack = jest.fn();
     await renderWithTheme(<NavHeader title="Standings" onBack={onBack} />);
@@ -103,31 +128,16 @@ describe('NavHeader, Notice and ChoiceList', () => {
     expect(screen.getByRole('header', { name: 'Standings' })).toBeOnTheScreen();
   });
 
-  it('puts the notice text on its own test id with token colours', async () => {
-    await renderWithTheme(<Notice tone="warning" message="Teams in different pools may play different numbers of matches." testID="n" />);
-    expect(screen.getByTestId('n')).toHaveTextContent('Teams in different pools may play different numbers of matches.');
-    let node = screen.getByTestId('n').parent;
-    while (node && StyleSheet.flatten(node.props.style)?.backgroundColor === undefined) {
-      node = node.parent;
-    }
-    expect(node).toHaveStyle({ backgroundColor: lightColors.warningSubtle });
+  it('lines the back chevron up with the screen gutter at every width', () => {
+    expect(navHeaderInset(GUTTERS.compact)).toBe(8);
+    expect(navHeaderInset(GUTTERS['compact-s'])).toBe(4);
+    expect(navHeaderInset(GUTTERS.medium)).toBe(16);
+    expect(navHeaderInset(GUTTERS.expanded)).toBe(24);
   });
 
-  it('exposes radio semantics and selection', async () => {
-    const onChange = jest.fn();
-    await renderWithTheme(
-      <ChoiceList
-        choices={[
-          { value: 'a', label: 'Alpha', testID: 'c-a' },
-          { value: 'b', label: 'Beta', testID: 'c-b' },
-        ]}
-        value="a"
-        onChange={onChange}
-        accessibilityLabel="Pick"
-      />,
-    );
-    expect(screen.getByTestId('c-a')).toHaveProp('accessibilityState', expect.objectContaining({ selected: true }));
-    await fireEvent.press(screen.getByTestId('c-b'));
-    expect(onChange).toHaveBeenCalledWith('b');
+  it('never cuts a long title short', async () => {
+    const title = 'Northside Strikers v Riverside Lions · Semifinal 2';
+    await renderWithTheme(<NavHeader title={title} onBack={jest.fn()} />);
+    expect(screen.getByRole('header', { name: title })).not.toHaveProp('numberOfLines');
   });
 });

@@ -2,18 +2,20 @@ import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import type { Team } from '@/domain/types';
 import { Button, ListRow, Sheet, Text, TextField, space } from '@/ui';
+import { playerCountText } from '@/features/teams/selectors';
 
 export interface TeamPickerSheetProps {
   readonly visible: boolean;
   readonly title: string;
   readonly teams: readonly Team[];
+  readonly playerCounts?: Readonly<Record<string, number>>;
   readonly excludeId: string | null;
   readonly onPick: (team: Team) => void;
   readonly onNewTeam: () => void;
   readonly onClose: () => void;
 }
 
-export function TeamPickerSheet({ visible, title, teams, excludeId, onPick, onNewTeam, onClose }: TeamPickerSheetProps) {
+export function TeamPickerSheet({ visible, title, teams, playerCounts, excludeId, onPick, onNewTeam, onClose }: TeamPickerSheetProps) {
   const [search, setSearch] = useState('');
   const text = search.trim().toLowerCase();
   const shown = teams
@@ -29,14 +31,22 @@ export function TeamPickerSheet({ visible, title, teams, excludeId, onPick, onNe
       footer={<Button label="New team" icon="plus" variant="secondary" size="lg" fullWidth onPress={onNewTeam} testID="team-picker-new" />}
     >
       <View style={styles.body}>
-        <TextField label="Search" value={search} onChangeText={setSearch} leadingIcon="search" placeholder="Search teams" testID="team-picker-search" />
+        <TextField label="Search teams" hideLabel value={search} onChangeText={setSearch} leadingIcon="search" placeholder="Search teams" returnKeyType="search" testID="team-picker-search" />
         {shown.length === 0 ? (
           <Text variant="body" tone="secondary">
-            {teams.length === 0 ? 'No teams yet. Create the first one.' : 'No teams match.'}
+            {teams.length === 0 ? 'No teams yet' : 'No teams match'}
           </Text>
         ) : null}
         {shown.map((team) => (
-          <ListRow key={team.id} title={team.name} leading={{ monogram: team.shortName }} onPress={() => onPick(team)} testID={`team-picker-${team.id}`} />
+          <ListRow
+            key={team.id}
+            title={team.name}
+            subtitle={playerCountText(playerCounts?.[team.id])}
+            leading={{ monogram: team.shortName }}
+            separator={false}
+            onPress={() => onPick(team)}
+            testID={`team-picker-${team.id}`}
+          />
         ))}
       </View>
     </Sheet>

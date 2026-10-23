@@ -3,7 +3,7 @@ import type { LiveMatch } from '@/services/contracts';
 import { formatRequirement } from '@/domain/scoring/format';
 import { matchStatusLabel } from '@/domain/scoring/result';
 import { currentInnings } from '@/domain/scoring/replay';
-import { formatDateLabel } from '@/features/scoring/selectors/dates';
+import { matchLongDate } from '@/features/scoring/selectors/dates';
 import { teamName } from '@/features/scoring/selectors/names';
 import { formatLabel } from '@/features/scoring/selectors/scoreboard';
 
@@ -29,13 +29,15 @@ export function selectScorecardHeader(live: LiveMatch, venues: readonly Venue[])
     (chase !== null && innings !== null
       ? `${teamName(setup, innings.battingTeamId)}: ${formatRequirement(chase.runsRequired, chase.ballsRemaining)}`
       : isLive
-        ? `${statusLabel} · ${innings === null ? 'not started' : teamName(setup, innings.battingTeamId)} batting`
+        ? innings === null
+          ? 'Not started'
+          : `${teamName(setup, innings.battingTeamId)} batting`
         : statusLabel);
   const toss = setup.toss;
   const tossLine =
     toss === null ? 'Toss not recorded' : `${teamName(setup, toss.winnerTeamId)} won the toss and chose to ${toss.decision === 'bat' ? 'bat' : 'bowl'}`;
   const venue = match.venueId === null ? null : venues.find((entry) => entry.id === match.venueId)?.name ?? null;
-  const metaLine = [venue, formatDateLabel(match.scheduledDate), formatLabel(match.formatId, setup.rules.oversPerInnings)]
+  const metaLine = [venue, matchLongDate(match), formatLabel(match.formatId, setup.rules.oversPerInnings)]
     .filter((part): part is string => part !== null)
     .join(' · ');
   const lastEvent = live.events[live.events.length - 1];

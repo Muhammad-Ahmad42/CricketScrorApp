@@ -2,13 +2,14 @@ import { useEffect, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { distributePoolSizes, type PoolAssignment } from '@/domain/tournament/pools';
 import type { FixtureSide, Pool, PoolId, Seed, StageSlot } from '@/domain/types';
-import { Notice, plural } from '@/features/shared';
-import { Button, Dialog, ListRow, SectionHeader, Separator, Stepper, Text, TextField, space } from '@/ui';
+import { plural } from '@/features/shared';
+import { Banner, Button, Dialog, EmptyState, Inset, ListRow, SectionHeader, Separator, Sheet, Stepper, Text, TextField, space, useLayoutClass } from '@/ui';
 import { useTeamLibraryStore, useTournamentWizardStore } from '@/stores';
 import { PoolBoard, type PoolBoardPool } from '../../components/PoolBoard';
 import { showToast } from '../../hooks/toast';
 import { useLibraryLoaded } from '../../hooks/useLibrary';
 import { freshSeed, newId } from '../../ids';
+import { REPEAT_DRAW_LABEL } from '../../labels';
 import { letterFor } from '../../selectors/names';
 import {
   addToPool,
@@ -50,14 +51,15 @@ interface Arrangement {
   readonly slots: readonly StageSlot[];
 }
 
-const UNEVEN_TEXT = 'Teams in different pools may play different numbers of matches.';
+export const UNEVEN_HEADLINE = 'Uneven pools';
+export const UNEVEN_SUPPORTING = 'Some teams play more matches than others.';
 const REPLACE_WARNING = 'Current pool arrangement will be replaced.';
-const SEEDED_CAPTION = 'Seeded draw · snake order by seed';
-const MANUAL_CAPTION = 'Manual assignment';
-const ADJUSTED_CAPTION = 'Draw adjusted by hand';
+const SEEDED_CAPTION = 'Drawn by seed';
+const MANUAL_CAPTION = 'Placed by hand';
+const ADJUSTED_CAPTION = 'Adjusted by hand';
 
-function randomCaption(seed: Seed): string {
-  return `Random draw · seed ${seed}`;
+export function randomCaption(seed: Seed): string {
+  return `Random draw · no. ${seed}`;
 }
 
 function setAssignment(assignment: PoolAssignment): void {
@@ -77,10 +79,13 @@ export function PoolsStepScreen() {
   const library = useTeamLibraryStore((state) => state.teams);
   const draft = useTournamentWizardStore((state) => state.draft);
   const [seedText, setSeedText] = useState('');
+  const [repeating, setRepeating] = useState(false);
   const [pending, setPending] = useState<Pending>(null);
   const [previous, setPrevious] = useState<Arrangement | null>(null);
   const [caption, setCaption] = useState<string | null>(typeof draft.poolAssignment?.seed === 'number' ? randomCaption(draft.poolAssignment.seed) : null);
   const [menu, setMenu] = useState<MemberMenu>(null);
+  const layout = useLayoutClass();
+  const stackMethods = layout.width === 'compact-s' || layout.largeText;
   const stage = poolStage(draft.stages, draft.pools);
   const pools = stage ? stagePools(draft.pools, stage.id) : [];
   const shells = pools.map((pool) => ({ poolId: pool.id, name: pool.name }));
@@ -105,11 +110,7 @@ export function PoolsStepScreen() {
   if (!stage) {
     return (
       <WizardFrame step="pools">
-        <View style={styles.padded}>
-          <Text variant="callout" testID="twiz-text-no-pools">
-            This format has no pools. Every team goes straight into the first stage.
-          </Text>
-        </View>
+        <EmptyState title="No pools in this format" body="Teams go straight into the first stage." testID="twiz-text-no-pools" />
       </WizardFrame>
     );
   }
@@ -152,7 +153,7 @@ export function PoolsStepScreen() {
     if (method === 'random') {
       const drawSeed = seed ?? freshSeed();
       next = drawRandom(entrants, shells, drawSeed);
-      message = `Pools drawn (seed ${drawSeed})`;
+      message = `Pools drawn (no. ${drawSeed})`;
       setCaption(randomCaption(drawSeed));
     } else if (method === 'seeded') {
       next = drawSeeded(
@@ -163,7 +164,7 @@ export function PoolsStepScreen() {
       setCaption(SEEDED_CAPTION);
     } else {
       next = emptyAssignment(shells);
-      message = 'Pools cleared for manual assignment';
+      message = 'Pools cleared';
       setCaption(MANUAL_CAPTION);
     }
     setAssignment(next);
@@ -185,8 +186,8 @@ export function PoolsStepScreen() {
     remember(before, `${plural(nextPools.length, 'pool')}. Assign the teams again.`);
   };
 
-  const request = (method: Method) => {
-    const seed = method === 'random' ? parseSeed(seedText) : null;
+  const request = (method: Method, seedInput: string = '') => {
+    const seed = method === 'random' ? parseSeed(seedInput) : null;
     if (assignmentHasMembers(draft.poolAssignment)) {
       setPending({ kind: 'draw', method, seed });
       return;
@@ -253,7 +254,7 @@ export function PoolsStepScreen() {
 
   const boardHeader = (
     <View>
-      <View style={styles.padded}>
+      <Inset top="sm" bottom="sm">
         <View style={styles.countLine}>
           <View style={styles.flex}>
             <Stepper
@@ -265,40 +266,42 @@ export function PoolsStepScreen() {
               testID="twiz-input-pool-count"
             />
           </View>
-          <Text variant="callout" tone="secondary" testID="twiz-text-pool-sizes">
-            {sizes.join(' · ')}
-          </Text>
+          <View style={styles.sizes} accessible accessibilityLabel={`Teams per pool: ${sizes.join(', ')}`}>
+            <Text variant="label" tone="secondary">
+              Teams per pool
+            </Text>
+            <Text variant="callout" testID="twiz-text-pool-sizes">
+              {sizes.join(' · ')}
+            </Text>
+          </View>
         </View>
-      </View>
-      {uneven ? <Notice tone="warning" message={UNEVEN_TEXT} testID="twiz-text-uneven-warning" /> : null}
-      {uneven ? (
-        <Text variant="footnote" tone="secondary" style={styles.padded}>
-          Choose how qualification compares them when you set the entry rule of the next stage.
+      </Inset>
+      {uneven ? <Banner tone="warning" message={UNEVEN_HEADLINE} supporting={UNEVEN_SUPPORTING} testID="twiz-text-uneven-warning" /> : null}
+      <Inset top="sm" gap="sm">
+        <Text variant="label" tone="secondary" accessibilityRole="header">
+          Draw the pools
         </Text>
-      ) : null}
-      <View style={styles.padded}>
-        <TextField
-          label="Seed (optional)"
-          value={seedText}
-          onChangeText={setSeedText}
-          helper="Leave empty for a new random draw. Enter a seed, e.g. 847291, to reproduce a draw."
-          numeric
-          testID="twiz-input-pool-seed"
-        />
-        <View style={styles.methods}>
-          <Button label="Random draw" icon="arrow-left-right" onPress={() => request('random')} testID="twiz-btn-pools-random" />
-          <Button label="By seed" variant="secondary" onPress={() => request('seeded')} testID="twiz-btn-pools-seeded" />
-          <Button label="Manual" variant="secondary" onPress={() => request('manual')} testID="twiz-btn-pools-manual" />
+        <View style={stackMethods ? styles.methodsStacked : styles.methods}>
+          <View style={stackMethods ? null : styles.method}>
+            <Button label="Random" variant="secondary" onPress={() => request('random')} fullWidth accessibilityLabel="Random draw" testID="twiz-btn-pools-random" />
+          </View>
+          <View style={stackMethods ? null : styles.method}>
+            <Button label="By seed" variant="secondary" onPress={() => request('seeded')} fullWidth accessibilityLabel="Draw by team seeds" testID="twiz-btn-pools-seeded" />
+          </View>
+          <View style={stackMethods ? null : styles.method}>
+            <Button label="By hand" variant="secondary" onPress={() => request('manual')} fullWidth accessibilityLabel="Place teams by hand" testID="twiz-btn-pools-manual" />
+          </View>
         </View>
         {caption ? (
           <Text variant="footnote" tone="secondary" testID="twiz-text-pool-seed">
             {caption}
           </Text>
         ) : null}
-        {previous ? (
-          <Button label="Restore previous arrangement" variant="tertiary" size="sm" onPress={() => restore(previous)} testID="twiz-btn-restore-pools" />
-        ) : null}
-      </View>
+        <View style={styles.links}>
+          <Button label={REPEAT_DRAW_LABEL} variant="tertiary" size="sm" onPress={() => setRepeating(true)} testID="twiz-btn-repeat-draw" />
+          {previous ? <Button label="Restore previous" variant="tertiary" size="sm" onPress={() => restore(previous)} testID="twiz-btn-restore-pools" /> : null}
+        </View>
+      </Inset>
     </View>
   );
 
@@ -324,11 +327,14 @@ export function PoolsStepScreen() {
         </View>
       ) : null}
       {warnings
-        .filter((warning) => warning.code !== 'UNEVEN_POOLS')
+        .filter((warning) => warning.code !== 'UNEVEN_POOLS' && warning !== blocking[0])
+        .filter((warning, index, all) => all.findIndex((other) => other.message === warning.message) === index)
         .map((warning, index) => (
-          <Text key={`${warning.code}-${index}`} variant="footnote" tone={blocking.includes(warning) ? 'danger' : 'warning'} style={styles.padded}>
-            {warning.message}
-          </Text>
+          <Inset key={`${warning.code}-${index}`} top="sm">
+            <Text variant="footnote" tone={blocking.includes(warning) ? 'danger' : 'warning'}>
+              {warning.message}
+            </Text>
+          </Inset>
         ))}
     </View>
   );
@@ -352,7 +358,8 @@ export function PoolsStepScreen() {
       />
       <PickerSheet
         visible={menu?.kind === 'swap'}
-        title={menu ? `Swap ${menu.member.label} with` : ''}
+        title="Swap with"
+        subtitle={menu?.member.label}
         options={
           menu?.kind === 'swap'
             ? boardPools
@@ -372,9 +379,43 @@ export function PoolsStepScreen() {
           setMenu(null);
         }}
       />
+      <Sheet
+        visible={repeating}
+        title={REPEAT_DRAW_LABEL}
+        onClose={() => setRepeating(false)}
+        testID="sheet-repeat-draw"
+        footer={
+          <Button
+            label="Draw pools"
+            disabled={parseSeed(seedText) === null}
+            onPress={() => {
+              setRepeating(false);
+              request('random', seedText);
+            }}
+            fullWidth
+            testID="twiz-btn-repeat-draw-confirm"
+          />
+        }
+      >
+        <TextField
+          label="Draw number"
+          value={seedText}
+          onChangeText={setSeedText}
+          numeric
+          placeholder="847291"
+          returnKeyType="done"
+          onSubmitEditing={() => {
+            if (parseSeed(seedText) !== null) {
+              setRepeating(false);
+              request('random', seedText);
+            }
+          }}
+          testID="twiz-input-pool-seed"
+        />
+      </Sheet>
       <Dialog
         visible={pending !== null}
-        title={pending?.kind === 'count' ? 'Change the number of pools?' : 'Replace the pools?'}
+        title={pending?.kind === 'count' ? 'Change pool count?' : 'Re-draw pools?'}
         message={REPLACE_WARNING}
         messageTestID="twiz-text-replace-warning"
         cancel={{ label: 'Cancel', onPress: () => setPending(null) }}
@@ -397,8 +438,11 @@ export function PoolsStepScreen() {
 }
 
 const styles = StyleSheet.create({
-  padded: { paddingHorizontal: space.md, paddingTop: space.sm, gap: space.sm },
   countLine: { flexDirection: 'row', alignItems: 'center', gap: space.md },
-  flex: { flex: 1 },
-  methods: { flexDirection: 'row', flexWrap: 'wrap', gap: space.xs },
+  flex: { flex: 1, minWidth: 0 },
+  methods: { flexDirection: 'row', gap: space.xs },
+  methodsStacked: { gap: space.xs },
+  method: { flex: 1, minWidth: 0 },
+  sizes: { alignItems: 'flex-end', gap: space.xxs },
+  links: { flexDirection: 'row', flexWrap: 'wrap', gap: space.xs },
 });

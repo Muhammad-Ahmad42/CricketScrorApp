@@ -1,6 +1,6 @@
 # Scorebook — Accessibility Strategy
 
-Spec: §78 (screen readers, labels, dynamic type, high contrast, reduced motion, colour independence), §72 (outdoor use, targets), §86 (human error messages), §98 (explained automation). The target is **WCAG 2.2 AA** plus the platform guidelines (iOS VoiceOver, Android TalkBack). Tokens and components are in [DESIGN_SYSTEM.md](DESIGN_SYSTEM.md), and sizes in [RESPONSIVE.md](RESPONSIVE.md).
+Spec: §78 (screen readers, labels, dynamic type, high contrast, reduced motion, colour independence), §72 (outdoor use, targets), §106 (glass legibility, Reduce Transparency), §107 (Cyber-Cyan palette), §86 (human error messages), §98 (explained automation). The target is **WCAG 2.2 AA** plus the platform guidelines (iOS VoiceOver, Android TalkBack). Tokens and components are in [DESIGN_SYSTEM.md](DESIGN_SYSTEM.md), and sizes in [RESPONSIVE.md](RESPONSIVE.md).
 
 Scorebook's users include scorers in bright sun, older club officials with large text, colour-blind players, and blind or low-vision organizers who run tournaments with a screen reader. **A blind scorer should be able to score a full match with VoiceOver or TalkBack.** That is the bar for the live scoring screen.
 
@@ -33,6 +33,7 @@ Every interactive element has `accessibilityRole` and `accessibilityLabel`. `Ico
 | Ball chip in the ball log | `button` | "Over 17 ball 2: Four runs, Hassan Ali to Ali Khan" | "Edit this ball" |
 | Segmented option | `radio` | option text | `selected` |
 | Tab | `tab` | "Pool A" | `selected`; "1 of 4" |
+| Bottom tab | `tab` in a `tablist` | "History" | `selected`; "3 of 4". The liquid canvas and the fade are hidden from the reader. While the Android keyboard is up the bar is hidden from the reader and from touch, and it returns unchanged |
 | Switch row | `switch` | row title | `checked` |
 | Stepper | `adjustable` | "Overs, 20" | increment / decrement actions |
 | Standings row | `text` (or `button` when tappable) | "Position 1, Tigers, played 3, won 3, lost 0, no result 0, 6 points, net run rate plus 1.234. Qualified, mathematically." | – |
@@ -82,6 +83,8 @@ Focus management:
 | Screen push | The top-bar title | – |
 | Impact sheet → CONFLICT dialog | Dialog title; "Review again" first | Impact sheet title |
 
+**Focus visibility.** The 2 pt `focusRing` outline is drawn only for keyboard and switch-access focus. Natively, Android also moves focus programmatically (for example back to the row that opened a sheet), so `InputModalityRoot` notes every touch at the app root: a focus that follows a touch draws no ring, and two focus moves in a row without a touch count as keyboard navigation again. On web, `useFocusRing()` tracks the last input modality (navigation keys versus pointer/mouse/touch down, document capture phase): a focus that follows a pointer press draws no ring, and a ring that is showing disappears as soon as the pointer is used. A tapped scoring key, tab or button therefore never keeps a ring that reads as an armed or selected state, while keyboard users still see exactly where they are. Selection indicators (tab underline, segment lens, chip outline) are independent of focus.
+
 Destructive dialogs place initial focus on **Cancel**. Tables expose one element per row (not per cell), so swiping moves row by row. Brackets read round by round, top to bottom: "Semifinal 1: A1 Tigers 172, B2 Pumas 150, Tigers won."
 
 **Screen-reader scoring speed-up:** VoiceOver users can use the rotor "Actions" on the score block: "Score one run", "Score four", "Wicket…", "Extras…", "Undo". The same actions are exposed on Android as `accessibilityActions`. This avoids swiping through the whole screen for every ball. As built, the score block offers every pad key ("Score a dot ball", "Score one run" … "Score six"), then "Extras…", "Wicket…" and "Undo" while the pad is showing, and only "Undo" while a pending or repair panel replaces the pad. Its label is the full §2 summary ("Tigers, 11 for 0, 0.4 overs of 3. Need 8 from 14 balls. Required run rate 12.00."). The activate gesture still opens the scorecard.
@@ -90,7 +93,7 @@ Destructive dialogs place initial focus on **Cancel**. Tables expose one element
 
 | Class | Minimum | Implementation |
 |---|---|---|
-| All controls | **44 × 44 pt** (WCAG 2.5.5 AAA size, iOS HIG) | `hitSlop` for visually smaller controls (sm buttons 36, chips, table row menus) |
+| All controls | **44 × 44 pt** (WCAG 2.5.5 AAA size, iOS HIG) | Real size first: `sm` buttons are 44 tall (web ignores `hitSlop`), icon buttons 44 × 44, segments 40 + 2 slop, chips 40 + 2 slop, stepper buttons 44. `hitSlop` only tops up controls that are already ≥ 40 |
 | Scoring pad keys | **56 × 66 minimum, 72 × 82 typical** | DESIGN_SYSTEM §6.2 |
 | Scoring-sheet choices (dismissals, fielders, extras chips, bowlers, batters) | **56 tall**, ≥ 96 wide | – |
 | Spacing between adjacent targets | ≥ 8 | Prevents mis-taps on the pad |
@@ -103,29 +106,54 @@ The WP-design-system test measures the rendered size (with hitSlop) of every pri
 | Information | Colour cue | Non-colour cue(s) |
 |---|---|---|
 | Wicket ball | `danger` fill | Letter **W**, **square** shape, spoken "Wicket, caught" |
-| Four / six | `accent` ring / fill | Digit 4/6, ring versus fill, caption "FOUR"/"SIX" on the keys |
+| Four / six | `accent` ring / `accentDeep` fill | Digit 4/6, ring versus fill, caption "FOUR"/"SIX" on the keys |
 | Wide / no-ball | – (neutral) | Letters WD/NB, **dashed rectangle** (not a legal ball) |
 | Byes / leg byes | – | B/LB prefix, capsule shape |
-| Free hit | `warning` bar | Text "FREE HIT" in the header; ", free hit" in labels |
+| Free hit | `warning` bar | Visible **FH** label under the chip, text "FREE HIT" in the header; ", free hit" in labels |
 | Striker | `accentSubtle` row | ▶ marker, leading bar, heavier name weight, "On strike" in the label |
 | Current bowler | – | ◉ marker, "Bowling:" in the label |
 | Qualified / in contention / eliminated | `success` / neutral / muted | Badge text, section grouping, explanation sentence (§51), check / x glyphs |
 | Manual Override | `warning` | Badge text "Manual Override" + pencil icon (§47) |
 | Provisional slot | – | Word "provisional" |
-| Selected tab / segment | `accent` | Underline / raised segment, weight 600, `selected` state |
+| Selected tab / segment | `accent` | 3 pt underline (tab) / lens with a 1.5 pt outline and a check for every option count (segment), weight 600, `selected`/`checked` state (+ `aria-selected`/`aria-checked` on web) |
+| Selected bottom tab | `accent` | The liquid droplet around the icon (shape), caption weight 600 versus 500, `selected` state and `aria-selected` on web; the position ("2 of 4") is the hint |
+| Selected radio / chip / option tile | `accent` | Filled radio dot or check mark, 2 pt outline, weight 600, `checked` state; single-choice lists are radios, never checkboxes |
+| Switch on / off | track colour | Knob position, knob ≥ 3:1 against both tracks, `checked` state |
+| Chart series | series colours | Dashed versus solid line, direct labels, legend, table view (series 2 is violet, never the success green) |
 | Errors | `danger` border | Icon + message text; 2 px border (thickness change) |
 | Impact changes | – | "+", "−", "~" glyphs, before → after arrows in text |
-| Chart series | series colours | Dashed versus solid line, direct labels, legend, table view |
 | Position change in what-if | – | ▲ / ▼ glyph + number |
 
 Verification: every screen is reviewed in the iOS "Grayscale" filter and the Android "Simulate colour space: monochromacy" developer option. **A screen passes only if no information is lost.**
 
 ## 7. Contrast and "high contrast" (§78)
 
-- The default palettes already meet **AA for every text/surface pair** (DESIGN_SYSTEM §1.3), with body text at AAA (≥ 7:1) in both themes. There is no low-contrast "muted" text below 4.5:1.
+- The default palettes already meet **AA for every text/surface pair** (DESIGN_SYSTEM §1.3), with body text at AAA (≥ 7:1) in both themes (light 14.83:1, dark 18.00:1 on the page). There is no low-contrast "muted" text below 4.5:1 (`textMuted` worst case: 4.66:1 on light `surfaceSunken`).
 - UI boundaries (inputs, keys, chip outlines) use `borderStrong` at ≥ 3:1.
+- **Cyan never carries text in light.** §107 cyan and even the deep teal `#008BA3` fail 4.5:1 on white (4.02:1), so light text, icons and interactive fills use `accent #00606F` (7.23:1 on white). `#008BA3` appears in light only where 3:1 suffices: the focus ring and `highlight` (3.66:1 on the ice page). In dark, `accent #00C2E0` is 9.06:1 on the page and carries dark ink `#010B0E` on fills (9.28:1).
+- **Attention colour is rationed.** The bright `highlight #28D9F2` (dark) marks focus, the live indicator and genuine highlights only; routine fours and sixes use `accent` and the deep-teal `accentDeep`, so the colour keeps its meaning when it does appear.
 - **iOS "Increase Contrast" / Android "High contrast text"**: when `AccessibilityInfo.isHighTextContrastEnabled()` (Android) or `AccessibilityInfo.isDarkerSystemColorsEnabled()` (iOS "Increase Contrast", subscribed via `darkerSystemColorsChanged`) is on, the theme switches `textSecondary` and `textMuted` to `textPrimary`, `border` to `borderStrong`, and hairlines to 1 pt. There is no separate "high contrast" setting in `AppSettings` today. The OS setting drives it, which is enough for V1 (reported as a possible settings addition).
+- Under the system high-contrast setting the glass also renders opaque with a `borderStrong` edge, and the ambient page glows are removed so the page is a plain, flat `background`.
 - Bold Text (iOS) / font weight adjustment (Android 12+): Inter 400 → 500 and 600 → 700 via the typography layer.
+
+### 7.1 Contrast on glass (§106, §107)
+
+Text on glass must meet AA (4.5:1; 3:1 for large score figures) against the **worst content that can sit behind it**. Glass blurs, so the worst case is not raw white or black but a bright fill or dense text partly averaged by the blur. `src/ui/theme/glass.ts` models it, and `src/ui/theme/__tests__/glass.test.ts` checks every allowed ink (`GLASS_INKS`) on every level:
+
+1. **Blur radius.** Each level's blur intensity is converted to a Gaussian σ of 0.24 px per unit (100 → 24 px, the §107 frost; the web mapping, the smallest of the platforms, so the model is conservative).
+2. **Coverage.** A button-sized block (a 56 px band) keeps `erf(56 / (2√2 σ))` of its colour at its centre (0.757 at σ 24); a 16 px detail (text, icons, chips) keeps `1 − e^(−r²/2σ²)` (0.199).
+3. **Backdrops.** Every solid field (page, surfaces, sunken, the four subtle tints, border, chart grid, and the ambient-lit page) is mixed with every bright block (`accent`, `accentPressed`, `accentDeep`, `danger`, both chart series) at block coverage and with every ink at detail coverage, in **both** sRGB and linear light (blur implementations differ). Sheets and dialogs add their scrim.
+4. **Layers.** The level tint is composited over each backdrop with and without the sheen, and the minimum contrast wins.
+5. **No blur.** Where nothing can blur (Android below 12 or outside the blur target, web without `backdrop-filter`) the denser `unblurred` tint is checked against raw white, raw black and every token instead.
+6. **Tab bar liquid.** The droplet (fill at its densest plus the glow) is composited over the bar: the icon ink inside it (`liquid.ink`: glass accent in light, `textPrimary` in dark, because cyan on cyan falls below 3:1) stays ≥ 3:1 as a graphic (WCAG 1.4.11), and the glow stops above the caption, so the glass-accent caption keeps its ≥ 4.5:1 on the bar. An icon the liquid passes over during a tab change is cross-faded to the liquid ink.
+
+7. **Glass inks.** On `bar`, `dock` and `control` glass, secondary/muted and accent text use the glass inks (`glass.ink`), one small step further from the tint than the page inks; the components re-ink their children automatically.
+
+Results (DESIGN_SYSTEM §1.4 has every figure): the binding cases are dark glass-secondary and glass-accent on the bar (4.60 / 4.61:1 blurred), dark `danger` on popovers (4.57:1), light glass-accent on the bar (5.23:1), light `danger` and `textMuted` in sheets (4.57:1). The bars run at the §107 `rgba(15,27,34,0.70)` (dark) and a pale 0.60 white (light) so the glass is perceptible; the test proves that the page `textSecondary` (dark) and page `accent` (light) would fail there and that the glass inks pass. `textMuted` is never used on bars, docks or controls.
+
+**Selection boundaries (WCAG 1.4.11).** A selected segment's outline is ≥ 3:1 against the control track in both themes (8.24:1 light, 9.63:1 dark on the opaque track), a switch knob ≥ 3:1 against its track, and a selected chip or radio carries a 2 pt `accent` outline plus a mark, so selection never depends on a fill difference alone.
+
+**Reduce Transparency** (system, or Settings → Appearance → Reduce transparency) swaps every glass surface for its opaque twin (same RGB): every text token is at least 5.57:1 (light) and 5.32:1 (dark) on them. The ambient page glows are kept, because they are light on the page and not glass: the lit page stays within 1.1:1 of the plain page and every text token stays ≥ 4.5:1 on it.
 
 ## 8. Charts and tables
 
@@ -165,6 +193,6 @@ See RESPONSIVE.md §5 for caps and reflow. Scores are capped (1.0×) because the
 | Unit (RNTL) | Every primitive: role, label, state (`selected`, `disabled`, `checked`, `busy`), size ≥ 44 with hitSlop; IconButton without a label fails the type check |
 | Unit (domain) | `BallToken.accessibilityLabel` for every token in the grammar; dismissal text; result text; qualification explanations never empty |
 | Feature (RNTL) | Scoring screen: after `dispatch(scoreRuns(4))` resolves, the announcer receives "Four runs. …"; focus moves to pending panels; the §4 reading order |
-| Contrast | Computed test over DESIGN_SYSTEM §1.3 pairs in both themes |
+| Contrast | Computed test over DESIGN_SYSTEM §1.3 pairs in both themes; the blur-aware glass model (§7.1) over every level, ink, renderer mode and lens; opaque twins; the ambient-lit page |
 | Manual | Score a full 2-over match with VoiceOver (iOS) and TalkBack (Android) using the rotor/actions only; run a pool move with impact preview using TalkBack; grayscale review of every screen; font scale 2.0 on a 360 dp phone; Switch Control / Switch Access pass on the scoring pad |
 | E2E (Maestro) | Selectors use accessibility labels (`tapOn: "Four runs, boundary"`), which keeps labels stable as a tested contract |

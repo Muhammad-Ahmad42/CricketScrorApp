@@ -4,6 +4,7 @@ import { useAppStore, useHomeStore, useSettingsStore, useToastStore } from '@/st
 import type { AsyncStatus } from '@/stores';
 import {
   BootstrapGate,
+  InputModalityRoot,
   SystemChrome,
   ThemeProvider,
   ToastAnchorProvider,
@@ -46,6 +47,7 @@ function RootNavigator() {
       <SystemChrome />
       <ToastAnchorProvider>
         <Stack screenOptions={screenOptions}>
+          <Stack.Screen name="(tabs)" />
           {WIZARD_ROUTES.map((name) => (
             <Stack.Screen key={name} name={name} options={wizardOptions} />
           ))}
@@ -70,13 +72,15 @@ export default function RootLayout() {
 
   return (
     <ThemeProvider mode={themeMode} reducedMotion={reducedMotion} reduceTransparency={reduceTransparency}>
-      <BootstrapGate
-        status={gateStatus(fonts.ready, status)}
-        error={error === null ? null : { message: error.message, detail: error.detail }}
-        onRetry={startApp}
-      >
-        <RootNavigator />
-      </BootstrapGate>
+      <InputModalityRoot>
+        <BootstrapGate
+          status={gateStatus(fonts.ready, status)}
+          error={error === null ? null : { message: error.message, detail: error.detail }}
+          onRetry={startApp}
+        >
+          <RootNavigator />
+        </BootstrapGate>
+      </InputModalityRoot>
     </ThemeProvider>
   );
 }

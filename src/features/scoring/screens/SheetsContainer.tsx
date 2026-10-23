@@ -16,6 +16,8 @@ import { DecideTieSheet } from '../sheets/DecideTieSheet';
 import { EndInningsSheet } from '../sheets/EndInningsSheet';
 import { EndMatchSheet } from '../sheets/EndMatchSheet';
 import { ExtrasSheet } from '../sheets/ExtrasSheet';
+import { controlModeOf, selectCrease } from '../selectors/scoreboard';
+import { memoizeLast } from '../selectors/memo';
 import { MoreSheet, type MoreAction } from '../sheets/MoreSheet';
 import { PenaltySheet } from '../sheets/PenaltySheet';
 import { RetireSheet } from '../sheets/RetireSheet';
@@ -23,6 +25,9 @@ import { ReviseOversSheet } from '../sheets/ReviseOversSheet';
 import { SuspendSheet } from '../sheets/SuspendSheet';
 import { WicketSheet, type SubmitResult } from '../sheets/WicketSheet';
 import type { SheetKind } from './sheetKinds';
+import { errorHeadline } from '../selectors/scannable';
+
+const creaseOf = memoizeLast(selectCrease);
 
 export interface RetireTarget {
   readonly playerId: string;
@@ -35,11 +40,14 @@ export interface SheetsContainerProps {
   readonly onOpen: (sheet: SheetKind) => void;
   readonly onClose: () => void;
   readonly onMoreAction: (action: MoreAction) => void;
+  readonly playInMenu?: boolean;
 }
 
-export function SheetsContainer({ sheet, retireTarget, onOpen, onClose, onMoreAction }: SheetsContainerProps) {
+export function SheetsContainer({ sheet, retireTarget, onOpen, onClose, onMoreAction, playInMenu = false }: SheetsContainerProps) {
   const live = useLiveMatchStore((s) => s.live);
   const canRedo = useLiveMatchStore((s) => s.redoStack.length > 0);
+  const padHidden = useLiveMatchStore((s) => controlModeOf(s.live) !== 'pad');
+  const canSwap = useLiveMatchStore((s) => playInMenu && creaseOf(s.live).canSwap);
   const [adding, setAdding] = useState(false);
   const [opening, setOpening] = useState<{ readonly sheet: SheetKind | null; readonly serial: number }>({ sheet, serial: 0 });
   if (opening.sheet !== sheet) {
@@ -110,7 +118,7 @@ export function SheetsContainer({ sheet, retireTarget, onOpen, onClose, onMoreAc
       toasts.show({ kind: 'success', message: `${player.name} added`, action: null });
     } else {
       const error = useLiveMatchStore.getState().error;
-      toasts.show({ kind: 'error', message: error?.message ?? "Couldn't add the player.", action: null });
+      toasts.show({ kind: 'error', message: errorHeadline(error, "Couldn't add the player."), action: null });
       useLiveMatchStore.getState().clearError();
     }
   };
@@ -126,7 +134,17 @@ export function SheetsContainer({ sheet, retireTarget, onOpen, onClose, onMoreAc
     <>
       <ExtrasSheet visible={sheet === 'extras'} rules={setup.rules} overKey={overKey} onSubmit={submit} onClose={onClose} onPenalty={() => onOpen('penalty')} />
       {wicketOptions ? <WicketSheet key={`wicket-${serial}`} visible={sheet === 'wicket'} options={wicketOptions} onSubmit={submitWicket} onClose={onClose} /> : null}
-      <MoreSheet visible={sheet === 'more'} playActive={inPlay} canRedo={canRedo} onAction={onMoreAction} onClose={onClose} />
+      <MoreSheet visible={sheet === 'more'} scope="play" playActive={inPlay} canRedo={canRedo} onAction={onMoreAction} onClose={onClose} />
+      <MoreSheet
+        visible={sheet === 'match_menu'}
+        scope={playInMenu ? 'all' : 'match'}
+        playActive={inPlay}
+        withPlay={padHidden}
+        canRedo={canRedo}
+        canSwap={canSwap}
+        onAction={onMoreAction}
+        onClose={onClose}
+      />
       {changeBowler ? <ChangeBowlerSheet key={`change-bowler-${serial}`} visible={sheet === 'change_bowler'} vm={changeBowler} onSubmit={submit} onClose={onClose} /> : null}
       {retireData ? (
         <RetireSheet

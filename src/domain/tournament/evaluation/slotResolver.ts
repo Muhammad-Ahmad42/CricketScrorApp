@@ -22,12 +22,25 @@ import type { SnapshotIndex } from './snapshotIndex';
 import { teamName } from './snapshotIndex';
 import { sourceStageInputs } from './sourceInputs';
 import { fixtureTeamsVia } from './stageTables';
+import { asSentence, explain } from '../../text';
 
 type Pin = { readonly slot: StageSlot; readonly teamId: TeamId; readonly reason: string; readonly rank: number; readonly createdAt: string };
 
-function pending(slotId: SlotId, explanation: string): SlotResolution {
-  return { slotId, teamId: null, status: 'pending', viaOverride: false, explanation };
+function pending(slotId: SlotId, explanation: string, headline?: string, detail?: string): SlotResolution {
+  return { slotId, teamId: null, status: 'pending', viaOverride: false, explanation, ...explain(headline ?? explanation, detail) };
 }
+
+function capitalise(text: string): string {
+  return text.length === 0 ? text : `${text[0].toUpperCase()}${text.slice(1)}`;
+}
+
+interface SlotText {
+  readonly explanation: string;
+  readonly headline: string;
+  readonly detail: string | null;
+}
+
+const DROPPED_RESULTS = "Results against the lowest-placed teams of larger pools don't count.";
 
 export function slotDescriptor(index: SnapshotIndex, slot: StageSlot): string {
   if (slot.source.kind !== 'pool_position') return slot.label;
@@ -61,11 +74,18 @@ function crossExplanation(
   normalization: UnevenPoolNormalization,
   row: ResolvedRow,
   next: StandingRow | undefined,
-): string {
+): SlotText {
   const name = teamName(index, row.teamId);
   const ahead = next && next.teamId !== null ? `, ahead of ${teamName(index, next.teamId)}` : '';
-  const dropped = normalization === 'drop_extra_results' ? ' (results against the lowest-placed teams of larger pools are not counted)' : '';
-  return `${name} are ${slotPhrase(index, slot)}: ${crossFigures(row, normalization)}${ahead}${dropped}`;
+  const dropping = normalization === 'drop_extra_results';
+  const dropped = dropping ? ' (results against the lowest-placed teams of larger pools are not counted)' : '';
+  const phrase = slotPhrase(index, slot);
+  const figures = `${capitalise(phrase)}: ${crossFigures(row, normalization)}${ahead}.`;
+  return {
+    explanation: `${name} are ${phrase}: ${crossFigures(row, normalization)}${ahead}${dropped}`,
+    headline: `${slotDescriptor(index, slot)}: ${name}`,
+    detail: dropping ? `${figures} ${DROPPED_RESULTS}` : figures,
+  };
 }
 
 export class StageSlotResolver {
@@ -136,12 +156,14 @@ export class StageSlotResolver {
     for (const pin of this.pins()) {
       if (this.results.has(pin.slot.id)) continue;
       if (pin.slot.role === 'entry' && this.placed.has(pin.teamId)) continue;
+      const headline = `${slotDescriptor(this.index, pin.slot)}: ${teamName(this.index, pin.teamId)}`;
       this.results.set(pin.slot.id, {
         slotId: pin.slot.id,
         teamId: pin.teamId,
         status: 'final',
         viaOverride: true,
-        explanation: `${slotDescriptor(this.index, pin.slot)}: ${teamName(this.index, pin.teamId)} (Manual Override: '${pin.reason}')`,
+        explanation: `${headline} (Manual Override: '${pin.reason}')`,
+        ...explain(headline, `Manual override: “${pin.reason}”.`),
       });
       if (pin.slot.role === 'entry') this.placed.set(pin.teamId, pin.slot.id);
     }
@@ -171,7 +193,10 @@ export class StageSlotResolver {
           descriptor,
           (row, position, clean) =>
             !!table && ((table.complete && !row.sharedPosition) || (clean && row.teamId !== null && this.locked(source.stageId, source.poolId, row.teamId, position))),
-          (row) => `${descriptor}: ${teamName(this.index, row.teamId)} (${rowSummary(row)})`,
+          (row) => {
+            const headline = `${descriptor}: ${teamName(this.index, row.teamId)}`;
+            return { explanation: `${headline} (${rowSummary(row)})`, headline, detail: rowSummary(row) };
+          },
         );
       }
       case 'best_of_position':
@@ -197,12 +222,15 @@ export class StageSlotResolver {
       default: {
         const resolution = this.resolveSingle(slot);
         if (resolution.teamId === null || resolution.viaOverride) return resolution;
+        const open = `${descriptor}: to be decided`;
         if (this.eliminated.has(resolution.teamId)) {
-          return pending(slot.id, `${descriptor}: to be decided — ${teamName(this.index, resolution.teamId)} removed by Manual Override`);
+          const removed = `${teamName(this.index, resolution.teamId)} removed by Manual Override`;
+          return pending(slot.id, `${open} — ${removed}`, open, `${teamName(this.index, resolution.teamId)} removed by manual override`);
         }
         const other = this.placed.get(resolution.teamId);
         if (other && other !== slot.id) {
-          return pending(slot.id, `${descriptor}: to be decided — ${teamName(this.index, resolution.teamId)} already qualified as ${this.describeSlot(other)}`);
+          const already = `${teamName(this.index, resolution.teamId)} already qualified as ${this.describeSlot(other)}`;
+          return pending(slot.id, `${open} — ${already}`, open, already);
         }
         return resolution;
       }
@@ -230,7 +258,7 @@ export class StageSlotResolver {
     start: number,
     descriptor: string,
     isFinal: (row: ResolvedRow, position: number, clean: boolean) => boolean,
-    describe: (row: ResolvedRow, next: StandingRow | undefined) => string,
+    describe: (row: ResolvedRow, next: StandingRow | undefined) => SlotText,
   ): SlotResolution {
     if (!table || table.rows.every((row) => row.played === 0)) return pending(slot.id, `${descriptor}: to be decided`);
     const eligible = table.rows.filter(isResolvedRow).filter((row) => row.membership === 'active' && !this.eliminated.has(row.teamId));
@@ -251,15 +279,19 @@ export class StageSlotResolver {
       const removed = table.rows
         .filter(isResolvedRow)
         .filter((candidate) => this.eliminated.has(candidate.teamId) && candidate.position <= row.position)
-        .map((candidate) => `${teamName(this.index, candidate.teamId)} removed by Manual Override`);
-      const allNotes = [...notes, ...removed];
+        .map((candidate) => teamName(this.index, candidate.teamId));
+      const allNotes = [...notes, ...removed.map((name) => `${name} removed by Manual Override`)];
       const final = !downgrade && isFinal(row, i + 1, allNotes.length === 0);
+      const text = describe(row, eligible[i + 1]);
+      const detailNotes = [...notes, ...removed.map((name) => `${name} removed by manual override`)].map(asSentence);
+      const detail = [...(text.detail === null ? [] : [asSentence(text.detail)]), ...detailNotes].join(' ');
       return {
         slotId: slot.id,
         teamId,
         status: final ? 'final' : 'provisional',
         viaOverride: false,
-        explanation: `${describe(row, eligible[i + 1])}${allNotes.length > 0 ? ` — ${allNotes.join('; ')}` : ''}`,
+        explanation: `${text.explanation}${allNotes.length > 0 ? ` — ${allNotes.join('; ')}` : ''}`,
+        ...explain(text.headline, detail),
       };
     }
     return pending(slot.id, `${descriptor}: to be decided`);
@@ -271,7 +303,7 @@ export class StageSlotResolver {
       case 'manual':
         return source.teamId === null
           ? pending(slot.id, `${slot.label}: to be chosen by the organizer`)
-          : { slotId: slot.id, teamId: source.teamId, status: 'final', viaOverride: false, explanation: `${slot.label}: ${teamName(this.index, source.teamId)}` };
+          : this.chosen(slot, source.teamId);
       case 'bracket_winner':
       case 'bracket_loser':
         return this.resolveBracket(slot, source.stageId, source.round, source.position, source.kind === 'bracket_winner' ? 'winner' : 'loser');
@@ -297,13 +329,13 @@ export class StageSlotResolver {
     const byeSlot = seed === null ? undefined : entrySlots.find((candidate) => candidate.seed === seed);
     const resolution = byeSlot ? this.lookup(byeSlot.id) : undefined;
     if (!resolution || resolution.teamId === null) return pending(slot.id, `${slot.label} (bye): to be decided`);
-    return {
-      slotId: slot.id,
-      teamId: resolution.teamId,
-      status: resolution.status,
-      viaOverride: false,
-      explanation: `${slot.label} (bye): ${teamName(this.index, resolution.teamId)}`,
-    };
+    const explanation = `${slot.label} (bye): ${teamName(this.index, resolution.teamId)}`;
+    return { slotId: slot.id, teamId: resolution.teamId, status: resolution.status, viaOverride: false, explanation, ...explain(explanation) };
+  }
+
+  private chosen(slot: StageSlot, teamId: TeamId): SlotResolution {
+    const explanation = `${slot.label}: ${teamName(this.index, teamId)}`;
+    return { slotId: slot.id, teamId, status: 'final', viaOverride: false, explanation, ...explain(explanation) };
   }
 
   private fromFixture(slot: StageSlot, fixture: Fixture, take: 'winner' | 'loser'): SlotResolution {

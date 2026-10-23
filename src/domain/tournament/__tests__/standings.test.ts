@@ -208,9 +208,10 @@ describe('POOL-A and POOL-B', () => {
       separatedBy: 'nrr',
       aboveTeamId: 'COB',
       detail: 'Ahead of Cobras on net run rate (+2.121 vs +1.310)',
+      headline: 'Ahead of Cobras on NRR',
     });
     expect(rowOf(table, 'COB').tieBreak?.separatedBy).toBe('nrr');
-    expect(rowOf(table, 'BEA').tieBreak).toEqual({ separatedBy: null, aboveTeamId: 'WOL', detail: '4 pts, 4 ahead of Wolves' });
+    expect(rowOf(table, 'BEA').tieBreak).toEqual({ separatedBy: null, aboveTeamId: 'WOL', detail: '4 pts, 4 ahead of Wolves', headline: '4 pts ahead of Wolves' });
     expect(rowOf(table, 'WOL').tieBreak).toBeNull();
   });
 

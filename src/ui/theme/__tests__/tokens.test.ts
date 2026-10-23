@@ -13,35 +13,37 @@ import {
 } from '..';
 
 const DOCUMENTED: { readonly [K in ColorToken]: readonly [string, string] } = {
-  background: ['#F5F3EC', '#111412'],
-  surface: ['#FFFFFF', '#181C19'],
-  surfaceElevated: ['#FFFFFF', '#212622'],
-  textPrimary: ['#1A1C19', '#ECEEE9'],
-  textSecondary: ['#474E49', '#B4BBB4'],
-  textMuted: ['#646A65', '#8E968F'],
-  border: ['#DDD9CE', '#2B312D'],
-  accent: ['#1F5C3A', '#72BE90'],
-  success: ['#276A3E', '#7CC49A'],
-  warning: ['#8A5300', '#E3B55E'],
-  danger: ['#B3261E', '#EE8A7F'],
-  score: ['#111310', '#F6F7F3'],
-  surfaceSunken: ['#ECE9E0', '#0B0D0C'],
-  borderStrong: ['#8A877C', '#646E66'],
-  accentPressed: ['#174A2D', '#5FA87C'],
-  accentSubtle: ['#E2ECE4', '#1C3326'],
-  onAccent: ['#FFFFFF', '#0A1A10'],
-  successSubtle: ['#E3EFE6', '#1A3023'],
-  warningSubtle: ['#FAEFD9', '#33291A'],
-  dangerSubtle: ['#FBE8E6', '#3A1E1B'],
-  onDanger: ['#FFFFFF', '#240907'],
-  focusRing: ['#1F5C3A', '#9AD3AF'],
-  scrim: ['rgba(17,19,16,0.40)', 'rgba(0,0,0,0.60)'],
-  inverseSurface: ['#1A1C19', '#ECEEE9'],
-  inverseText: ['#F5F3EC', '#111412'],
-  inverseAccent: ['#9AD3AF', '#72BE90'],
-  chartSeries1: ['#2A7F50', '#55A877'],
-  chartSeries2: ['#4A6FC0', '#7792DA'],
-  chartGrid: ['#E7E4DA', '#252A26'],
+  background: ['#F0F5F8', '#070E12'],
+  surface: ['#FFFFFF', '#0D171C'],
+  surfaceElevated: ['#FFFFFF', '#132129'],
+  textPrimary: ['#0B232B', '#F2F7F9'],
+  textSecondary: ['#3D5864', '#8FA7B3'],
+  textMuted: ['#526B77', '#7F97A3'],
+  border: ['#D5E0E6', '#1A2A33'],
+  accent: ['#00606F', '#00C2E0'],
+  success: ['#0C7552', '#35D49A'],
+  warning: ['#8A5000', '#FFB74D'],
+  danger: ['#C42B2B', '#FF5252'],
+  score: ['#061A20', '#F8FCFD'],
+  surfaceSunken: ['#E2EBF0', '#04090C'],
+  borderStrong: ['#6E848E', '#5A7482'],
+  accentPressed: ['#004A56', '#00A5BF'],
+  accentSubtle: ['#DCEFF3', '#0A2C36'],
+  onAccent: ['#FFFFFF', '#010B0E'],
+  successSubtle: ['#DDF2E9', '#0B2A22'],
+  warningSubtle: ['#FBEFDA', '#2A2014'],
+  dangerSubtle: ['#FCE8E8', '#2D1316'],
+  onDanger: ['#FFFFFF', '#1C0506'],
+  focusRing: ['#008BA3', '#28D9F2'],
+  scrim: ['rgba(6,26,32,0.40)', 'rgba(2,7,9,0.64)'],
+  inverseSurface: ['#0B232B', '#E3ECF0'],
+  inverseText: ['#F0F5F8', '#070E12'],
+  inverseAccent: ['#5ED3E8', '#00C2E0'],
+  chartSeries1: ['#0A96B2', '#19A2BE'],
+  chartSeries2: ['#6650B8', '#7A64D6'],
+  chartGrid: ['#E1E9ED', '#16242B'],
+  accentDeep: ['#007385', '#008BA3'],
+  highlight: ['#008BA3', '#28D9F2'],
 };
 
 const ALL_TOKENS: readonly ColorToken[] = [...CORE_COLOR_TOKENS, ...EXTENDED_COLOR_TOKENS];
@@ -99,10 +101,52 @@ describe('colour tokens', () => {
   });
 
   it('keeps the hue of every chromatic token instead of flipping it as an inversion would', () => {
-    const chromatic: readonly ColorToken[] = ['accent', 'success', 'warning', 'danger', 'chartSeries1', 'chartSeries2', 'accentSubtle', 'warningSubtle', 'dangerSubtle', 'successSubtle'];
+    const chromatic: readonly ColorToken[] = [
+      'accent',
+      'accentDeep',
+      'highlight',
+      'success',
+      'warning',
+      'danger',
+      'chartSeries1',
+      'chartSeries2',
+      'accentSubtle',
+      'warningSubtle',
+      'dangerSubtle',
+      'successSubtle',
+    ];
     for (const token of chromatic) {
       const delta = Math.abs(hue(lightColors[token]) - hue(darkColors[token]));
       expect(Math.min(delta, 360 - delta)).toBeLessThan(45);
+    }
+  });
+
+  it('builds the §107 identity on cyan and deep teal: every accent-family token sits in the cyan-teal hue band in both themes', () => {
+    for (const palette of [lightColors, darkColors]) {
+      for (const token of ['accent', 'accentPressed', 'accentDeep', 'accentSubtle', 'focusRing', 'highlight', 'chartSeries1'] as const) {
+        expect(hue(palette[token])).toBeGreaterThanOrEqual(180);
+        expect(hue(palette[token])).toBeLessThanOrEqual(200);
+      }
+    }
+    expect(darkColors.background).toBe('#070E12');
+    expect(darkColors.accent).toBe('#00C2E0');
+    expect(darkColors.accentDeep).toBe('#008BA3');
+    expect(darkColors.highlight).toBe('#28D9F2');
+    expect(lightColors.background).toBe('#F0F5F8');
+  });
+
+  it('keeps green to the small success signal only, never the identity or a chart series (§107)', () => {
+    for (const palette of [lightColors, darkColors]) {
+      const greens = (Object.keys(palette) as ColorToken[]).filter((token) => {
+        const value = parseColor(palette[token]);
+        const h = hue(palette[token]);
+        const chroma = Math.max(value.r, value.g, value.b) - Math.min(value.r, value.g, value.b);
+        return value.a === 1 && chroma > 40 && h >= 90 && h < 170;
+      });
+      expect(greens.sort()).toEqual(['success']);
+      const h2 = hue(palette.chartSeries2);
+      expect(h2).toBeGreaterThanOrEqual(240);
+      expect(h2).toBeLessThanOrEqual(270);
     }
   });
 

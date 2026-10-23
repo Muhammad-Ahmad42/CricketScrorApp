@@ -45,3 +45,16 @@ export function qualificationSummary(state: QualificationState, certainty: Quali
   }
   return `${stateText} · ${CERTAINTY_LABEL[certainty]}`;
 }
+
+const RULE_CONTEXT = /\s\([^()]*→[^()]*\)(?=\.?$)/;
+
+export function conciseExplanation(explanation: string, team: string): string | null {
+  let text = explanation.trim();
+  const boilerplate = `${team} are still in contention for the `;
+  if (text.startsWith(boilerplate)) {
+    const end = text.indexOf('. ', boilerplate.length);
+    text = end === -1 ? '' : text.slice(end + 2).trim();
+  }
+  text = text.replace(RULE_CONTEXT, '');
+  return text.length > 0 ? text : null;
+}

@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import type { PoolId, StageId, TeamId, TournamentId } from '@/domain/types';
-import { ImpactSheet, ManualOverrideBadge, Notice, QualificationText } from '@/features/shared';
-import { Button, EmptyState, IconButton, SectionHeader, SegmentedControl, Separator, Text, space } from '@/ui';
+import { ImpactSheet, ManualOverrideBadge, QualificationText } from '@/features/shared';
+import { Banner, Button, EmptyState, IconButton, Inset, SectionHeader, SegmentedControl, Separator, Text, space, useGutter } from '@/ui';
 import { useChangeFlow } from '../hooks/useChangeFlow';
 import { newId, nowIso } from '../ids';
 import type { TournamentIndex } from '../selectors/names';
@@ -52,24 +52,25 @@ function QualificationStagePicker({ index, selected, onChange }: { readonly inde
     return null;
   }
   return (
-    <View style={styles.picker}>
+    <Inset bottom="xs">
       <SegmentedControl
         options={stages.map((candidate) => ({ value: candidate.stageId, label: index.stageName(candidate.stageId) }))}
         value={stage.stageId}
         onChange={onChange}
         accessibilityLabel="Stage"
       />
-    </View>
+    </Inset>
   );
 }
 
 function QualificationBody({ index, selected }: { readonly index: TournamentIndex; readonly selected: StageId | null }) {
   const flow = useChangeFlow();
+  const gutter = useGutter();
   const [overrideFor, setOverrideFor] = useState<QualificationRowVM | null>(null);
   const [tie, setTie] = useState<TieGroup | null>(null);
   const stage = qualificationStage(index, selected);
   if (!stage) {
-    return <EmptyState icon="trophy" title="No qualification yet" body="Qualification appears once a stage has a table." testID="qualification-empty" />;
+    return <EmptyState icon="trophy" title="No qualification yet" body="It appears once a stage has a table." testID="qualification-empty" />;
   }
   const vm = qualificationVM(index, stage);
   const canOverride = editPolicy(index).overrides !== 'forbidden';
@@ -79,13 +80,13 @@ function QualificationBody({ index, selected }: { readonly index: TournamentInde
 
   return (
     <View>
-      <View style={styles.padded}>
+      <Inset top="sm" bottom="sm">
         <Text variant="callout" testID="qual-text-rule">
           {vm.rulesText}
         </Text>
-      </View>
+      </Inset>
       {ties.map((group, position) => (
-        <Notice
+        <Banner
           key={group.key}
           tone="warning"
           message={group.text}
@@ -99,9 +100,9 @@ function QualificationBody({ index, selected }: { readonly index: TournamentInde
           <SectionHeader title={section.title} />
           {section.rows.map((row, rowPosition) => {
             const n = offsets[sectionPosition] + rowPosition + 1;
-            const meta = [row.where, row.slots].filter((part): part is string => part !== null).join(' · ');
+            const meta = [row.where, row.slots, row.record].filter((part): part is string => part !== null).join(' · ');
             return (
-              <View key={row.key} style={styles.row} testID={`qual-row-${n}`}>
+              <View key={row.key} style={[styles.row, { paddingLeft: gutter, paddingRight: canOverride ? Math.max(space.xxs, gutter - space.sm) : gutter }]} testID={`qual-row-${n}`}>
                 <View style={styles.rowHead}>
                   <View style={styles.flex}>
                     <Text variant="bodyStrong">{row.team}</Text>
@@ -123,8 +124,13 @@ function QualificationBody({ index, selected }: { readonly index: TournamentInde
                 <QualificationText
                   state={row.state}
                   certainty={row.certainty}
-                  explanation={row.explanation}
+                  explanation={row.headline ?? row.condition ?? ''}
+                  spokenExplanation={row.explanation}
                   manual={row.manual}
+                  whyTitle={row.team}
+                  why={row.detail}
+                  concise
+                  showBadge={row.manual}
                   explanationTestID={`qual-text-explanation-${n}`}
                   badgeTestID={row.manual ? `qual-badge-manual-${n}` : `qual-badge-${n}`}
                 />
@@ -143,7 +149,7 @@ function QualificationBody({ index, selected }: { readonly index: TournamentInde
           <Separator />
           <SectionHeader title="Manual overrides" />
           {vm.overrides.map((override, position) => (
-            <View key={override.id} style={styles.row} testID={`qual-row-override-${position + 1}`}>
+            <View key={override.id} style={[styles.row, { paddingHorizontal: gutter }]} testID={`qual-row-override-${position + 1}`}>
               <ManualOverrideBadge reason={override.reason} showReason={false} testID={`qual-badge-override-${position + 1}`} />
               <Text variant="body">{override.text}</Text>
               <Text variant="footnote" tone="secondary">
@@ -238,10 +244,8 @@ export function QualificationScreen({ tournamentId }: QualificationScreenProps) 
 }
 
 const styles = StyleSheet.create({
-  padded: { paddingHorizontal: space.md, paddingTop: space.sm },
-  picker: { paddingHorizontal: space.md, paddingBottom: space.xs },
-  row: { paddingHorizontal: space.md, paddingVertical: space.sm, gap: space.xs },
+  row: { paddingVertical: space.sm, gap: space.xs },
   rowHead: { flexDirection: 'row', alignItems: 'center', gap: space.xs },
-  flex: { flex: 1 },
+  flex: { flex: 1, minWidth: 0 },
   revoke: { alignItems: 'flex-start' },
 });

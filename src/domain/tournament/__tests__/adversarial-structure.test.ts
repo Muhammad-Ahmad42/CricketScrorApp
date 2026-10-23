@@ -1018,7 +1018,7 @@ describe('adversarial: pool distribution and draws', () => {
     const unassigned = warnings.find((warning) => warning.code === 'UNASSIGNED_TEAMS');
     expect(unassigned?.members.map(sideName)).toEqual(['C2']);
     const uneven = warnings.find((warning) => warning.code === 'UNEVEN_POOLS');
-    expect(uneven?.message).toBe('Teams in different pools may play different numbers of matches.');
+    expect(uneven?.message).toBe('Pools play different numbers of matches.');
   });
 });
 
@@ -1652,7 +1652,7 @@ describe('adversarial: seeding methods', () => {
       explanation: '',
     });
     const mixed = [0, 1, 2, 3, 4, 5].map((index) => resolution(index, index < 4 ? 'final' : index === 4 ? 'provisional' : 'pending'));
-    expect(knockoutGenerationGuard('ranking', mixed)).toEqual({ ok: false, reason: 'Seeding by ranking is possible once all 6 qualifiers are known.' });
+    expect(knockoutGenerationGuard('ranking', mixed)).toEqual({ ok: false, reason: 'Seeding by ranking needs all 6 qualifiers.' });
     expect(knockoutGenerationGuard('ranking', mixed.map((entry) => ({ ...entry, status: 'final' as const, teamId: 'x' }))).ok).toBe(true);
     expect(knockoutGenerationGuard('fixed', mixed).ok).toBe(true);
     expect(knockoutGenerationGuard('random', mixed).ok).toBe(true);
@@ -3886,7 +3886,7 @@ describe('adversarial round 3: fairness and consistency probes', () => {
       viaOverride: false,
       explanation: '',
     }));
-    expect(knockoutGenerationGuard('ranking', entries)).toEqual({ ok: false, reason: 'Seeding by ranking is possible once all 8 qualifiers are known.' });
+    expect(knockoutGenerationGuard('ranking', entries)).toEqual({ ok: false, reason: 'Seeding by ranking needs all 8 qualifiers.' });
   });
 
   it('seedEntrants never mutates its input and random seeding is a permutation of the entrants', () => {

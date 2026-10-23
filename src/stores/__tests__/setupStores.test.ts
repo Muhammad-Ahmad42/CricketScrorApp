@@ -4,6 +4,7 @@ import { createLeague } from '@/services/__tests__/support/league';
 import { createSide, sixNames, type Side } from '@/services/__tests__/support/sides';
 import { standaloneWorld } from '@/services/__tests__/support/standalone';
 import { useMatchSetupStore, useTournamentWizardStore } from '@/stores';
+import { selectBlockingSquadIssue, selectSquadIssues } from '@/stores';
 import { BATTING_FIRST_REQUIRED } from '@/stores/matchSetup';
 import { expectValue, storeHarness } from './support/harness';
 
@@ -166,6 +167,69 @@ describe('useMatchSetupStore', () => {
   });
 });
 
+describe('useMatchSetupStore side size (wave-3 bug #7)', () => {
+  it('exposes the side-size check for the players step and refuses 8 of 6 before anything is saved', async () => {
+    const harness = await storeHarness();
+    const league = await createLeague(harness.app);
+    const fixture = await league.fixture('Lions', 'Tigers');
+    const store = () => useMatchSetupStore.getState();
+    expect(await store().startFromFixture(league.tournamentId, fixture.id)).toBe(true);
+    const [sideA, sideB] = league.sidesOf(fixture);
+    const extras = [
+      expectValue(await harness.app.teams.addPlayer(sideA.team.id, { name: 'Extra one' })),
+      expectValue(await harness.app.teams.addPlayer(sideA.team.id, { name: 'Extra two' })),
+    ];
+    store().update({
+      squadA: [...sideA.players.map((player) => player.id), ...extras.map((player) => player.id)],
+      squadB: sideB.players.slice(0, 5).map((player) => player.id),
+      toss: { winnerTeamId: sideA.team.id, decision: 'bat' },
+      openers: { strikerId: sideA.p(1), nonStrikerId: sideA.p(2), bowlerId: sideB.p(5) },
+    });
+    const names = (teamId: string) => (teamId === sideA.team.id ? sideA.team.name : teamId === sideB.team.id ? sideB.team.name : null);
+    expect(selectSquadIssues(store().draft, names)).toEqual([
+      {
+        severity: 'error',
+        code: 'SQUAD_TOO_LARGE',
+        teamId: sideA.team.id,
+        teamName: sideA.team.name,
+        selected: 8,
+        sideSize: 6,
+        message: `${sideA.team.name}: 2 players too many. This match is 6 a side. Remove 2 or make them substitutes.`,
+        headline: `${sideA.team.name}: 2 players too many`,
+        detail: 'This match is 6 a side. Remove 2 or make them substitutes.',
+      },
+      {
+        severity: 'warning',
+        code: 'SQUAD_TOO_SMALL',
+        teamId: sideB.team.id,
+        teamName: sideB.team.name,
+        selected: 5,
+        sideSize: 6,
+        message: `${sideB.team.name}: 5 of 6 players. The innings ends when only one batter is left.`,
+        headline: `${sideB.team.name}: 5 of 6 players`,
+        detail: 'The innings ends when only one batter is left.',
+      },
+    ]);
+    expect(selectBlockingSquadIssue(store().draft)?.message).toBe('Team A: 2 players too many. This match is 6 a side. Remove 2 or make them substitutes.');
+    expect(await store().submit()).toBeNull();
+    expect(store().error).toMatchObject({
+      code: 'VALIDATION',
+      domainCode: 'SQUAD_TOO_LARGE',
+      message: expect.stringContaining(`${sideA.team.name}: 2 players too many`),
+      headline: `${sideA.team.name}: 2 players too many`,
+      supporting: 'This match is 6 a side. Remove 2 or make them substitutes.',
+    });
+    expect(store().status).not.toBe('saving');
+    expect(expectValue(await harness.app.matches.list({ limit: 5 }))).toEqual([]);
+    store().update({ substitutesA: extras.map((player) => player.id), squadA: sideA.players.map((player) => player.id) });
+    expect(selectBlockingSquadIssue(store().draft, names)).toBeNull();
+    const matchId = await store().submit();
+    expect(matchId).not.toBeNull();
+    const live = expectValue(await harness.app.matches.load(matchId ?? ''));
+    expect(live.setup.players.filter((player) => player.teamId === sideA.team.id && player.isSubstitute)).toHaveLength(2);
+  });
+});
+
 describe('useTournamentWizardStore', () => {
   it('walks the seven steps from a template to confirmed fixtures and resumes midway', async () => {
     const harness = await storeHarness();
@@ -221,6 +285,27 @@ describe('useTournamentWizardStore', () => {
     expect(store().draft.tournamentId).toBeNull();
     expect(await store().resume(tournamentId)).toBe(true);
     expect(store().step).toBe('review');
+  });
+
+  it('keeps the structure chosen on the Structure step, not the default from the Info step', async () => {
+    const harness = await storeHarness();
+    const sides: Side[] = [];
+    for (const name of ['Lions', 'Tigers', 'Eagles', 'Hawks']) {
+      sides.push(await createSide(harness.app, name, name.slice(0, 3).toUpperCase(), sixNames(name)));
+    }
+    const store = () => useTournamentWizardStore.getState();
+    store().update({ info: { ...store().draft.info, name: 'City League' } });
+    expect(store().draft.info.structureKind).toBe('groups_knockout');
+    expect(await store().saveStep()).toBe(true);
+    const tournamentId = store().draft.tournamentId ?? '';
+    store().update({ teams: sides.map((side, index) => ({ teamId: side.team.id, seed: index + 1 })) });
+    expect(await store().saveStep()).toBe(true);
+    expect(store().step).toBe('structure');
+    store().update({ info: { ...store().draft.info, structureKind: 'league', templateId: 'builtin:8-team-t20' } });
+    expect(await store().saveStep()).toBe(true);
+    const snapshot = expectValue(await harness.app.tournaments.snapshot(tournamentId));
+    expect(snapshot.tournament.structureKind).toBe('league');
+    expect(snapshot.tournament.status).toBe('structure_configured');
   });
 
   it('refuses to commit early and to resume a started tournament', async () => {

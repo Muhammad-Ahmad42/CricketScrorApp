@@ -81,6 +81,7 @@ export interface TeamRepository {
 
 export interface PlayerRepository {
   listByTeam(teamId: TeamId, opts?: { readonly includeArchived?: boolean }): Promise<Player[]>;
+  countActiveByTeam(): Promise<Readonly<Record<TeamId, number>>>;
   getMany(ids: readonly PlayerId[]): Promise<Player[]>;
   insert(player: Player): Promise<void>;
   update(player: Player): Promise<void>;

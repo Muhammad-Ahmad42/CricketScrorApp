@@ -1,6 +1,5 @@
 import { useState } from 'react';
-import { StyleSheet, View } from 'react-native';
-import { Screen, Tabs, Text, space } from '@/ui';
+import { Inset, Screen, Tabs, Text } from '@/ui';
 import { useLiveMatchStore, useSettingsStore } from '@/stores';
 import { InningsCard } from '../components/InningsCard';
 import { selectInningsCards } from '../selectors/innings';
@@ -18,11 +17,11 @@ export function LiveScorecardPane({ compact }: { readonly compact: boolean }) {
   if (cards.length === 0) {
     return (
       <Screen testID="score-scorecard-pane-empty" fullWidth>
-        <View style={styles.empty}>
+        <Inset top="md">
           <Text variant="body" tone="secondary">
-            The scorecard fills in as the match is scored.
+            No balls scored yet
           </Text>
-        </View>
+        </Inset>
       </Screen>
     );
   }
@@ -34,7 +33,7 @@ export function LiveScorecardPane({ compact }: { readonly compact: boolean }) {
       fullWidth
       header={
         <Tabs
-          tabs={cards.map((card) => ({ key: `${card.index}`, label: card.tabLabel, testID: `score-pane-tab-${card.index}` }))}
+          tabs={cards.map((card) => ({ key: `${card.index}`, label: card.tabLabel, accessibilityLabel: card.tabAccessibilityLabel, testID: `score-pane-tab-${card.index}` }))}
           selectedKey={`${selected.index}`}
           onSelect={setChosen}
           accessibilityLabel="Innings"
@@ -45,7 +44,3 @@ export function LiveScorecardPane({ compact }: { readonly compact: boolean }) {
     </Screen>
   );
 }
-
-const styles = StyleSheet.create({
-  empty: { padding: space.md },
-});

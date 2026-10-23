@@ -22,12 +22,13 @@ export interface EdgeLook {
   readonly width: number;
   readonly color: string;
   readonly top?: string;
+  readonly left?: string;
 }
 
 export function edgeStyle(rim: GlassRim, look: EdgeLook): ViewStyle {
   switch (rim) {
     case 'all':
-      return { borderWidth: look.width, borderColor: look.color, borderTopColor: look.top ?? look.color };
+      return { borderWidth: look.width, borderColor: look.color, borderTopColor: look.top ?? look.color, borderLeftColor: look.left ?? look.color };
     case 'top':
       return { borderTopWidth: look.width, borderTopColor: look.top ?? look.color };
     case 'bottom':

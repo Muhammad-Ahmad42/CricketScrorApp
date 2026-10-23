@@ -5,7 +5,7 @@ import { Table, type TableColumn } from '../primitives/Table';
 import { space, useTheme, type Theme } from '../theme';
 import { Text, textStyle } from '../typography';
 import { ChartFrame } from './ChartFrame';
-import { axisLabelEvery, manhattanMax, MAX_SERIES, niceMax, type ManhattanInnings, type ManhattanOver } from './chartData';
+import { axisLabelEvery, manhattanMax, MAX_SERIES, niceMax, runsAndWicketsText, wicketMarkText, type ManhattanInnings, type ManhattanOver } from './chartData';
 import { SERIES_TOKENS } from './chartTheme';
 
 const Y_AXIS_WIDTH = 32;
@@ -20,10 +20,10 @@ export interface ManhattanChartProps {
   readonly testID?: string;
 }
 
-function WicketMark() {
+function WicketMark({ wickets }: { readonly wickets: number }) {
   return (
     <Text variant="label" style={styles.wicketMark}>
-      W
+      {wicketMarkText(wickets)}
     </Text>
   );
 }
@@ -34,7 +34,7 @@ function bars(theme: Theme, overs: readonly ManhattanOver[], seriesIndex: number
     value: over.runs,
     label: over.over % every === 0 ? String(over.over) : '',
     frontColor: color,
-    topLabelComponent: over.wickets > 0 ? WicketMark : undefined,
+    topLabelComponent: over.wickets > 0 ? () => <WicketMark wickets={over.wickets} /> : undefined,
   }));
 }
 
@@ -128,7 +128,7 @@ export function ManhattanChart({ innings, accessibilityLabel, title = 'Runs per 
           rowAccessibilityLabel={(row) =>
             [`Over ${row.over}`, ...shown.map((inn, index) => {
               const over = row.byInnings[index];
-              return over ? `${inn.label} ${over.runs} runs, ${over.wickets} wickets` : `${inn.label}, no score`;
+              return over ? `${inn.label} ${runsAndWicketsText(over.runs, over.wickets)}` : `${inn.label}, no score`;
             })].join('. ')
           }
           emptyText="No overs bowled yet"

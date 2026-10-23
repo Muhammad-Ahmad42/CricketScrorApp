@@ -378,6 +378,24 @@ describe('scheduleSequential', () => {
     expect(drafts.every((d) => d.scheduledDate === null)).toBe(true);
   });
 
+  it('spreads the tournament venues across each day without putting two matches on one ground at the same time, and keeps a venue already chosen', () => {
+    const drafts = deepFreeze([
+      ...draftsFromRoundRobin(roundRobin(letters(4), 1), draftDefaults(), idSequence()).map((entry, index) => (index === 5 ? { ...entry, venueId: 'kept' } : entry)),
+    ]);
+    const sameTime = scheduleSequential(drafts, { startDate: '2026-05-01', matchesPerDay: 2, times: ['10:00'], venueIds: ['v1', 'v2'] });
+    expect(sameTime.map((d) => `${d.scheduledDate} ${d.scheduledTime} ${d.venueId}`)).toEqual([
+      '2026-05-01 10:00 v1',
+      '2026-05-01 10:00 v2',
+      '2026-05-02 10:00 v1',
+      '2026-05-02 10:00 v2',
+      '2026-05-03 10:00 v1',
+      '2026-05-03 10:00 kept',
+    ]);
+    const twoSlots = scheduleSequential(drafts, { startDate: '2026-05-01', matchesPerDay: 2, times: ['09:00', '13:00'], venueIds: ['v1', 'v2'] });
+    expect(twoSlots.slice(0, 2).map((d) => d.venueId)).toEqual(['v1', 'v1']);
+    expect(scheduleSequential(drafts, { startDate: '2026-05-01', matchesPerDay: 2, times: ['10:00'] }).slice(0, 2).map((d) => d.venueId)).toEqual([null, null]);
+  });
+
   it('moves a draft to the next day when a side already plays that day', () => {
     const drafts = [
       draft({ id: 'f1', round: 1, matchNumber: 1, sideA: team('A'), sideB: team('B') }),

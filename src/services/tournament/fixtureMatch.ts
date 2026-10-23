@@ -17,7 +17,7 @@ import type { ServiceContext } from '../core/context';
 import { MESSAGES } from '../core/errors';
 import { failure } from '../core/result';
 import { attempt, inTransaction } from '../core/transaction';
-import { newMatchRow, startLog, validateNewMatch } from '../match/creation';
+import { assertSquadSizes, newMatchRow, startLog, validateNewMatch } from '../match/creation';
 import { applyMatchEffects, assertTournamentWritable } from './matchEffects';
 import { snapshotOfFixture, evaluateSnapshot } from './snapshots';
 
@@ -68,13 +68,13 @@ function assertStartable(snapshot: TournamentSnapshot, fixture: Fixture): void {
     throw failure('FORBIDDEN_STATE', 'This tournament is completed. Reopen it before playing more matches.');
   }
   if (status !== 'fixtures_generated' && status !== 'active') {
-    throw failure('FORBIDDEN_STATE', "Confirm the tournament's fixtures before starting a match.");
+    throw failure('FORBIDDEN_STATE', "Confirm the tournament's fixtures first.");
   }
   if (fixture.matchId !== null) {
     throw failure('FORBIDDEN_STATE', "This fixture's match has already been started.");
   }
   if (fixture.status === 'postponed') {
-    throw failure('FORBIDDEN_STATE', 'Reschedule this fixture before starting its match.');
+    throw failure('FORBIDDEN_STATE', 'Reschedule this fixture first.');
   }
   if (fixture.status === 'cancelled') {
     throw failure('FORBIDDEN_STATE', 'This fixture is cancelled. Restore it before starting its match.');
@@ -101,7 +101,7 @@ export function createFixtureMatchOperations(ctx: ServiceContext): FixtureMatchO
             (teamId) => snapshot.teams.find((view) => view.team.id === teamId)?.membership.status !== 'active',
           );
           if (withdrawn !== undefined) {
-            throw failure('FORBIDDEN_STATE', 'One of these teams is no longer active in the tournament.');
+            throw failure('FORBIDDEN_STATE', 'One of these teams is no longer in the tournament.');
           }
           const input: NewMatchInput = {
             title: defaults.title,
@@ -120,6 +120,7 @@ export function createFixtureMatchOperations(ctx: ServiceContext): FixtureMatchO
             teamBPlayers: setup.teamBPlayers ?? null,
           };
           validateNewMatch(input);
+          await assertSquadSizes(repos, input);
           const now = ctx.clock.now();
           const match = await newMatchRow(repos, input, ctx.ids(), now);
           await repos.matches.insert(match, input.squads);

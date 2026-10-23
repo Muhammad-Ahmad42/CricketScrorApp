@@ -38,14 +38,24 @@ describe('format preset view models (§8, W-X2)', () => {
       'Balls per over: 6',
       'Players per side: 11',
       'Bowler limit: 4 overs each',
-      'Same bowler twice in a row: Not allowed',
+      'Consecutive overs: Not allowed',
       'Wides: 1 run penalty, bowled again',
       'No-balls: 1 run penalty, bowled again, free hit',
-      'Powerplays: Powerplay: overs 1–6',
+      'Powerplays: Overs 1–6',
       'Super over: 1 over, 2 wickets; if tied again, another super over',
       'Last man stands: Off',
       'Retirement: None',
     ]);
+  });
+
+  it('names powerplays only when the name adds something, and says "over" for a one-over powerplay', () => {
+    const value = (powerplays: MatchRules['powerplays']) => ruleLines(rules({ powerplays })).find((line) => line.key === 'powerplays')?.value;
+    expect(value([{ name: 'Powerplay', fromOver: 1, toOver: 1 }])).toBe('Over 1');
+    expect(value([{ name: 'Batting powerplay', fromOver: 3, toOver: 5 }])).toBe('Batting powerplay: overs 3–5');
+    expect(value([
+      { name: 'Powerplay 1', fromOver: 1, toOver: 10 },
+      { name: 'Powerplay 2', fromOver: 11, toOver: 11 },
+    ])).toBe('Powerplay 1: overs 1–10; Powerplay 2: over 11');
   });
 
   it('covers the alternative rule settings', () => {

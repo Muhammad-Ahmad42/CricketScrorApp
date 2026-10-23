@@ -7,6 +7,8 @@ import { NextBatterPanel, NextBowlerPanel } from '../components/pending/PlayerPa
 import { StartInningsPanel } from '../components/pending/StartInningsPanel';
 import { sendIntent } from '../hooks/actions';
 import { selectNextBatter, selectNextBowler, selectStartInnings, selectSuspension } from '../selectors/options';
+import { selectScoresLine } from '../selectors/scoreboard';
+import { scannable } from '../selectors/scannable';
 import type { SheetKind } from './sheetKinds';
 
 export interface PendingContainerProps {
@@ -46,9 +48,11 @@ export function PendingContainer({ onOpen, onUndo, onReview, onScorecard, onAnal
   if (state.needsRepair) {
     const issue = state.issues.find((entry) => entry.severity === 'error') ?? state.issues[0];
     const isDelivery = issue !== undefined && live.events.some((event) => event.seq === issue.seq && event.kind === 'delivery');
+    const text = issue === undefined ? { headline: 'a recorded ball', detail: null } : scannable(issue);
     return (
       <RepairPanel
-        message={issue?.message ?? 'An event in the log is invalid.'}
+        message={text.headline}
+        detail={text.detail}
         canReview={isDelivery}
         onReview={() => {
           if (issue !== undefined) {
@@ -123,6 +127,7 @@ export function PendingContainer({ onOpen, onUndo, onReview, onScorecard, onAnal
       return (
         <ConfirmResultPanel
           text={pending.text}
+          scores={selectScoresLine(live)}
           inTournament={live.match.tournamentId !== null}
           busy={busy}
           onConfirm={() => {

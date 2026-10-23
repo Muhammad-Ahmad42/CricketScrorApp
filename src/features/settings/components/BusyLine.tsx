@@ -1,5 +1,6 @@
-import { ActivityIndicator, StyleSheet, View } from 'react-native';
-import { Text, space, useTheme } from '@/ui';
+import { ActivityIndicator, StyleSheet } from 'react-native';
+import { Text, useTheme } from '@/ui';
+import { Block } from './Block';
 
 export interface BusyLineProps {
   readonly text: string;
@@ -9,15 +10,15 @@ export interface BusyLineProps {
 export function BusyLine({ text, testID }: BusyLineProps) {
   const theme = useTheme();
   return (
-    <View style={[styles.row, { backgroundColor: theme.color.surface }]} accessibilityRole="progressbar" accessibilityLabel={text} accessibilityState={{ busy: true }}>
+    <Block direction="row" align="center" gap="sm" compact accessible accessibilityRole="progressbar" accessibilityLabel={text} busy>
       <ActivityIndicator size="small" color={theme.color.accent} />
-      <Text variant="subhead" tone="secondary" testID={testID}>
+      <Text variant="subhead" tone="secondary" style={styles.text} testID={testID}>
         {text}
       </Text>
-    </View>
+    </Block>
   );
 }
 
 const styles = StyleSheet.create({
-  row: { flexDirection: 'row', alignItems: 'center', gap: space.sm, paddingHorizontal: space.md, paddingVertical: space.sm, minHeight: 48 },
+  text: { flexShrink: 1 },
 });

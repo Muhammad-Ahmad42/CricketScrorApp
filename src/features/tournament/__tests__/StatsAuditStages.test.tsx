@@ -42,7 +42,7 @@ describe('StatsScreen (§52)', () => {
     const stats = computeTournamentStats(data.snapshot, data.evaluation);
     useTournamentStore.setState({ loadStats: jest.fn(async () => stats) });
     await renderWithTheme(<StatsScreen tournamentId="t1" />);
-    await waitFor(() => expect(screen.getByTestId('stats-text-total-matches')).toHaveTextContent('6 of 15 played'));
+    await waitFor(() => expect(screen.getByTestId('stats-text-total-matches')).toHaveTextContent('6 of 15'));
     expect(screen.getByTestId('stats-row-record-highest-team-score')).toBeOnTheScreen();
     expect(screen.getByTestId('stats-row-record-best-bowling')).toBeOnTheScreen();
   });
@@ -55,6 +55,8 @@ describe('StatsScreen (§52)', () => {
     await fireEvent.press(screen.getByTestId('stats-tab-teams'));
     expect(screen.getByTestId('stats-table-teams')).toBeOnTheScreen();
     expect(screen.getAllByText('Lions').length).toBeGreaterThan(0);
+    expect(screen.queryAllByLabelText(/, \d+ (match|matches), /).length).toBeGreaterThan(0);
+    expect(screen.queryAllByLabelText(/(?:^|[^\d.,])1 (?:matches|points|runs|wickets)\b/)).toHaveLength(0);
   });
 
   it('offers a retry when statistics fail to load', async () => {

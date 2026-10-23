@@ -1,4 +1,4 @@
-import type { ChampionResult, TournamentStatus, TournamentStructureKind } from '@/domain/types';
+import type { ChampionResult, Stage, StageType, TournamentStatus, TournamentStructureKind } from '@/domain/types';
 import { formatDateRange } from '../dates';
 import { joinPresent, type NameLookup } from '../text';
 import { leaderTables, recordLines } from './leaders';
@@ -50,6 +50,26 @@ export function structureLabel(kind: TournamentStructureKind): string {
   }
 }
 
+const TABLE_STAGES: readonly StageType[] = ['league', 'group'];
+
+export function formatLabel(stages: readonly Stage[], fallback: TournamentStructureKind): string {
+  const types = [...stages].sort((a, b) => a.orderIndex - b.orderIndex).map((stage) => stage.type);
+  if (types.length === 0) {
+    return structureLabel(fallback);
+  }
+  const split = types.indexOf('knockout');
+  const tables = split === -1 ? types : types.slice(0, split);
+  const knockouts = split === -1 ? [] : types.slice(split);
+  if (knockouts.some((type) => type !== 'knockout') || tables.some((type) => !TABLE_STAGES.includes(type))) {
+    return structureLabel('custom');
+  }
+  if (tables.length === 0) {
+    return structureLabel('knockout');
+  }
+  const table = tables.every((type) => type === 'league') ? structureLabel('league') : structureLabel('groups');
+  return knockouts.length === 0 ? table : `${table} and knockout`;
+}
+
 function championText(champion: ChampionResult | null, team: NameLookup): string | null {
   if (champion === null || champion.teamIds.length === 0) {
     return null;
@@ -83,7 +103,7 @@ function facts(source: TournamentPdfSource): readonly Fact[] {
     ['Location', tournament.location],
     ['Venues', venueNames.length > 0 ? venueNames.join(', ') : null],
     ['Teams', String(active)],
-    ['Format', structureLabel(tournament.structureKind)],
+    ['Format', formatLabel(source.snapshot.stages, tournament.structureKind)],
     ['Status', tournamentStatusLabel(tournament.status)],
     ['Matches played', `${progress.done}/${progress.total}`],
   ];

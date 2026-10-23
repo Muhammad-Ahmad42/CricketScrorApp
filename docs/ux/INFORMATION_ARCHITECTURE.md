@@ -133,7 +133,7 @@ ARCHITECTURE §9 does not place `/teams` under any tab. This IA puts it under **
 ### 3.8 Root states (not routes)
 
 `_layout.tsx` renders one of these before any route:
-- **Splash** (native splash, `#1F5C3A`) while fonts load and `bootstrap()` runs (migrations, projection rebuild, replay of live/paused matches).
+- **Splash** (native splash, obsidian `#070E12`, §107) while fonts load and `bootstrap()` runs (migrations, projection rebuild, replay of live/paused matches).
 - **Bootstrap error** (full-screen ErrorState). For example, a migration failure: "Scorebook couldn't open your data. Nothing has been changed. [Try again]", plus "Technical details" (expandable, copyable). The Diagnostics route is not reachable yet, so details are inline.
 
 ## 4. Non-route surfaces

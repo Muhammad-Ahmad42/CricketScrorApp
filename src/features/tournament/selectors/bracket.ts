@@ -7,9 +7,25 @@ import type { SideVM, TournamentIndex } from './names';
 
 export interface BracketSideVM {
   readonly text: string;
+  readonly name: string;
   readonly slotLabel: string | null;
+  readonly chip: string | null;
+  readonly provisional: boolean;
+  readonly pending: boolean;
   readonly score: string | null;
   readonly winner: boolean;
+}
+
+const CHIP_MAX = 4;
+
+function sideParts(index: TournamentIndex, side: SideVM): Pick<BracketSideVM, 'name' | 'chip' | 'provisional' | 'pending'> {
+  const chip = side.slotLabel !== null && side.slotLabel.length <= CHIP_MAX ? side.slotLabel : null;
+  if (side.teamId !== null) {
+    return { name: index.teamName(side.teamId), chip, provisional: side.provisional, pending: false };
+  }
+  const meaning = side.meaning ?? side.slotLabel ?? 'To be decided';
+  const name = chip !== null && meaning === chip ? 'To be decided' : meaning;
+  return { name, chip, provisional: false, pending: true };
 }
 
 export interface BracketMatchVM {
@@ -58,6 +74,7 @@ function sideVM(index: TournamentIndex, fixture: Fixture, side: SideVM): Bracket
   const summary = fixtureSummary(index.snapshot, fixture);
   return {
     text: side.text,
+    ...sideParts(index, side),
     slotLabel: side.slotLabel,
     score: scoreFor(index, fixture, side.teamId),
     winner: summary !== null && side.teamId !== null && summary.winnerTeamId === side.teamId,
@@ -65,7 +82,8 @@ function sideVM(index: TournamentIndex, fixture: Fixture, side: SideVM): Bracket
 }
 
 function spokenSide(side: BracketSideVM): string {
-  const label = side.slotLabel && side.slotLabel !== side.text ? `${side.slotLabel} ${side.text}` : side.text;
+  const slot = side.slotLabel && side.slotLabel !== side.name ? `${side.slotLabel}, ` : '';
+  const label = `${slot}${side.name}${side.provisional ? ', provisional' : ''}`;
   return side.score ? `${label} ${side.score}` : label;
 }
 
@@ -73,7 +91,7 @@ function matchVM(index: TournamentIndex, fixture: Fixture): BracketMatchVM {
   const sides = index.fixtureSides(fixture);
   const a = sideVM(index, fixture, sides.a);
   const b = sideVM(index, fixture, sides.b);
-  const winner = a.winner ? a.text : b.winner ? b.text : null;
+  const winner = a.winner ? a.name : b.winner ? b.name : null;
   const result = fixtureResultText(index, fixture);
   const label = index.fixtureLabel(fixture);
   const roundName = fixture.bracket?.roundName ?? label;
@@ -101,8 +119,9 @@ function matchVM(index: TournamentIndex, fixture: Fixture): BracketMatchVM {
 function byeVM(index: TournamentIndex, round: number, position: number, side: FixtureSide | null): BracketMatchVM {
   const shown = side ? index.side(side) : null;
   const text = shown?.text ?? 'To be decided';
-  const entrant: BracketSideVM = { text, slotLabel: shown?.slotLabel ?? null, score: null, winner: false };
-  const bye: BracketSideVM = { text: BYE_TEXT, slotLabel: null, score: null, winner: false };
+  const parts = shown ? sideParts(index, shown) : { name: text, chip: null, provisional: false, pending: true };
+  const entrant: BracketSideVM = { text, ...parts, slotLabel: shown?.slotLabel ?? null, score: null, winner: false };
+  const bye: BracketSideVM = { text: BYE_TEXT, name: BYE_TEXT, chip: null, provisional: false, pending: false, slotLabel: null, score: null, winner: false };
   return {
     key: `bye-${round}-${position}`,
     kind: 'bye',

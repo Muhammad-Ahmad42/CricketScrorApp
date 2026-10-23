@@ -2,9 +2,16 @@ import { useState } from 'react';
 import { FlatList, StyleSheet, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import type { StageId, TournamentId } from '@/domain/types';
-import { Notice } from '@/features/shared';
-import { BoundaryRule, EmptyState, SegmentedControl, Tabs, Text, space, useScreenList } from '@/ui';
-import { StandingsHeader, StandingsRow, StandingsScroller, StandingsStickyBlock, standingsColumns, useStandingsScroll } from '../components/StandingsTable';
+import { Banner, Disclosure, EmptyState, Inset, SegmentedControl, Tabs, Text, space, useScreenList, useTheme } from '@/ui';
+import {
+  StandingsHeader,
+  StandingsRow,
+  StandingsScroller,
+  StandingsStickyBlock,
+  useMeasuredWidth,
+  useStandingsLayout,
+  useStandingsScroll,
+} from '../components/StandingsTable';
 import { routes } from '../routes';
 import type { TournamentIndex } from '../selectors/names';
 import { cachedStageStandings, stagesWithTables, type StageStandingsVM, type StandingsTableVM } from '../selectors/standings';
@@ -79,7 +86,7 @@ function StandingsControls({ index, selection, onStage, onTable }: StandingsCont
   return (
     <View>
       {stages.length > 1 ? (
-        <View style={styles.stagePicker}>
+        <Inset bottom="xs">
           <SegmentedControl
             options={stages.map((candidate) => ({
               value: candidate.stageId,
@@ -90,7 +97,7 @@ function StandingsControls({ index, selection, onStage, onTable }: StandingsCont
             onChange={onStage}
             accessibilityLabel="Stage"
           />
-        </View>
+        </Inset>
       ) : null}
       {vm.tables.length > 1 && table ? (
         <Tabs
@@ -113,12 +120,15 @@ interface StandingsBodyProps {
 
 function StandingsBody({ tournamentId, index, selection }: StandingsBodyProps) {
   const router = useRouter();
+  const theme = useTheme();
   const scroll = useStandingsScroll();
   const list = useScreenList();
+  const [width, onLayout] = useMeasuredWidth();
+  const layout = useStandingsLayout(selection?.table?.rows ?? [], selection?.table?.showTies ?? false, width);
   if (!selection) {
     return (
       <View style={{ paddingTop: list.contentInset.paddingTop }}>
-        <EmptyState icon="trophy" title="No standings yet" body="Standings appear once a stage with pools or a league has fixtures." testID="standings-empty" />
+        <EmptyState icon="trophy" title="No standings yet" body="They appear once fixtures exist." testID="standings-empty" />
       </View>
     );
   }
@@ -131,17 +141,20 @@ function StandingsBody({ tournamentId, index, selection }: StandingsBodyProps) {
     );
   }
   const slots = slotLine(index, table);
-  const columns = standingsColumns(table.rows, table.showTies);
+  const columns = layout.columns;
+  const notes = table.rows.map((row, position) => ({ row, ordinal: position + 1 })).filter((entry) => entry.row.note);
 
   const top = (
     <View>
       {vm.tables.length > 1 ? null : (
-        <Text variant="label" tone="secondary" style={styles.tableTitle} accessibilityRole="header">
-          {table.title}
-        </Text>
+        <Inset top="sm" bottom="sm">
+          <Text variant="label" tone="secondary" accessibilityRole="header">
+            {table.title}
+          </Text>
+        </Inset>
       )}
       {table.unresolvedTies.map((text, position) => (
-        <Notice
+        <Banner
           key={text}
           tone="warning"
           message={text}
@@ -160,34 +173,38 @@ function StandingsBody({ tournamentId, index, selection }: StandingsBodyProps) {
   );
 
   const footer = (
-    <View style={styles.footer}>
-      <BoundaryRule />
-      <Text variant="label" tone="secondary" accessibilityRole="header" style={styles.footerTitle}>
-        How this table is decided
-      </Text>
-      <Text variant="callout" testID="standings-text-rule">
-        {vm.rulesText}
-      </Text>
-      <Text variant="callout" tone="secondary" testID="standings-text-chain">
-        {`Ranking: ${table.chain}`}
-      </Text>
-      {table.rows
-        .filter((row) => row.note)
-        .map((row) => (
-          <Text key={row.key} variant="footnote" tone="secondary">
-            {`${row.team}: ${row.note}`}
+    <View style={[styles.footer, { borderTopWidth: theme.borderWidth.hairline, borderTopColor: theme.color.border }]}>
+      <Inset gap="xs">
+        <Text variant="callout" testID="standings-text-rule" style={styles.footerTitle}>
+          {vm.rulesText}
+        </Text>
+        {slots ? (
+          <Text variant="footnote" tone="secondary" testID="standings-text-slots">
+            {slots}
           </Text>
-        ))}
-      {slots ? (
-        <Text variant="footnote" tone="secondary" testID="standings-text-slots">
-          {slots}
-        </Text>
-      ) : null}
-      {!table.complete ? (
-        <Text variant="footnote" tone="muted">
-          Positions can still change while matches remain.
-        </Text>
-      ) : null}
+        ) : null}
+        {table.chain.length > 0 || notes.length > 0 ? (
+          <Disclosure label={notes.length > 0 ? `Tie-breaks (${notes.length})` : 'Tie-breaks'} testID="standings-btn-tiebreaks">
+            <View style={styles.notes}>
+              {table.chain.length > 0 ? (
+                <Text variant="footnote" tone="secondary" testID="standings-text-chain">
+                  {`Ranking: ${table.chain}`}
+                </Text>
+              ) : null}
+              {notes.map(({ row, ordinal }) => (
+                <View key={row.key} style={styles.note}>
+                  <Text variant="footnote" weight="semibold">
+                    {row.team}
+                  </Text>
+                  <Text variant="footnote" tone="secondary" testID={`standings-text-tiebreak-${table.key}-${ordinal}`}>
+                    {row.note}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          </Disclosure>
+        ) : null}
+      </Inset>
     </View>
   );
 
@@ -211,12 +228,16 @@ function StandingsBody({ tournamentId, index, selection }: StandingsBodyProps) {
     />
   );
 
-  return scroll ? (
-    <StandingsScroller columns={columns} fill testID="standings-scroller">
-      {rows}
-    </StandingsScroller>
-  ) : (
-    rows
+  return (
+    <View style={styles.fill} onLayout={onLayout}>
+      {scroll ? (
+        <StandingsScroller columns={columns} fill testID="standings-scroller">
+          {rows}
+        </StandingsScroller>
+      ) : (
+        rows
+      )}
+    </View>
   );
 }
 
@@ -244,8 +265,9 @@ export function StandingsScreen({ tournamentId }: StandingsScreenProps) {
 }
 
 const styles = StyleSheet.create({
-  stagePicker: { paddingHorizontal: space.md, paddingBottom: space.xs },
-  tableTitle: { paddingHorizontal: space.md, paddingVertical: space.sm },
-  footer: { paddingHorizontal: space.md, paddingTop: space.md, gap: space.xs },
+  fill: { flex: 1 },
+  footer: { paddingTop: space.md, marginTop: space.lg },
   footerTitle: { paddingTop: space.sm },
+  notes: { gap: space.sm },
+  note: { gap: space.xxs },
 });

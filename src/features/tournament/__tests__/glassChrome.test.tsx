@@ -48,7 +48,7 @@ describe('Tournament glass chrome (§106)', () => {
     expect(within(header).getByTestId('fixtures-chip-round')).toBeOnTheScreen();
     expect(within(header).getByTestId('fixtures-tab-completed')).toBeOnTheScreen();
     expect(within(header).queryByTestId('fixtures-input-search')).not.toBeOnTheScreen();
-    await fireEvent.press(screen.getByTestId('fixtures-tab-cancelled'));
+    await fireEvent.press(screen.getByTestId('fixtures-tab-off'));
     expect(screen.getByTestId('fixtures-text-none')).toBeOnTheScreen();
   });
 

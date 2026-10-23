@@ -116,7 +116,7 @@ export function createFixtureUpdateOperations(ctx: ServiceContext): FixtureUpdat
           }
           const requested = patch.status ?? fixture.status;
           if (touches(patch, SCHEDULE) && (PLAYED.includes(fixture.status) || policy.fixtureSchedule === 'forbidden')) {
-            throw failure('FORBIDDEN_STATE', 'This fixture has been played, so its date, time and venue stay as they were.');
+            throw failure('FORBIDDEN_STATE', "This fixture has been played. Its date, time and venue can't change.");
           }
           if (touches(patch, RULES) && fixture.matchId !== null) {
             throw failure('FORBIDDEN_STATE', "This fixture's match has started. Change its rules from the match instead.");

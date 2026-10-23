@@ -2,7 +2,7 @@ import '../../testing';
 import { act, screen } from '@testing-library/react-native';
 import { getAnimatedStyle } from 'react-native-reanimated';
 import { renderWithTheme } from '../../testing';
-import { OverStrip, overStripAccessibilityLabel, type OverBall } from '..';
+import { FREE_HIT_MARK, OverStrip, overStripAccessibilityLabel, type OverBall } from '..';
 
 const BALLS: readonly OverBall[] = [
   { text: '1', kind: 'runs', isFreeHit: false, accessibilityLabel: 'One run' },
@@ -18,7 +18,7 @@ describe('OverStrip', () => {
     await renderWithTheme(<OverStrip balls={BALLS} remaining={1} runs="8" />);
     const strip = screen.getByTestId('score-row-over');
     for (const [index, ball] of BALLS.entries()) {
-      expect(screen.getByTestId(`score-chip-ball-${index + 1}`, { includeHiddenElements: true })).toHaveTextContent(ball.text);
+      expect(screen.getByTestId(`score-chip-ball-${index + 1}`, { includeHiddenElements: true })).toHaveTextContent(ball.isFreeHit ? `${ball.text}${FREE_HIT_MARK}` : ball.text);
     }
     expect(screen.getByText('THIS OVER', { includeHiddenElements: true })).toBeOnTheScreen();
     expect(screen.getByText('RUNS', { includeHiddenElements: true })).toBeOnTheScreen();

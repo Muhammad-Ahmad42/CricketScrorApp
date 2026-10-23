@@ -3,44 +3,48 @@ import { composite, contrastRatio, createTheme, darkColors, lightColors, parseCo
 type Pair = readonly [ColorToken, ColorToken, number, number | null, number];
 
 const PAIRS: readonly Pair[] = [
-  ['textPrimary', 'background', 15.45, 15.87, 4.5],
-  ['textPrimary', 'surface', 17.16, 14.74, 4.5],
-  ['textPrimary', 'surfaceElevated', 17.16, 13.17, 4.5],
-  ['textPrimary', 'surfaceSunken', 14.13, 16.69, 4.5],
-  ['textSecondary', 'background', 7.71, 9.45, 4.5],
-  ['textSecondary', 'surface', 8.56, 8.78, 4.5],
-  ['textSecondary', 'surfaceElevated', 8.56, 7.84, 4.5],
-  ['textMuted', 'background', 4.99, 6.1, 4.5],
-  ['textMuted', 'surface', 5.54, 5.67, 4.5],
-  ['textMuted', 'surfaceElevated', 5.54, 5.06, 4.5],
-  ['textMuted', 'surfaceSunken', 4.56, 6.41, 4.5],
-  ['score', 'background', 16.82, 17.23, 3],
-  ['score', 'surface', 18.68, 16.01, 3],
-  ['accent', 'background', 7.14, 8.37, 4.5],
-  ['accent', 'surface', 7.92, 7.78, 4.5],
-  ['accent', 'surfaceElevated', 7.92, 6.95, 4.5],
-  ['accent', 'accentSubtle', 6.55, 6.11, 4.5],
-  ['onAccent', 'accent', 7.92, 8.12, 4.5],
-  ['onAccent', 'accentPressed', 10.22, 6.32, 4.5],
-  ['textPrimary', 'accentSubtle', 14.18, 11.59, 4.5],
-  ['success', 'surface', 6.53, 8.38, 4.5],
-  ['success', 'successSubtle', 5.52, 6.85, 4.5],
-  ['warning', 'surface', 6.33, 9.05, 4.5],
-  ['warning', 'warningSubtle', 5.55, 7.49, 4.5],
-  ['danger', 'surface', 6.54, 7.04, 4.5],
-  ['danger', 'background', 5.89, 7.57, 4.5],
-  ['danger', 'dangerSubtle', 5.54, 6.21, 4.5],
-  ['onDanger', 'danger', 6.54, 7.68, 4.5],
-  ['textPrimary', 'warningSubtle', 15.04, 12.2, 4.5],
-  ['textPrimary', 'dangerSubtle', 14.53, 13.01, 4.5],
-  ['borderStrong', 'surface', 3.6, 3.25, 3],
-  ['borderStrong', 'background', 3.24, 3.5, 3],
-  ['focusRing', 'background', 7.14, 10.87, 3],
-  ['focusRing', 'surface', 7.92, 10.1, 3],
-  ['chartSeries1', 'surface', 4.94, 5.95, 3],
-  ['chartSeries2', 'surface', 4.85, 5.67, 3],
-  ['chartSeries1', 'background', 4.45, 6.4, 3],
-  ['chartSeries2', 'background', 4.37, 6.1, 3],
+  ['textPrimary', 'background', 14.83, 18, 4.5],
+  ['textPrimary', 'surface', 16.29, 16.82, 4.5],
+  ['textPrimary', 'surfaceElevated', 16.29, 15.23, 4.5],
+  ['textPrimary', 'surfaceSunken', 13.47, 18.53, 4.5],
+  ['textSecondary', 'background', 6.88, 7.72, 4.5],
+  ['textSecondary', 'surface', 7.56, 7.22, 4.5],
+  ['textSecondary', 'surfaceElevated', 7.56, 6.53, 4.5],
+  ['textSecondary', 'surfaceSunken', 6.25, 7.95, 4.5],
+  ['textMuted', 'background', 5.13, 6.35, 4.5],
+  ['textMuted', 'surface', 5.63, 5.93, 4.5],
+  ['textMuted', 'surfaceElevated', 5.63, 5.37, 4.5],
+  ['textMuted', 'surfaceSunken', 4.66, 6.53, 4.5],
+  ['score', 'background', 16.25, 18.82, 3],
+  ['score', 'surface', 17.85, 17.58, 3],
+  ['accent', 'background', 6.59, 9.06, 4.5],
+  ['accent', 'surface', 7.23, 8.47, 4.5],
+  ['accent', 'surfaceElevated', 7.23, 7.67, 4.5],
+  ['accent', 'accentSubtle', 6.09, 6.87, 4.5],
+  ['onAccent', 'accent', 7.23, 9.28, 4.5],
+  ['onAccent', 'accentPressed', 9.93, 6.76, 4.5],
+  ['onAccent', 'accentDeep', 5.54, 4.95, 4.5],
+  ['textPrimary', 'accentSubtle', 13.71, 13.63, 4.5],
+  ['success', 'surface', 5.7, 9.54, 4.5],
+  ['success', 'successSubtle', 4.88, 8.06, 4.5],
+  ['warning', 'surface', 6.51, 10.49, 4.5],
+  ['warning', 'warningSubtle', 5.72, 9.23, 4.5],
+  ['danger', 'surface', 5.63, 5.69, 4.5],
+  ['danger', 'background', 5.13, 6.09, 4.5],
+  ['danger', 'dangerSubtle', 4.79, 5.41, 4.5],
+  ['onDanger', 'danger', 5.63, 6.13, 4.5],
+  ['textPrimary', 'warningSubtle', 14.32, 14.79, 4.5],
+  ['textPrimary', 'dangerSubtle', 13.84, 15.99, 4.5],
+  ['borderStrong', 'surface', 3.92, 3.68, 3],
+  ['borderStrong', 'background', 3.57, 3.94, 3],
+  ['focusRing', 'background', 3.66, 11.38, 3],
+  ['focusRing', 'surface', 4.02, 10.63, 3],
+  ['highlight', 'background', 3.66, 11.38, 3],
+  ['highlight', 'surface', 4.02, 10.63, 3],
+  ['chartSeries1', 'surface', 3.49, 6.01, 3],
+  ['chartSeries2', 'surface', 6.17, 4.0, 3],
+  ['chartSeries1', 'background', 3.18, 6.43, 3],
+  ['chartSeries2', 'background', 5.62, 4.28, 3],
 ];
 
 const TOLERANCE = 0.06;
@@ -76,6 +80,16 @@ describe('WCAG contrast of every component pairing (DESIGN_SYSTEM §1.3)', () =>
     }
   });
 
+  it('keeps the six chip digit readable on the deep teal fill and keeps the bright highlight off text in light (§107)', () => {
+    for (const palette of [lightColors, darkColors]) {
+      expect(contrastRatio(palette.onAccent, palette.accentDeep)).toBeGreaterThanOrEqual(4.5);
+      expect(contrastRatio(palette.highlight, palette.background)).toBeGreaterThanOrEqual(3);
+    }
+    expect(contrastRatio(lightColors.highlight, lightColors.surface)).toBeLessThan(4.5);
+    expect(contrastRatio('#008BA3', '#FFFFFF')).toBeLessThan(4.5);
+    expect(contrastRatio(lightColors.accent, lightColors.surface)).toBeGreaterThanOrEqual(7);
+  });
+
   it('keeps large score text above 3:1 on the scoring pad well and pressed keys', () => {
     for (const palette of [lightColors, darkColors]) {
       expect(contrastRatio(palette.score, palette.surfaceSunken)).toBeGreaterThanOrEqual(3);
@@ -109,9 +123,9 @@ describe('colour maths', () => {
 
   it('parses rgba and composites translucent colours over their background', () => {
     const scrim = parseColor(lightColors.scrim);
-    expect(scrim).toEqual({ r: 17, g: 19, b: 16, a: 0.4 });
+    expect(scrim).toEqual({ r: 6, g: 26, b: 32, a: 0.4 });
     const mixed = composite(scrim, parseColor('#FFFFFF'));
-    expect(mixed.r).toBeCloseTo(17 * 0.4 + 255 * 0.6, 5);
+    expect(mixed.r).toBeCloseTo(6 * 0.4 + 255 * 0.6, 5);
     expect(contrastRatio('rgba(0,0,0,0.5)', '#FFFFFF')).toBeGreaterThan(1);
   });
 

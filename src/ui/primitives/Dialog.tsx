@@ -1,8 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import {
-  KeyboardAvoidingView,
   Modal,
-  Platform,
   StyleSheet,
   View,
   useWindowDimensions,
@@ -11,12 +9,14 @@ import {
 } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { GlassMaterial } from '../glass/GlassMaterial';
+import { useKeyboardOverlap } from '../layout/keyboard';
 import { REDUCED_FADE_MS } from '../motion/easing';
 import { useEntrance } from '../motion/useEntrance';
-import { space, useTheme } from '../theme';
+import { SurfaceLevelScope, space, useTheme } from '../theme';
 import { motionDuration } from '../theme/tokens';
 import { Text } from '../typography';
 import { moveAccessibilityFocus } from './internal/accessibilityFocus';
+import { OverlayReadyProvider, useOverlaySettled } from './internal/overlayReady';
 import { Button } from './Button';
 
 export interface DialogAction {
@@ -61,11 +61,13 @@ export function Dialog({
 }: DialogProps) {
   const theme = useTheme();
   const window = useWindowDimensions();
+  const keyboard = useKeyboardOverlap();
   const [mounted, setMounted] = useState(visible);
   const titleRef = useRef<RNText>(null);
   const cancelRef = useRef<RNView>(null);
   const entrance = useEntrance({ visible, enter: 'fast', exit: 'exit', scale: 0.98 });
   const scrim = useEntrance({ visible, enter: 'fast', exit: 'exit' });
+  const settled = useOverlaySettled(visible, theme.motion.reduced ? REDUCED_FADE_MS : motionDuration.base);
 
   if (visible && !mounted) {
     setMounted(true);
@@ -120,8 +122,8 @@ export function Dialog({
   );
 
   return (
-    <Modal visible transparent animationType="none" statusBarTranslucent onRequestClose={onRequestClose}>
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.fill}>
+    <Modal visible transparent animationType="none" statusBarTranslucent navigationBarTranslucent onRequestClose={onRequestClose}>
+      <View testID={`${testID}-keyboard`} style={[styles.fill, { paddingBottom: keyboard }]}>
         <View style={styles.center}>
           <Animated.View
             style={[StyleSheet.absoluteFill, { backgroundColor: theme.glass.scrim.color }, scrim]}
@@ -142,14 +144,16 @@ export function Dialog({
                 {message}
               </Text>
             ) : null}
-            {children}
+            <OverlayReadyProvider ready={settled}>
+              <SurfaceLevelScope level="raised">{children}</SurfaceLevelScope>
+            </OverlayReadyProvider>
             <View style={stacked ? styles.actionsStacked : styles.actionsRow}>
               {cancelButton}
               {confirmButton}
             </View>
           </Animated.View>
         </View>
-      </KeyboardAvoidingView>
+      </View>
     </Modal>
   );
 }

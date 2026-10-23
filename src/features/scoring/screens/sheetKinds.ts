@@ -2,6 +2,7 @@ export type SheetKind =
   | 'extras'
   | 'wicket'
   | 'more'
+  | 'match_menu'
   | 'change_bowler'
   | 'retire'
   | 'penalty'

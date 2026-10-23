@@ -3,6 +3,7 @@ import { View } from 'react-native';
 import type { MatchRules } from '@/domain/types';
 import type { RulesIssue } from '@/domain/scoring/presets';
 import { Banner, ListRow, SectionHeader, type StateAction } from '@/ui';
+import { scannable } from '@/features/scoring/selectors/scannable';
 import { RuleSheet } from '../sheets/RuleSheet';
 import { RULE_KEYS, RULE_TITLE, ruleValue, type RuleKey } from '../selectors/rules';
 
@@ -20,9 +21,18 @@ export function RulesEditor({ rules, issues, onChange, locked = false, action, h
   return (
     <View testID="rules-editor">
       <SectionHeader title="Rules" action={action} />
-      {issues.map((issue) => (
-        <Banner key={`${issue.code}-${issue.message}`} tone={issue.severity === 'error' ? 'danger' : 'warning'} message={issue.message} testID={`rules-issue-${issue.code}`} />
-      ))}
+      {issues.map((issue) => {
+        const text = scannable(issue);
+        return (
+          <Banner
+            key={`${issue.code}-${issue.message}`}
+            tone={issue.severity === 'error' ? 'danger' : 'warning'}
+            message={text.headline}
+            detail={text.detail}
+            testID={`rules-issue-${issue.code}`}
+          />
+        );
+      })}
       {RULE_KEYS.filter((key) => !hidden.includes(key)).map((key) => (
         <ListRow
           key={key}

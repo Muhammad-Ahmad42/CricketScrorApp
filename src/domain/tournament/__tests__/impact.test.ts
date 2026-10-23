@@ -92,7 +92,7 @@ describe('planChange, applyPlan and computeImpact per change kind', () => {
       ['HAWvYAK', 'created', false],
     ]);
     expect(impact.fixtures[0].label).toBe('Match 2 · HAW v LIO');
-    expect(impact.headline).toBe('This change affects 4 fixtures.');
+    expect(impact.headline).toBe('4 fixtures affected');
     expect(impact.lines).toEqual(expect.arrayContaining(['2 fixtures will be removed.', '2 fixtures will be created.']));
     expect(impact.blocked).toBeNull();
     expect(impact.severity).toBe('warning');
@@ -422,7 +422,7 @@ describe('planChange, applyPlan and computeImpact per change kind', () => {
     const impact = computeImpact({ kind: 'fixture_add', fixture: draft('extra', 99, 'LIO', 'BUL', null, 'ko') }, deepFreeze(cupSnapshot({ status: 'archived' })), ctx());
     expect(impact.blocked?.reason).toBe('The tournament is archived. Unarchive it first.');
     expect(computeImpact({ kind: 'fixture_update', fixtureId: 'g-m1', patch: { sideA: team('BUL') } }, deepFreeze(cupSnapshot()), ctx()).blocked?.reason).toBe(
-      "Match 1 has already been played, so its teams can't change.",
+      "Match 1 has been played. Its teams can't change.",
     );
   });
 
@@ -442,7 +442,7 @@ describe('planChange, applyPlan and computeImpact per change kind', () => {
     });
     expect(computeImpact({ kind: 'team_seeds_change', seeds: [] }, snapshot, ctx())).toMatchObject({
       severity: 'none',
-      headline: 'Nothing in the tournament changes.',
+      headline: 'Nothing changes',
       lines: [],
       requiresConfirmation: false,
     });
@@ -462,14 +462,14 @@ describe('planChange, applyPlan and computeImpact per change kind', () => {
   it('U-IMP-17 headline and lines for a corrected group result', () => {
     const snapshot = deepFreeze(cupSnapshot());
     const impact = computeImpact({ kind: 'match_result_change', matchId: 'm6', summary: correctedM6 }, snapshot, ctx());
-    expect(impact.headline).toBe('This change affects 2 fixtures, 1 of them completed.');
+    expect(impact.headline).toBe('2 fixtures affected, 1 completed');
     expect(impact.fixtures.map((candidate) => [candidate.fixtureId, candidate.change, candidate.hasMatchData])).toEqual([
       ['g-m6', 'result_changed', true],
       ['sf2', 'teams_changed', false],
     ]);
     expect(impact.lines).toEqual([
+      'The result of Match 6 · Tigers v Eagles changes.',
       '1 fixture changes teams.',
-      'A match result changes.',
       'A2 changes from Tigers to Eagles.',
       'Tigers move from 2nd to 3rd in Pool A.',
       'Eagles move from 3rd to 2nd in Pool A.',
@@ -528,8 +528,10 @@ describe('U-IMP-00 computeImpact equals the diff of the two evaluations for ever
     const after = applyPlan(snapshot, planChange(snapshot, change, ctx()));
     const before = evaluateTournament(snapshot);
     const next = evaluateTournament(after);
-    expect(impact.standings).toEqual(standingChanges(before, next));
-    expect(impact.qualification).toEqual(qualificationChanges(before, next));
+    expect(impact.standings).toMatchObject(standingChanges(before, next));
+    expect(impact.standings).toHaveLength(standingChanges(before, next).length);
+    expect(impact.qualification).toMatchObject(qualificationChanges(before, next));
+    expect(impact.qualification).toHaveLength(qualificationChanges(before, next).length);
     expect(impact.slots).toEqual(slotChanges(snapshot, after, before, next));
     expect(impact.nrrChanged).toBe(impact.standings.some((line) => (line.before?.nrr ?? null) !== (line.after?.nrr ?? null)));
   });

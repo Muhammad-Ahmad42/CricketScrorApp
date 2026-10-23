@@ -13,7 +13,8 @@ import { COPY } from '../copy';
 import { useEnsureSettingsLoaded, useSettingsWriter } from '../hooks/useSettingsWriter';
 import { readAppInfo } from '../platform/appInfo';
 import { presetRows } from '../selectors/presets';
-import { selectSettingsVM, transparencyNote } from '../selectors/settings';
+import { problemText } from '../selectors/problem';
+import { selectSettingsVM } from '../selectors/settings';
 import { DefaultFormatSheet } from '../sheets/DefaultFormatSheet';
 
 export function SettingsScreen() {
@@ -25,6 +26,7 @@ export function SettingsScreen() {
   const [app] = useState(readAppInfo);
   const vm = selectSettingsVM(settings, FORMAT_PRESETS);
   const systemReducedTransparency = useSystemAccessibility('reduceTransparency');
+  const loadProblem = problemText(COPY.settingsLoadFailed);
 
   const open = (route: SettingsRoute) => router.push(SETTINGS_ROUTES[route]);
   const chooseFormat = (formatId: FormatId) => {
@@ -35,12 +37,13 @@ export function SettingsScreen() {
   };
 
   return (
-    <Screen testID="screen-settings" barTitle="Settings" ambient>
+    <Screen testID="screen-settings" barTitle="Settings">
       <ScreenHeader title="Settings" />
       {loading.failed ? (
         <Banner
           tone="danger"
-          message={COPY.settingsLoadFailed}
+          message={loadProblem.headline}
+          supporting={loadProblem.supporting}
           action={{ label: COPY.tryAgain, onPress: loading.retry, testID: 'settings-btn-retry-load' }}
           testID="settings-banner-load-error"
         />
@@ -51,8 +54,8 @@ export function SettingsScreen() {
         theme={vm.theme}
         onThemeChange={(theme) => void save({ theme })}
         reduceTransparency={vm.reduceTransparency}
+        systemReduceTransparency={systemReducedTransparency}
         onReduceTransparencyChange={(reduceTransparency) => void save({ reduceTransparency })}
-        transparencyNote={transparencyNote(systemReducedTransparency)}
         disabled={locked}
       />
       <ScoringSection

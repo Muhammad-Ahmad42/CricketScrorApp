@@ -17,6 +17,7 @@ export interface FloatingActionButtonProps {
   readonly placement?: FloatingActionPlacement;
   readonly offset?: number;
   readonly disabled?: boolean;
+  readonly collapsed?: boolean;
   readonly testID?: string;
 }
 
@@ -36,6 +37,7 @@ export function FloatingActionButton({
   placement = 'end',
   offset = 0,
   disabled = false,
+  collapsed = false,
   testID,
 }: FloatingActionButtonProps) {
   const theme = useTheme();
@@ -59,21 +61,25 @@ export function FloatingActionButton({
           accessibilityLabel={accessibilityLabel ?? label}
           accessibilityHint={accessibilityHint}
           accessibilityState={{ disabled }}
+          aria-disabled={disabled}
           disabled={disabled}
           onPress={onPress}
           onFocus={focus.onFocus}
           onBlur={focus.onBlur}
           style={({ pressed }) => [
             styles.press,
+            collapsed ? styles.collapsed : null,
             { borderRadius: pill },
             pressed && !disabled ? { backgroundColor: theme.glass.pressed } : null,
             focusRingStyle(theme, focus.focused),
           ]}
         >
           <Icon name={icon} size={24} color={ink} />
-          <Text variant="bodyStrong" numberOfLines={1} maxFontSizeMultiplier={1.5} style={{ color: theme.color[ink] }}>
-            {label}
-          </Text>
+          {collapsed ? null : (
+            <Text variant="bodyStrong" numberOfLines={1} maxFontSizeMultiplier={1.5} style={{ color: theme.color[ink] }}>
+              {label}
+            </Text>
+          )}
         </Pressable>
       </GlassSurface>
     </View>
@@ -94,4 +100,5 @@ const styles = StyleSheet.create({
     gap: space.xs,
     paddingHorizontal: space.lg,
   },
+  collapsed: { width: FAB_HEIGHT, paddingHorizontal: 0 },
 });
